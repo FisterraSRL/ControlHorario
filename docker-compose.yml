@@ -100,6 +100,34 @@ services:
       # The address the outside world uses. The app never guesses it from a Host
       # header: swapping Tailscale for Cloudflare has to be a change to .env.
       APP_URL_PUBLICA: ${APP_URL_PUBLICA:-}
+      # --- Sessions ---------------------------------------------------------
+      # `Secure` on the session cookie. It stays TRUE here: everything from
+      # outside arrives over the tunnel's HTTPS, and a session cookie that can
+      # travel in the clear is one that can be read off a café network. The only
+      # reason to turn it off is a local `npm run dev` over plain http.
+      API_COOKIE_SEGURA: ${API_COOKIE_SEGURA:-true}
+      API_SESION_HORAS: ${API_SESION_HORAS:-12}
+      # --- Attachments ------------------------------------------------------
+      # Medical certificates. Inside the container they live here, on the named
+      # volume below; nothing serves them as static files (docs/servidor.md §12).
+      API_DIR_ADJUNTOS: /datos/adjuntos
+      API_ADJUNTO_MAX_BYTES: ${API_ADJUNTO_MAX_BYTES:-10485760}
+      # DNIs to put on the exclusion list the first time the server sees each one,
+      # and ONLY the first time: removing somebody by hand in Configuración is
+      # final. Personal data, so it lives in .env and never in a committed file.
+      EXCLUSIONES_INICIALES: ${EXCLUSIONES_INICIALES:-}
+    volumes:
+      # A NAMED VOLUME, not a bind mount, and not the database volume either.
+      #
+      # These files are medical certificates: they must not sit in a folder the
+      # Windows side of the machine browses, gets indexed by a backup agent, or
+      # syncs to a cloud drive by accident. A named volume is reachable only
+      # through Docker, and `docker compose down` does not remove it.
+      #
+      # IT IS NOT COVERED BY THE pg_dump BACKUPS. `respaldo.sh` dumps the
+      # database, which holds the METADATA of every attachment and not its bytes.
+      # Backing this up is a separate job; see docs/servidor.md §8.7.
+      - adjuntos:/datos/adjuntos
     ports:
       # Localhost only. Everything from outside arrives through the tunnel, which
       # reaches this container over the private compose network, not through here.
@@ -231,3 +259,7 @@ volumes:
     name: controlhorario_postgres_datos
   tailscale_estado:
     name: controlhorario_tailscale_estado
+  # The attachment files. See the `api` service for why this is a named volume and
+  # why the nightly pg_dump does not cover it.
+  adjuntos:
+    name: controlhorario_adjuntos

@@ -67,6 +67,34 @@ function urlPublicaValida(crudo: string): string {
   return crudo.replace(/\/+$/, '');
 }
 
+/**
+ * Comma/whitespace separated list, empty entries dropped. Used for the runtime exclusion
+ * seed, whose values are DNIs and therefore never appear in a committed file.
+ */
+function lista(nombre: string): readonly string[] {
+  const crudo = process.env[nombre];
+  if (crudo === undefined) return [];
+  return crudo
+    .split(/[,;\s]+/)
+    .map((v) => v.trim())
+    .filter((v) => v !== '');
+}
+
+/**
+ * The file types an attachment may be. Medical certificates arrive as a phone photo or a
+ * scan, and that is the whole list: an allow-list, not a deny-list, and the extension the
+ * file is stored under is derived from THIS table rather than from the name the operator's
+ * computer happened to give it.
+ */
+export const TIPOS_ADJUNTO_PERMITIDOS: Readonly<Record<string, string>> = Object.freeze({
+  'application/pdf': 'pdf',
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/webp': 'webp',
+  'image/heic': 'heic',
+  'image/heif': 'heif',
+});
+
 export interface ConfiguracionApi {
   readonly host: string;
   readonly puerto: number;
@@ -80,9 +108,12 @@ export interface ConfiguracionApi {
   /** Cap on an upload body. A year of QUICKPASS for 200 people is well under 32 MiB. */
   readonly limiteCuerpoBytes: number;
   /**
-   * Who `cargas.subido_por` is attributed to. There is no authentication in this slice —
-   * the Cloudflare Tunnel is the whole perimeter — so every upload is recorded against one
-   * configured operator. See docs/servidor.md, "Lo que todavía no está resuelto".
+   * The actor recorded for anything the server does with nobody logged in: the boot-time
+   * exclusion seed, and the migration runner.
+   *
+   * It is NO LONGER the author of an upload. Every `/api/*` route now runs behind a
+   * session, so `cargas.subido_por` and `auditoria.actor` carry the email of the operator
+   * who actually did it. See `autenticacion.ts`.
    */
   readonly operador: string;
   /**
@@ -98,6 +129,34 @@ export interface ConfiguracionApi {
    * Empty when nobody configured it, which is legitimate for a local `npm run dev`.
    */
   readonly urlPublica: string;
+  readonly sesion: {
+    /** Cookie name. Deliberately boring: it says nothing about the stack behind it. */
+    readonly cookie: string;
+    /**
+     * `Secure` on the session cookie. TRUE BY DEFAULT, and it has to be: the app is on the
+     * public internet through the tunnel and a session cookie that can travel over plain
+     * HTTP is a session cookie that can be read off a café network.
+     *
+     * The only reason to turn it off is a local `npm run dev` on `http://localhost`, where
+     * the browser refuses to store a Secure cookie and the login silently never sticks.
+     */
+    readonly segura: boolean;
+    /** How long a session lives. A workday, so nobody is logged out mid-afternoon. */
+    readonly horas: number;
+  };
+  readonly adjuntos: {
+    /** Absolute path of the directory the files live in. A Docker volume in production. */
+    readonly directorio: string;
+    /** Per-file cap. A phone photo of a certificate is 2-5 MB; 10 MiB is generous. */
+    readonly maxBytes: number;
+  };
+  /**
+   * DNIs to put on the exclusion list the first time the server sees each one, and only the
+   * first time. THIS IS PERSONAL DATA AND IT LIVES IN `.env`, WHICH IS GITIGNORED — the
+   * whole point of the `exclusiones` table is that the six names the legacy file hardcoded
+   * never enter source control again. See `exclusiones_semilla` in migration 002.
+   */
+  readonly exclusionesIniciales: readonly string[];
   readonly baseDeDatos: {
     readonly host: string;
     readonly puerto: number;
@@ -119,6 +178,16 @@ export function leerConfiguracion(raizProyecto: string = process.cwd()): Configu
     limiteCuerpoBytes: entero('API_LIMITE_CUERPO_BYTES', 32 * 1024 * 1024),
     operador: texto('API_OPERADOR', 'rrhh'),
     urlPublica: urlPublicaValida(texto('APP_URL_PUBLICA', '')),
+    sesion: Object.freeze({
+      cookie: texto('API_COOKIE_SESION', 'ch_sesion'),
+      segura: booleano('API_COOKIE_SEGURA', true),
+      horas: entero('API_SESION_HORAS', 12),
+    }),
+    adjuntos: Object.freeze({
+      directorio: resolve(raizProyecto, texto('API_DIR_ADJUNTOS', 'datos/adjuntos')),
+      maxBytes: entero('API_ADJUNTO_MAX_BYTES', 10 * 1024 * 1024),
+    }),
+    exclusionesIniciales: Object.freeze(lista('EXCLUSIONES_INICIALES')),
     baseDeDatos: Object.freeze({
       host: texto('PGHOST', 'postgres'),
       puerto: entero('PGPORT', 5432),

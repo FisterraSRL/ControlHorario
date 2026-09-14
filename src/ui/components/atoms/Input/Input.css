@@ -1,0 +1,33 @@
+.input {
+  border: 1px solid var(--app-border-strong);
+  border-radius: var(--app-radius-sm);
+  background: var(--app-surface);
+  color: var(--app-ink);
+  padding: var(--app-space-2) var(--app-space-3);
+  font-size: var(--app-text-body);
+  width: 100%;
+  min-width: 0;
+}
+
+.input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.input-campo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--app-space-1);
+  min-width: 0;
+}
+
+.input-campo__etiqueta {
+  font-size: var(--app-text-sm);
+  font-weight: var(--fs-weight-medium);
+  color: var(--app-ink);
+}
+
+.input-campo__ayuda {
+  font-size: var(--app-text-xs);
+  color: var(--app-muted);
+}

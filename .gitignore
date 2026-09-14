@@ -39,3 +39,6 @@ Thumbs.db
 
 # Local tooling cache (skill registry)
 .atl/
+
+# Agent worktrees
+.claude/worktrees/

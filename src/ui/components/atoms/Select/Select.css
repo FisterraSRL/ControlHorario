@@ -1,0 +1,37 @@
+.select {
+  appearance: none;
+  border: 1px solid var(--app-border-strong);
+  border-radius: var(--app-radius-sm);
+  background-color: var(--app-surface);
+  color: var(--app-ink);
+  cursor: pointer;
+  max-width: 100%;
+  /* The chevron is drawn rather than imported: one gradient pair, both theme tokens. */
+  background-image:
+    linear-gradient(45deg, transparent 50%, currentColor 50%),
+    linear-gradient(135deg, currentColor 50%, transparent 50%);
+  background-position:
+    calc(100% - 15px) calc(50% + 1px),
+    calc(100% - 10px) calc(50% + 1px);
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+}
+
+.select--md {
+  padding: var(--app-space-2) var(--app-space-6) var(--app-space-2) var(--app-space-3);
+  font-size: var(--app-text-body);
+}
+
+.select--sm {
+  padding: var(--app-space-1) var(--app-space-5) var(--app-space-1) var(--app-space-2);
+  font-size: var(--app-text-sm);
+}
+
+.select:hover:not(:disabled) {
+  background-color: var(--app-surface-2);
+}
+
+.select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

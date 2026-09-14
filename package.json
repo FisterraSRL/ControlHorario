@@ -10,12 +10,14 @@
     "build:api": "tsc -p tsconfig.api.json",
     "api": "node dist-api/api/main.js",
     "db:migrate": "node dist-api/api/migrar.js",
+    "crear-usuario": "node dist-api/api/crearUsuario.js",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc --noEmit && tsc -p tsconfig.api.json --noEmit"
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.api.json --noEmit && tsc -p tsconfig.pruebas.json --noEmit"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8",
     "@types/node": "^24.13.4",
     "@types/pg": "^8.23.1",
     "@types/react": "^19.3.0",
@@ -26,7 +28,10 @@
     "vitest": "^3.0.5"
   },
   "dependencies": {
+    "@fastify/cookie": "^11.1.2",
+    "@fastify/multipart": "^9.4.0",
     "@fastify/static": "^10.1.3",
+    "@node-rs/argon2": "^2.2.1",
     "fastify": "^5.12.4",
     "pg": "^8.23.0",
     "react": "^19.3.0",

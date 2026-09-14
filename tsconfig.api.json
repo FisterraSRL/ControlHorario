@@ -31,5 +31,16 @@
     "src/domain/**/*.ts",
     "src/ui/historial/RepositorioFichadas.ts"
   ],
-  "exclude": ["node_modules", "legacy", "dist", "dist-api", "**/*.test.ts"]
+  // Tests and their harness are excluded from the EMITTING project on purpose: `dist-api`
+  // is copied wholesale into the container image, and `src/api/pruebas` imports PGlite,
+  // a devDependency the runtime image does not install. They are typechecked instead by
+  // `tsconfig.pruebas.json`, which emits nothing.
+  "exclude": [
+    "node_modules",
+    "legacy",
+    "dist",
+    "dist-api",
+    "**/*.test.ts",
+    "src/api/pruebas"
+  ]
 }

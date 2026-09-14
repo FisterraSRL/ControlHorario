@@ -56,3 +56,24 @@
   font-variant-numeric: var(--app-numeric);
   white-space: nowrap;
 }
+
+/* Who is logged in, and the way out.
+
+   `margin-left: auto` on both this and `.topbar__periodo` is intentional: on a screen with
+   a period control the two share the free space and this one stays last, and on Cargar
+   datos — which has no period — this one takes it all and still sits at the far end. */
+.topbar__cuenta {
+  display: flex;
+  align-items: center;
+  gap: var(--app-space-2);
+  margin-left: auto;
+}
+
+.topbar__operador {
+  font-size: var(--app-text-sm);
+  color: var(--app-muted);
+  max-width: 24ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

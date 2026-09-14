@@ -16,7 +16,9 @@ import { leerConfiguracion, ErrorConfiguracion } from './config.js';
 import { crearPool } from './db.js';
 import { errorParaLog } from './errores.js';
 import { aplicarMigraciones } from './migraciones.js';
+import { crearRepositorioConfiguracion } from './repositorioConfiguracion.js';
 import { construirServidor } from './servidor.js';
+import { limpiarSesionesVencidas } from './sesiones.js';
 
 async function main(): Promise<void> {
   const config = leerConfiguracion();
@@ -31,6 +33,40 @@ async function main(): Promise<void> {
         yaEstaban: resultado.yaEstaban.length,
       },
       resultado.aplicadas.length > 0 ? 'migraciones aplicadas' : 'esquema al día',
+    );
+  }
+
+  /**
+   * Housekeeping, in this order, before the port is bound.
+   *
+   * Both are cheap, both are idempotent, and both are the kind of thing that never runs if
+   * it depends on somebody remembering to run it.
+   */
+  const vencidas = await limpiarSesionesVencidas(pool);
+  if (vencidas > 0) app.log.info({ sesiones: vencidas }, 'sesiones vencidas eliminadas');
+
+  /**
+   * The runtime exclusion seed, applied once per DNI ever.
+   *
+   * This is the port of `ensureDefaultExclusions()` from the legacy file, and the property
+   * being preserved is the one that matters: an operator who takes somebody off the list in
+   * Configuración does NOT find them back on it after the next restart. `exclusiones_semilla`
+   * remembers that the seed already ran for that person; only a DNI nobody has ever seeded
+   * is added.
+   *
+   * The DNIs come from the environment and never from a file in the repository. See the
+   * comment on `exclusiones` in db/migrations/001_initial.sql for why that rule exists.
+   */
+  if (config.exclusionesIniciales.length > 0) {
+    const configuracion = crearRepositorioConfiguracion(pool);
+    const agregadas = await configuracion.sembrarExclusiones(
+      config.exclusionesIniciales,
+      config.operador,
+    );
+    // A count. Never the DNIs: this line goes to the log file that gets pasted into a chat.
+    app.log.info(
+      { recibidos: config.exclusionesIniciales.length, agregadas },
+      'semilla de exclusiones aplicada',
     );
   }
 

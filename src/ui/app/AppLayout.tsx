@@ -12,8 +12,9 @@ import { Outlet, useLocation } from 'react-router-dom';
 import { Sidebar } from '../components/organisms/Sidebar/Sidebar.js';
 import type { ItemSidebar } from '../components/organisms/Sidebar/Sidebar.js';
 import { Topbar } from '../components/organisms/Topbar/Topbar.js';
-import { configuracionPorDefecto } from '../features/configuracion/configuracion.js';
+import { useConfiguracion } from '../configuracion/ConfiguracionProvider.js';
 import { useHistorial } from '../historial/HistorialProvider.js';
+import { useSesion } from '../sesion/SesionProvider.js';
 import { usePeriodo } from '../periodo/PeriodoProvider.js';
 import {
   MODOS_PERIODO,
@@ -44,8 +45,11 @@ export function AppLayout() {
   const { pathname } = useLocation();
   const { periodo, rango, cambiarModo, desplazar } = usePeriodo();
   const { registros, cargando } = useHistorial();
-
-  const cfg = useMemo(configuracionPorDefecto, []);
+  const { sesion, repositorios, cerrar } = useSesion();
+  // The engine config WITHOUT the decisions: `registros` already carries each day's motivo,
+  // resolved by `HistorialProvider`, and the weekly report only needs the motivos list and
+  // the contractual hours to turn them into counts.
+  const { paraElMotor: cfg } = useConfiguracion();
 
   const contadores = useMemo(() => {
     if (cargando) return CONTADORES_VACIOS;
@@ -89,6 +93,11 @@ export function AppLayout() {
           onDesplazar={desplazar}
           etiquetaAncla={etiquetaAncla(periodo.ancla)}
           etiquetaRango={etiquetaRango(rango)}
+          operador={sesion?.operador.nombre ?? null}
+          sinServidor={!repositorios.conServidor}
+          onSalir={() => {
+            void cerrar();
+          }}
         />
       }
     >

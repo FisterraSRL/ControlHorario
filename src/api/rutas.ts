@@ -1,7 +1,5 @@
 /**
- * The HTTP surface.
- *
- * It is `RepositorioFichadas` and nothing else:
+ * The evidence endpoints, and `/health`.
  *
  *     listar()          ->  GET    /api/fichadas
  *     upsert(filas)     ->  POST   /api/fichadas
@@ -9,9 +7,15 @@
  *
  * plus `/health`, which is for the person on call, not for the app.
  *
- * There is no endpoint for ausencias, motivos, solicitudes or notificaciones. Those tables
- * exist in the schema because slices 2 and 3 need them, and an endpoint written now against
- * a screen that does not exist yet is a guess that has to be un-guessed later.
+ * The decision endpoints — ausencias, configuración, adjuntos — live in their own
+ * `rutas*.ts` files next to this one. Solicitudes and notificaciones still have none:
+ * those tables exist because slice 3 needs them, and an endpoint written now against a
+ * screen that does not exist yet is a guess that has to be un-guessed later.
+ *
+ * THE UPLOAD DOES TWO THINGS. It writes the evidence, and then it re-derives the absence
+ * registry from it — the port of the legacy `recompute()`, which called
+ * `syncAusenciasHistorial()` and `pruneStaleAusencias()` on every load. See
+ * `repositorioAusencias.ts` for why that cannot be a view.
  *
  * NO RESPONSE SCHEMA ON `GET /api/fichadas`. Fastify serialises through the response schema
  * and strips anything the schema does not mention — which would quietly delete every
@@ -19,15 +23,19 @@
  * purpose is to be complete. The rows are serialised as-is.
  */
 
-import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import type { FastifyInstance } from 'fastify';
 
 import type { FilaQuickpass } from '../domain/fichadas/tipos.js';
+import { operadorDe } from './autenticacion.js';
 import type { ConfiguracionApi } from './config.js';
-import { codigoPg, CODIGO_PG, errorDbParaLog } from './errores.js';
+import { errorDbParaLog } from './errores.js';
 import { contarMigracionesAplicadas } from './migraciones.js';
 import { ESQUEMA_CUERPO_UPSERT } from './esquemas.js';
 import type { Pool } from './db.js';
+import type { RepositorioAusenciasPostgres } from './repositorioAusencias.js';
+import type { RepositorioConfiguracionPostgres } from './repositorioConfiguracion.js';
 import type { RepositorioFichadasPostgres } from './repositorioPostgres.js';
+import { responderErrorDb } from './respuestas.js';
 
 /**
  * `cargas.archivo` is NOT NULL and it should hold the name of the spreadsheet. The port
@@ -36,6 +44,9 @@ import type { RepositorioFichadasPostgres } from './repositorioPostgres.js';
  * the fix, and it is a deliberate non-goal of this slice; inventing a plausible-looking
  * filename here would be worse than recording that nobody told us. See docs/servidor.md,
  * section 11.
+ *
+ * `cargas.subido_por` no longer has this problem: it is the email of the operator whose
+ * session made the request.
  */
 const ARCHIVO_NO_INFORMADO = '(no informado por el cliente)';
 
@@ -47,46 +58,17 @@ export interface DependenciasRutas {
   readonly config: ConfiguracionApi;
   readonly pool: Pool;
   readonly repositorio: RepositorioFichadasPostgres;
+  readonly ausencias: RepositorioAusenciasPostgres;
+  readonly configuracion: RepositorioConfiguracionPostgres;
   /** Set once at boot so `/health` can report it without a query. */
   readonly iniciadoEn: number;
-}
-
-/**
- * Every failure that reaches the client is one of these. The body never quotes the
- * database, and never quotes the request: a Postgres error message can contain the values
- * of the row that broke a constraint, and those values are DNIs.
- */
-function responderErrorDb(peticion: FastifyRequest, respuesta: FastifyReply, e: unknown): void {
-  const codigo = codigoPg(e);
-  peticion.log.error(errorDbParaLog(e), 'fallo de base de datos');
-
-  if (codigo === CODIGO_PG.tablaInexistente) {
-    void respuesta.code(503).send({
-      error: 'base_sin_migrar',
-      mensaje:
-        'La base de datos no tiene el esquema aplicado. Corré las migraciones ' +
-        '(docs/servidor.md, "Aplicar las migraciones").',
-    });
-    return;
-  }
-  if (codigo !== undefined) {
-    void respuesta.code(503).send({
-      error: 'base_de_datos',
-      mensaje: 'La base de datos rechazó la operación. Revisá los logs del contenedor api.',
-    });
-    return;
-  }
-  void respuesta.code(500).send({
-    error: 'interno',
-    mensaje: 'Ocurrió un error inesperado en el servidor.',
-  });
 }
 
 export async function registrarRutas(
   app: FastifyInstance,
   deps: DependenciasRutas,
 ): Promise<void> {
-  const { config, pool, repositorio, iniciadoEn } = deps;
+  const { config, pool, repositorio, ausencias, configuracion, iniciadoEn } = deps;
 
   /**
    * The one thing to curl at 23:00. 200 means the API is up AND the database answered;
@@ -133,10 +115,11 @@ export async function registrarRutas(
     '/api/fichadas',
     { schema: { body: ESQUEMA_CUERPO_UPSERT } },
     async (peticion, respuesta) => {
+      const operador = operadorDe(peticion);
       try {
         const resultado = await repositorio.upsert(peticion.body.filas, {
           archivo: ARCHIVO_NO_INFORMADO,
-          subidoPor: config.operador,
+          subidoPor: operador.email,
         });
         // Counts only. Nothing about who or which day is in this line.
         peticion.log.info(
@@ -151,6 +134,29 @@ export async function registrarRutas(
           },
           'carga aplicada',
         );
+
+        /**
+         * Re-derive the registry from the WHOLE historial, not from the rows just uploaded.
+         *
+         * That is what the legacy `recompute()` did, and it is what makes a rule fix
+         * retroactive: deploy a corrected engine, upload anything, and every day in the
+         * history is re-evaluated in the same pass. It also means a re-upload that turns an
+         * absence into a worked day prunes the orphaned registry row — conservatively; see
+         * `repositorioAusencias.ts`.
+         *
+         * A failure here is NOT a failed upload. The evidence is committed and the operator
+         * must not be told otherwise; the registry is derived and the next upload rebuilds
+         * it. So it is logged and the 200 stands.
+         */
+        try {
+          const cfg = await configuracion.paraElMotor();
+          const filas = await repositorio.listar();
+          const sincronizacion = await ausencias.sincronizar(filas, cfg, operador.email);
+          peticion.log.info({ evento: 'ausencias_sincronizadas', ...sincronizacion }, 'registro de ausencias al día');
+        } catch (e: unknown) {
+          peticion.log.error(errorDbParaLog(e), 'no se pudo sincronizar el registro de ausencias');
+        }
+
         return await respuesta.send(resultado);
       } catch (e: unknown) {
         responderErrorDb(peticion, respuesta, e);
@@ -160,8 +166,9 @@ export async function registrarRutas(
   );
 
   app.delete('/api/fichadas', async (peticion, respuesta) => {
+    const operador = operadorDe(peticion);
     try {
-      const borradas = await repositorio.vaciar(config.operador);
+      const borradas = await repositorio.vaciar(operador.email);
       peticion.log.warn({ evento: 'vaciar_historial', borradas }, 'historial vaciado');
       return await respuesta.code(204).send();
     } catch (e: unknown) {

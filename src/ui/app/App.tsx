@@ -1,43 +1,88 @@
 /**
- * The route table and the two app-wide providers.
+ * The route table and the app-wide providers.
  *
- * One screen is real. The other five are routed to `PlaceholderScreen` so that navigation,
- * the sidebar counts and the período control can be exercised end to end without pretending
- * the screens exist.
+ * THE PROVIDER ORDER IS A DEPENDENCY ORDER, not a preference:
+ *
+ *   SesionProvider          creates every repository (together, so a build cannot end up
+ *                           half on the server and half on localStorage) and decides
+ *                           whether anybody is logged in. Nothing below it runs until it
+ *                           has an answer.
+ *     ConfiguracionProvider the engine's thresholds and the motivos list.
+ *       AusenciasProvider   the decisions already on record.
+ *         HistorialProvider derives every `RegistroDia` from the evidence PLUS the two
+ *                           above. It is last because it needs both: a day's motivo comes
+ *                           from the registry and its faults from the thresholds.
+ *           PeriodoProvider the día / semana / mes / año window the screens are read
+ *                           through. It depends on nothing and is innermost so that
+ *                           changing the period does not re-run a repository read.
+ *
+ * Three screens are real. The other three are routed to `PlaceholderScreen`: Notificaciones,
+ * Indicador and Horas trabajadas belong to a later slice, and routing them to a page that
+ * says so is more honest than a half-built table.
  */
 
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 
-import { AusenciasScreen } from '../features/ausencias/AusenciasScreen.js';
+import { AusenciasProvider } from '../ausencias/AusenciasProvider.js';
+import { ConfiguracionProvider } from '../configuracion/ConfiguracionProvider.js';
+import { AccesoContainer } from '../features/acceso/AccesoContainer.js';
+import { AusenciasContainer } from '../features/ausencias/AusenciasContainer.js';
 import { CargaContainer } from '../features/carga/CargaContainer.js';
-import { ConfiguracionScreen } from '../features/configuracion/ConfiguracionScreen.js';
+import { ConfiguracionContainer } from '../features/configuracion/ConfiguracionContainer.js';
 import { HorasScreen } from '../features/horas/HorasScreen.js';
 import { IndicadorScreen } from '../features/indicador/IndicadorScreen.js';
 import { NotificacionesScreen } from '../features/notificaciones/NotificacionesScreen.js';
 import { HistorialProvider } from '../historial/HistorialProvider.js';
 import { PeriodoProvider } from '../periodo/PeriodoProvider.js';
+import { SesionProvider, useSesion } from '../sesion/SesionProvider.js';
 import { AppLayout } from './AppLayout.js';
 import { RUTA_INICIAL } from './navegacion.js';
+
+/**
+ * The whole application, or the login screen.
+ *
+ * Nothing under `Autenticado` is mounted while there is no session, which means no provider
+ * below it ever fires a request that would come back 401 — the login screen is not a
+ * decoration over a running app, it is what runs instead of one.
+ */
+function Autenticado() {
+  const { sesion, cargando } = useSesion();
+
+  // Blank rather than a spinner: this resolves in one request against the same origin, and
+  // a flash of "cargando" before a login form reads as a broken page.
+  if (cargando) return null;
+  if (!sesion) return <AccesoContainer />;
+
+  return (
+    <ConfiguracionProvider>
+      <AusenciasProvider>
+        <HistorialProvider>
+          <PeriodoProvider>
+            <Routes>
+              <Route element={<AppLayout />}>
+                <Route path="/carga" element={<CargaContainer />} />
+                <Route path="/notificaciones" element={<NotificacionesScreen />} />
+                <Route path="/ausencias" element={<AusenciasContainer />} />
+                <Route path="/indicador" element={<IndicadorScreen />} />
+                <Route path="/horas" element={<HorasScreen />} />
+                <Route path="/configuracion" element={<ConfiguracionContainer />} />
+                {/* Anything else, including "/", lands on the upload screen. */}
+                <Route path="*" element={<Navigate to={RUTA_INICIAL} replace />} />
+              </Route>
+            </Routes>
+          </PeriodoProvider>
+        </HistorialProvider>
+      </AusenciasProvider>
+    </ConfiguracionProvider>
+  );
+}
 
 export function App() {
   return (
     <BrowserRouter>
-      <HistorialProvider>
-        <PeriodoProvider>
-          <Routes>
-            <Route element={<AppLayout />}>
-              <Route path="/carga" element={<CargaContainer />} />
-              <Route path="/notificaciones" element={<NotificacionesScreen />} />
-              <Route path="/ausencias" element={<AusenciasScreen />} />
-              <Route path="/indicador" element={<IndicadorScreen />} />
-              <Route path="/horas" element={<HorasScreen />} />
-              <Route path="/configuracion" element={<ConfiguracionScreen />} />
-              {/* Anything else, including "/", lands on the one screen that works. */}
-              <Route path="*" element={<Navigate to={RUTA_INICIAL} replace />} />
-            </Route>
-          </Routes>
-        </PeriodoProvider>
-      </HistorialProvider>
+      <SesionProvider>
+        <Autenticado />
+      </SesionProvider>
     </BrowserRouter>
   );
 }

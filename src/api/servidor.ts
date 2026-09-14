@@ -13,17 +13,35 @@
  *   * `POST /api/fichadas` logs six integers and nothing else.
  *   * database errors go through `errorDbParaLog`, which drops `detail` — the field where
  *     Postgres prints the values of the row that violated a constraint.
+ *   * no route puts a DNI in a path, so the path a log line carries is never personal data.
+ *     Identifiers travel in bodies, which are redacted. See the header of `rutasAusencias.ts`.
+ *
+ * ON ORDER. `@fastify/cookie` is registered BEFORE `registrarAcceso`, and that is not
+ * cosmetic: the plugin installs its own `onRequest` hook to parse the header, Fastify runs
+ * `onRequest` hooks in registration order, and the session guard reads `request.cookies`.
+ * Registered the other way round, every request would arrive with no cookies parsed and
+ * every operator would be permanently logged out.
  */
 
+import fastifyCookie from '@fastify/cookie';
+import fastifyMultipart from '@fastify/multipart';
 import Fastify from 'fastify';
 import type { FastifyError, FastifyInstance } from 'fastify';
 
+import { registrarAcceso } from './autenticacion.js';
 import type { ConfiguracionApi } from './config.js';
 import type { Pool } from './db.js';
 import { errorParaLog } from './errores.js';
 import { existeSpa, registrarEstatico, registrarSinSpa } from './estatico.js';
+import type { LimitadorLogin } from './limitador.js';
+import { crearRepositorioAdjuntos } from './repositorioAdjuntos.js';
+import { crearRepositorioAusencias } from './repositorioAusencias.js';
+import { crearRepositorioConfiguracion } from './repositorioConfiguracion.js';
 import { crearRepositorioPostgres } from './repositorioPostgres.js';
 import { registrarRutas } from './rutas.js';
+import { registrarRutasAdjuntos } from './rutasAdjuntos.js';
+import { registrarRutasAusencias } from './rutasAusencias.js';
+import { registrarRutasConfiguracion } from './rutasConfiguracion.js';
 
 /** The path without its query string. Nothing here puts personal data in a query today, and
  * this is what makes sure nothing does tomorrow either. */
@@ -32,9 +50,26 @@ function rutaSinConsulta(url: string): string {
   return corte === -1 ? url : url.slice(0, corte);
 }
 
+export interface OpcionesServidor {
+  /** Injected by the test suite so the login limiter's windows can be made small. */
+  readonly limitador?: LimitadorLogin;
+  /**
+   * Routes registered BEFORE the session guard exists.
+   *
+   * It is here for one test, and the test is worth it. A root-level `onRequest` hook in
+   * Fastify covers routes registered before it as well as after — verified, not assumed —
+   * so the guard in `autenticacion.ts` does not depend on being registered first. What it
+   * DOES depend on is staying at the root: wrap it in an encapsulated `register()` and it
+   * silently stops covering everything outside that scope. This hook lets a test assert
+   * the property from the harder side instead of trusting the current line order.
+   */
+  readonly rutasAntesDelGuardia?: (app: FastifyInstance) => void;
+}
+
 export async function construirServidor(
   config: ConfiguracionApi,
   pool: Pool,
+  opciones: OpcionesServidor = {},
 ): Promise<FastifyInstance> {
   const app = Fastify({
     bodyLimit: config.limiteCuerpoBytes,
@@ -104,8 +139,45 @@ export async function construirServidor(
     return respuesta.code(estado).send({ error: 'peticion_rechazada', mensaje: error.message });
   });
 
+  await app.register(fastifyCookie);
+
+  /**
+   * Multipart is registered for the whole instance because only one route uses it and
+   * scoping it would mean a plugin boundary for a single handler. `attachFieldsToBody` is
+   * off: the upload streams to disk, and attaching it to the body would mean buffering a
+   * medical certificate in memory first.
+   */
+  await app.register(fastifyMultipart, {
+    limits: {
+      fileSize: config.adjuntos.maxBytes,
+      files: 1,
+      // dni and fecha. Anything else on this form is a client that has drifted.
+      fields: 8,
+      fieldSize: 1_024,
+    },
+  });
+
+  opciones.rutasAntesDelGuardia?.(app);
+
+  const { limitador } = opciones;
+  await registrarAcceso(app, { config, pool, ...(limitador ? { limitador } : {}) });
+
   const repositorio = crearRepositorioPostgres(pool);
-  await registrarRutas(app, { config, pool, repositorio, iniciadoEn: Date.now() });
+  const ausencias = crearRepositorioAusencias(pool);
+  const configuracion = crearRepositorioConfiguracion(pool);
+  const adjuntos = crearRepositorioAdjuntos(pool, config.adjuntos.directorio);
+
+  await registrarRutas(app, {
+    config,
+    pool,
+    repositorio,
+    ausencias,
+    configuracion,
+    iniciadoEn: Date.now(),
+  });
+  registrarRutasAusencias(app, { repositorio: ausencias });
+  registrarRutasConfiguracion(app, { repositorio: configuracion });
+  registrarRutasAdjuntos(app, { config, pool, repositorio: adjuntos });
 
   if (await existeSpa(config.directorioEstatico)) {
     await registrarEstatico(app, config.directorioEstatico);

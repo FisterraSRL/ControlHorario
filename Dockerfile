@@ -48,7 +48,13 @@ COPY package.json ./
 # pasar que el contenedor aplique una migración que no es la de su propio código.
 COPY db/migrations ./db/migrations
 
-# La imagen de node trae el usuario `node` (uid 1000). Nada acá escribe en el disco.
+# El único lugar del disco donde el proceso escribe: los adjuntos. Se crea acá, con el
+# dueño correcto, porque Docker monta un volumen nuevo con el dueño del punto de montaje que
+# ya existe en la imagen — si no existiera, lo crearía root y el proceso (uid 1000) no
+# podría escribir el primer certificado. Compose monta el volumen `adjuntos` justo acá.
+RUN mkdir -p /datos/adjuntos && chown -R node:node /datos
+
+# La imagen de node trae el usuario `node` (uid 1000).
 USER node
 
 EXPOSE 8080

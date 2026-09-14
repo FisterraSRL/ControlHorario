@@ -7,6 +7,13 @@
  *
  * `registros` is derived from the FULL historial, not from the file uploaded this session —
  * that is what lets a period filter reach back into an upload whose Excel is long gone.
+ *
+ * IT DERIVES WITH THE REAL CONFIGURATION AND THE REAL DECISIONS. Until slice 2b both were
+ * constants: a hardcoded `configuracionPorDefecto()` and no absences at all, so every
+ * absence read as "sin clasificar" and every threshold was the default. Both now come from
+ * the two providers above this one, which is why they are above it: the engine needs them
+ * to produce a `RegistroDia`, and a screen that rendered before they arrived would show
+ * numbers it would then silently correct.
  */
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
@@ -17,8 +24,10 @@ import {
   type FilaQuickpass,
   type RegistroDia,
 } from '../../domain/fichadas/index.js';
-import { configuracionPorDefecto } from '../features/configuracion/configuracion.js';
-import { crearRepositorio } from './crearRepositorio.js';
+import { useAusencias } from '../ausencias/AusenciasProvider.js';
+import { useConfiguracion } from '../configuracion/ConfiguracionProvider.js';
+import { ErrorNoAutenticado } from '../http.js';
+import { useSesion } from '../sesion/SesionProvider.js';
 import type { RepositorioFichadas, ResultadoGuardado } from './RepositorioFichadas.js';
 
 interface ContextoHistorial {
@@ -47,10 +56,11 @@ export function HistorialProvider({
   /** Injected in full: the provider never reaches for a concrete adapter of its own. */
   readonly repositorio?: RepositorioFichadas;
 }) {
-  // `crearRepositorio` reads VITE_API_BASE_URL and returns the Postgres-backed HTTP adapter
-  // or the localStorage one. Injecting `repositorio` still overrides both — that is how a
-  // test or a story hands in a fake.
-  const [repo] = useState<RepositorioFichadas>(() => repositorio ?? crearRepositorio());
+  const { repositorios, expirar } = useSesion();
+  const { paraElMotor, cargando: cargandoConfiguracion } = useConfiguracion();
+  const { indiceParaElMotor, recargar: recargarAusencias } = useAusencias();
+
+  const [repo] = useState<RepositorioFichadas>(() => repositorio ?? repositorios.fichadas);
   const [filas, setFilas] = useState<readonly FilaQuickpass[]>([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -63,7 +73,12 @@ export function HistorialProvider({
         if (vigente) setFilas(almacenadas);
       })
       .catch((e: unknown) => {
-        if (vigente) setError(mensajeDeError(e));
+        if (!vigente) return;
+        if (e instanceof ErrorNoAutenticado) {
+          expirar();
+          return;
+        }
+        setError(mensajeDeError(e));
       })
       .finally(() => {
         if (vigente) setCargando(false);
@@ -71,19 +86,29 @@ export function HistorialProvider({
     return () => {
       vigente = false;
     };
-  }, [repo]);
+  }, [repo, expirar]);
 
   const guardar = useCallback(
     async (nuevas: readonly FilaQuickpass[]) => {
       setError(null);
       const resultado = await repo.upsert(nuevas);
       setFilas(await repo.listar());
+      /**
+       * The upload re-derived the absence registry on the server — `sincronizar` in
+       * `src/api/rutas.ts`, the port of the legacy `recompute()`. Without this the Ausencias
+       * screen and the sidebar count would keep showing the registry as it was before the
+       * spreadsheet that just changed it.
+       */
+      await recargarAusencias();
       return resultado;
     },
-    [repo],
+    [repo, recargarAusencias],
   );
 
-  const cfg = useMemo(configuracionPorDefecto, []);
+  const cfg = useMemo(
+    () => ({ ...paraElMotor, ausencias: indiceParaElMotor }),
+    [paraElMotor, indiceParaElMotor],
+  );
 
   const registros = useMemo(
     () => filas.map((fila) => construirRegistroDia(fila, cfg)),
@@ -97,8 +122,15 @@ export function HistorialProvider({
   }, [registros]);
 
   const valor = useMemo<ContextoHistorial>(
-    () => ({ filas, registros, sectores, cargando, error, guardar }),
-    [filas, registros, sectores, cargando, error, guardar],
+    () => ({
+      filas,
+      registros,
+      sectores,
+      cargando: cargando || cargandoConfiguracion,
+      error,
+      guardar,
+    }),
+    [filas, registros, sectores, cargando, cargandoConfiguracion, error, guardar],
   );
 
   return <HistorialContext.Provider value={valor}>{children}</HistorialContext.Provider>;

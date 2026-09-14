@@ -736,6 +736,43 @@ siempre no cuenta.
 
 Cualquiera de las tres es infinitamente mejor que ninguna. Elegí una.
 
+### 8.8 Los adjuntos se respaldan aparte
+
+**`pg_dump` no los copia.** El dump nocturno trae la base entera — incluido, de cada
+adjunto, el nombre original, el tamaño, el tipo y quién lo subió — pero **no los archivos**.
+Los archivos están en el volumen `controlhorario_adjuntos`, que Docker maneja aparte.
+
+Restaurar sólo la base deja la pantalla de Ausencias mostrando certificados que existen en
+el registro y no se pueden descargar. Es la clase de cosa que se descubre el día que hace
+falta el certificado.
+
+Copiar el volumen a la misma carpeta que los dumps:
+
+```bash
+$ cd /srv/controlhorario
+$ docker run --rm \
+    -v controlhorario_adjuntos:/datos:ro \
+    -v /srv/controlhorario/respaldos:/salida \
+    postgres:17.11-bookworm \
+    tar czf /salida/adjuntos-$(date +%%Y%%m%%d).tar.gz -C /datos .
+```
+
+Y restaurarlo:
+
+```bash
+$ docker compose stop api
+$ docker run --rm \
+    -v controlhorario_adjuntos:/datos \
+    -v /srv/controlhorario/respaldos:/entrada:ro \
+    postgres:17.11-bookworm \
+    tar xzf /entrada/ARCHIVO.tar.gz -C /datos
+$ docker compose start api
+```
+
+**Ese `.tar.gz` son certificados médicos.** Va a la misma copia fuera de la máquina que los
+dumps y con el mismo cuidado: no a una carpeta compartida, no a un pendrive que anda dando
+vueltas. `respaldos/` ya está en `.gitignore` y en `.dockerignore`.
+
 ---
 
 ## 9. Tareas comunes
@@ -835,27 +872,171 @@ túnel a `http://127.0.0.1:8080` y dejá el bloque de Compose comentado.
 
 Cosas que conviene tener en la cabeza y que este slice no cierra:
 
-1. **No hay login.** El túnel es todo el perímetro: cualquiera con la URL entra y puede
-   subir una planilla o vaciar el historial. Toda carga queda atribuida al nombre fijo de
-   `API_OPERADOR` (`rrhh`), no a una persona. Para un registro probatorio eso es poco, y es
-   lo primero que hay que agregar. Mientras tanto, **tratá la URL como una contraseña**.
-   Tailscale Funnel no ofrece autenticación de visitantes; Cloudflare Access sí, y es otro
-   motivo para la mudanza del §10.
+1. **Los adjuntos no entran en el respaldo nocturno.** `pg_dump` copia la base, y en la
+   base están el nombre, el tamaño y quién subió cada archivo — no los bytes. Los bytes
+   están en el volumen `controlhorario_adjuntos`. Un restore deja la pantalla mostrando
+   certificados que no se pueden descargar. Cómo copiarlo está en §8.8.
 
-2. **`cargas.archivo` no guarda el nombre del Excel.** El puerto `RepositorioFichadas` no lo
+2. **El límite de intentos de acceso vive en memoria.** Reiniciar la API lo borra. Con un
+   solo proceso y sin forma de que alguien de afuera lo reinicie, es un riesgo aceptado a
+   conciencia; el día que corran dos instancias, hay que moverlo a la base
+   (`src/api/limitador.ts` lo dice en su encabezado).
+
+3. **No hay recuperación de contraseña por correo, y no la va a haber.** Son tres o cuatro
+   cuentas y el servidor está en la oficina: si alguien se olvida la contraseña, se la
+   cambiás con `--reiniciar-contrasena` (§12.3). Un flujo de "olvidé mi contraseña" es una
+   superficie de ataque más para resolver algo que se resuelve caminando.
+
+4. **`cargas.archivo` no guarda el nombre del Excel.** El puerto `RepositorioFichadas` no lo
    transporta: `upsert(filas)` recibe filas y nada más. Se registra
    `(no informado por el cliente)`. Arreglarlo es ensanchar el puerto, que es un cambio de
    otro slice.
 
-3. **Las filas con `Fecha` ilegible no se guardan.** La columna `fecha` de `fichadas` es un
+5. **Las filas con `Fecha` ilegible no se guardan.** La columna `fecha` de `fichadas` es un
    `DATE` y es media clave primaria, así que una fila cuyo `Fecha` no sea `DD/MM/YYYY` no
    entra: se cuenta como *descartada* en el resumen de la carga. El adaptador de
    localStorage sí las guardaba. Si aparecen exportaciones con otro formato de fecha, se va
    a notar como una diferencia entre "filas en el archivo" y "filas guardadas".
 
-4. **Nadie te avisa si el respaldo falla.** Queda en `respaldos/ESTADO.txt` y en
+6. **Nadie te avisa si el respaldo falla.** Queda en `respaldos/ESTADO.txt` y en
    `docker compose logs backup`, pero nada te manda un correo. Miralo de vez en cuando, o
    armá algo que lo mire por vos.
 
-5. **Sos la única persona de guardia.** Está aceptado, pero conviene que alguien más sepa
+7. **Sos la única persona de guardia.** Está aceptado, pero conviene que alguien más sepa
    dónde está este documento.
+
+---
+
+## 12. Acceso: usuarios y sesiones
+
+Desde este slice **la API no contesta nada sin sesión**, salvo `/health` y el propio inicio
+de sesión. Antes el túnel era todo el perímetro y cualquiera con la URL leía el DNI, el
+legajo y las ausencias por enfermedad de toda la empresa.
+
+### 12.1 Crear el primer usuario
+
+No hay pantalla de registro y no la va a haber: las cuentas las crea quien administra el
+servidor, en el servidor.
+
+```bash
+$ cd /srv/controlhorario
+$ docker compose exec api npm run crear-usuario -- --email TU@CORREO --nombre "Nombre Apellido"
+```
+
+Pide la contraseña por teclado, dos veces, sin mostrarla. Mínimo 12 caracteres.
+
+Si `npm` se queja adentro del contenedor, el script es el mismo por la vía directa:
+
+```bash
+$ docker compose exec api node dist-api/api/crearUsuario.js --email TU@CORREO --nombre "Nombre Apellido"
+```
+
+> **La contraseña nunca se pasa como argumento.** Ni con `--contrasena`, ni "sólo esta vez".
+> Un argumento queda escrito en `~/.bash_history` apenas termina el comando y lo ve
+> cualquier otro usuario de la máquina en `ps aux` mientras corre. El script lo rechaza a
+> propósito y te dice por qué.
+>
+> Para una instalación desatendida, la otra puerta es la variable de entorno `CH_CONTRASENA`:
+>
+> ```bash
+> $ docker compose exec -e CH_CONTRASENA='...' api npm run crear-usuario -- --email TU@CORREO --nombre "Nombre"
+> ```
+>
+> Y ojo: **ese comando también queda en el historial del shell.** Si lo usás, borrá la línea
+> después (`history -d`).
+
+Si te dice que la base no tiene el esquema aplicado, corré primero las migraciones (§5).
+
+### 12.2 Entrar
+
+Abrí la dirección pública y usá el correo y la contraseña. La sesión dura 12 horas
+(`API_SESION_HORAS`) y se renueva sola cuando pasó la mitad, así que nadie se queda afuera a
+media tarde.
+
+**«Salir» borra la sesión del servidor**, no sólo de ese navegador: la cookie deja de servir
+en el instante en que se usa de nuevo, aunque alguien se la haya copiado.
+
+### 12.3 Alguien se olvidó la contraseña
+
+```bash
+$ docker compose exec api npm run crear-usuario -- --email SU@CORREO --reiniciar-contrasena
+```
+
+Pide la contraseña nueva igual que antes. No hace falta el nombre: la cuenta ya existe.
+
+### 12.4 Dar de baja a una persona
+
+No se borra la cuenta — `auditoria` referencia lo que hizo y esa historia tiene que seguir
+siendo legible. Se desactiva:
+
+```bash
+$ docker compose exec -T postgres psql -U controlhorario -d controlhorario \
+    -c "UPDATE usuarios SET activo = FALSE WHERE email = 'SU@CORREO';"
+```
+
+Efecto inmediato: la sesión que tenga abierta deja de funcionar en la petición siguiente.
+
+Para ver quién tiene cuenta:
+
+```bash
+$ docker compose exec -T postgres psql -U controlhorario -d controlhorario \
+    -c "SELECT email, nombre, activo, creado_at FROM usuarios ORDER BY email;"
+```
+
+### 12.5 Cuando no se puede entrar
+
+Andá en este orden.
+
+**«El correo o la contraseña no son correctos».** Es la única respuesta que da el servidor
+para cualquier falla de acceso: no existe el correo, la contraseña está mal, o la cuenta
+está desactivada. **Es a propósito**: distinguirlas le diría a cualquiera de afuera quién
+trabaja en RRHH de esta empresa. Comprobá con el `SELECT` de §12.4 si la cuenta existe y
+está activa; si existe, reiniciá la contraseña (§12.3).
+
+**«Hubo demasiados intentos de acceso».** El límite es de 8 intentos por cuenta cada 15
+minutos, más un tope general para todo el servidor. Esperá los minutos que dice y volvé a
+probar. Si hay que destrabarlo ya, reiniciar la API borra el contador — vive en memoria:
+
+```bash
+$ docker compose restart api
+```
+
+**Entra y se cae de la sesión sola.** Casi siempre es `API_COOKIE_SEGURA=true` con una
+dirección `http://` sin `s`. El navegador se niega a guardar una cookie `Secure` que no
+viajó por HTTPS, así que el login «funciona» y la sesión no queda. Por la dirección pública
+del túnel (que es HTTPS) tiene que estar en `true`; sólo un `npm run dev` local sobre
+`http://localhost` necesita `false`.
+
+**Nadie puede entrar y `/health` contesta `ok:true`.** Fijate si hay algún usuario activo:
+un `UPDATE usuarios SET activo = FALSE` de más deja a todo el mundo afuera. Se arregla con
+el `SELECT` y el `UPDATE` de §12.4, o creando una cuenta nueva con §12.1.
+
+### 12.6 Qué queda registrado
+
+En `auditoria`, y sin datos de más:
+
+| Acción | Qué guarda |
+|---|---|
+| `login` | el correo de quien entró |
+| `login_fallido` | sólo que hubo un intento fallido. **Nunca el correo probado**: "alguien intentó entrar como ana@" es una frase sobre Ana |
+| `logout` | el correo |
+| `motivo_asignado` / `motivo_quitado` | quién, qué día (`DNI\|AAAA-MM-DD`) y los ids del motivo nuevo y del anterior. **Nunca la etiqueta**: una etiqueta es «Enfermedad» |
+| `adjunto_subido` / `adjunto_descargado` / `adjunto_eliminado` | quién, qué día y el id del archivo. **Nunca el nombre del archivo** |
+| `config_actualizada`, `exclusion_agregada`, `exclusion_quitada`, `motivo_creado`… | quién y qué cambió |
+
+Los logs del contenedor no llevan nada de esto: una línea de log tiene contadores y códigos,
+nunca una fila. Ver el encabezado de `src/api/servidor.ts`.
+
+### 12.7 Los adjuntos no son archivos estáticos
+
+Son certificados médicos. No hay ninguna URL bajo la que un servidor web los entregue: se
+bajan por `GET /api/adjuntos/:id/archivo`, que verifica la sesión, responde
+`Content-Disposition: attachment` (el navegador lo guarda, no lo abre en pantalla) y
+`Cache-Control: no-store`.
+
+En el disco están con un nombre generado (un UUID y una extensión sacada del tipo
+validado), nunca con el nombre que traía el archivo de la computadora de quien lo subió: ese
+nombre es un dato, vive en la base y se muestra en pantalla, y no toca jamás una ruta.
+
+Se aceptan PDF y fotos (JPG, PNG, WEBP, HEIC), hasta 10 MB por archivo
+(`API_ADJUNTO_MAX_BYTES`).

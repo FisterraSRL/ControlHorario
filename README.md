@@ -21,15 +21,23 @@ npm run build     # typecheck + production bundle into dist/
 npm run build:api # compile the Node API into dist-api/
 npm run api       # run the API (needs Postgres; see docs/servidor.md)
 npm run db:migrate
+npm run crear-usuario -- --email you@example.com --nombre "Name"   # the first operator
 npm run preview
 npm test          # run the suite once
 npm run test:watch
-npm run typecheck # both projects: the frontend and the API
+npm run typecheck # three projects: the frontend, the API, and the API tests
 ```
 
-`npm test` runs the rules engine, which has no database connection and no server. `npm run
-dev` with no `.env` runs the whole app on localStorage — no Postgres, no Docker, no
-network. That is the offline path and it is meant to keep working.
+`npm test` runs two suites. The rules engine has no database and no server. The API suite
+drives the real Fastify app and the real `db/migrations/*.sql` against **PGlite** — Postgres
+compiled to WebAssembly, in-process — so the constraints, the triggers and the
+`ON CONFLICT ... WHERE` that protects a human's decision are tested for real, with no Docker.
+See `src/api/pruebas/basePrueba.ts`, including what that harness cannot show.
+
+`npm run dev` with no `.env` runs the whole app on localStorage — no Postgres, no Docker, no
+network, **and no login, because there is nothing to authenticate against and nowhere safe
+to keep a medical certificate**. That is the offline path, it is meant to keep working, and
+the app says so on screen rather than letting you assume otherwise.
 
 **The whole server is `docker compose up -d`. Everything about running it — WSL2, autostart,
 the tunnel, backups, restores, and what to check when it is down — is in
@@ -46,6 +54,9 @@ file and under test *before* anything depends on them.
 screens over the derived irregularities, the absence registry with attachments, and the
 Word notifications. **2c is done**: the schema runs on a real Postgres, the historial is
 persisted through a REST API behind the same port, and the whole thing is self-hosted.
+**2b part 1 is done**: session login for the RRHH operators, and the Ausencias and
+Configuración screens over persisted decisions, configuration and attachments.
+Notificaciones, Indicador and Horas trabajadas are still placeholders.
 
 **Slice 3 — the attestation flow.** Tokenized magic links to department managers, the
 frozen snapshot, the answers coming back, discrepancy detection, the reminder timer, and
@@ -60,7 +71,12 @@ src/api/                        the Fastify server: REST, the Postgres adapter, 
 src/ui/tokens/                  brand tokens (vendored, unedited) + the application layer
 src/ui/features/<negocio>/      one folder per screen, named for the business
 src/ui/components/              atoms / molecules / organisms — the shared library only
-src/ui/historial/               the persistence port and its two adapters
+src/ui/historial/               the evidence port and its two adapters
+src/ui/ausencias/               the decision port: the absence registry
+src/ui/configuracion/           the configuration port: rules, thresholds, motivos, exclusions
+src/ui/adjuntos/                the attachments port
+src/ui/sesion/                  the session port, and who is logged in
+src/ui/repositorios.ts          picks http or localStorage for ALL of them, once
 src/ui/periodo/                 the día / semana / mes / año window
 src/ui/app/                     routing, shell, sidebar counts
 docker-compose.yml              the whole server: postgres, api, tailscale, backup
@@ -137,6 +153,24 @@ rules, on every read. That is exactly what makes a rule fix retroactive: correct
 and the whole history re-derives correctly. A stored fault freezes the bug into the record
 permanently, and the table would have to be recomputed and rewritten — with no way to tell
 afterwards which rows were rewritten and which were originally right.
+
+**8. Every `/api/*` route requires a session, and the default is denied.** The check is one
+`onRequest` hook over the whole instance with an allow-list of exact `METHOD /path` strings
+— `/health` and the login — not a decorator per route, because a decorator is a thing
+somebody forgets. A route added next month by somebody who never read `autenticacion.ts`
+answers 401, and opening it means editing a list whose name says what it means. There is a
+test that registers such a route and expects the 401.
+
+**9. A DNI never appears in a URL.** `PUT /api/ausencias/motivo` carries the day in its
+body, and so do both exclusion routes, even though the path would read better. A path is
+written into the request log, into any proxy in front, and into the browser's own history;
+a body is redacted. The only things in a path are surrogate integer ids.
+
+**10. Attachments are not static files.** They are medical certificates, so they go through
+an authenticated route that streams them with `Content-Disposition: attachment` and
+`Cache-Control: no-store`. On disk they are a UUID plus an extension derived from the
+validated content type; the operator's own filename is data, it lives in the database, and
+it never touches a path.
 
 ## Privacy
 

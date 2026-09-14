@@ -1,0 +1,29 @@
+{
+  // The API tests and their harness.
+  //
+  // They cannot go in `tsconfig.json`: that project is the browser build, with `lib: DOM`,
+  // no `@types/node`, and `src/api` excluded — every `process.env` in the harness would be
+  // an error there.
+  //
+  // They cannot go in `tsconfig.api.json` either: that one EMITS into `dist-api`, which is
+  // copied into the container image. Test scaffolding does not belong in production, and
+  // `basePrueba.ts` imports PGlite, which is a devDependency that `npm ci --omit=dev` does
+  // not install.
+  //
+  // So they get their own project. It typechecks and emits nothing. Without it the test
+  // files would be compiled only by Vitest's esbuild, which strips types without checking
+  // them — and a test that does not typecheck is a test that can quietly assert against a
+  // field that no longer exists.
+  "extends": "./tsconfig.api.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "types": ["node", "vitest/globals"],
+    "tsBuildInfoFile": "./node_modules/.tmp/controlhorario-pruebas.tsbuildinfo"
+  },
+  "include": [
+    "src/api/**/*.ts",
+    "src/domain/**/*.ts",
+    "src/ui/historial/RepositorioFichadas.ts"
+  ],
+  "exclude": ["node_modules", "legacy", "dist", "dist-api"]
+}

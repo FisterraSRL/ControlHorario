@@ -1,0 +1,69 @@
+.tabla-envoltorio {
+  overflow-x: auto;
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius);
+  background: var(--app-surface);
+}
+
+.tabla {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--app-text-body);
+}
+
+.tabla thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--app-surface-2);
+  color: var(--app-muted);
+  font-size: var(--app-text-xs);
+  font-weight: var(--fs-weight-bold);
+  letter-spacing: var(--app-tracking-caps);
+  text-transform: uppercase;
+  text-align: left;
+  padding: var(--app-space-2) var(--app-space-3);
+  border-bottom: 1px solid var(--app-border);
+  white-space: nowrap;
+}
+
+.tabla tbody td {
+  padding: var(--app-space-2) var(--app-space-3);
+  border-bottom: 1px solid var(--app-border);
+  vertical-align: middle;
+}
+
+.tabla tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* A sector heading inside the body, exactly where the legacy table put one. */
+.tabla__grupo td {
+  background: var(--app-surface-3);
+  font-weight: var(--fs-weight-bold);
+  font-size: var(--app-text-sm);
+  letter-spacing: var(--app-tracking-caps);
+  text-transform: uppercase;
+}
+
+.tabla__vacio {
+  padding: var(--app-space-5);
+  text-align: center;
+  color: var(--app-muted);
+}
+
+.tabla__mono {
+  font-family: var(--app-font-mono);
+  font-variant-numeric: var(--app-numeric);
+  white-space: nowrap;
+}
+
+.tabla__tenue {
+  color: var(--app-muted);
+}
+
+/* An unclassified row is marked by colour AND by the "Sin clasificar" text in its own
+   dropdown, because colour alone is not a signal for everybody who reads this screen. */
+.tabla__fila--pendiente td {
+  background: var(--app-warn-soft);
+}
