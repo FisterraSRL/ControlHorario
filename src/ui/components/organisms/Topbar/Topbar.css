@@ -1,0 +1,58 @@
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: var(--app-space-4);
+  flex-wrap: wrap;
+  padding: var(--app-space-4) var(--app-space-5);
+  background: var(--app-surface);
+  border-bottom: 1px solid var(--app-border);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.topbar__titulo {
+  font-size: var(--app-text-lg);
+  min-width: 0;
+}
+
+.topbar__periodo {
+  display: flex;
+  align-items: center;
+  gap: var(--app-space-2);
+  margin-left: auto;
+  flex-wrap: wrap;
+}
+
+.topbar__paso {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius);
+  background: var(--app-surface);
+  color: var(--app-ink);
+  cursor: pointer;
+  transition: background var(--app-transition);
+}
+
+.topbar__paso:hover {
+  background: var(--app-surface-2);
+}
+
+.topbar__ancla {
+  min-width: 11ch;
+  text-align: center;
+  font-size: var(--app-text-sm);
+  font-weight: var(--fs-weight-semibold);
+  font-variant-numeric: var(--app-numeric);
+}
+
+.topbar__rango {
+  font-size: var(--app-text-sm);
+  color: var(--app-muted);
+  font-variant-numeric: var(--app-numeric);
+  white-space: nowrap;
+}

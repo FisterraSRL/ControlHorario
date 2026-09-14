@@ -1,0 +1,61 @@
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--app-space-2);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius);
+  background: var(--app-surface);
+  color: var(--app-ink);
+  font-weight: var(--fs-weight-medium);
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    background var(--app-transition),
+    border-color var(--app-transition),
+    color var(--app-transition);
+}
+
+.btn--md {
+  padding: var(--app-space-2) var(--app-space-4);
+  font-size: var(--app-text-body);
+}
+
+.btn--sm {
+  padding: var(--app-space-1) var(--app-space-3);
+  font-size: var(--app-text-sm);
+}
+
+.btn:hover:not(:disabled) {
+  background: var(--app-surface-2);
+  border-color: var(--app-border-strong);
+}
+
+.btn--primary {
+  background: var(--app-accent);
+  border-color: var(--app-accent);
+  color: var(--app-ink-on-accent);
+}
+
+.btn--primary:hover:not(:disabled) {
+  background: var(--app-accent-hover);
+  border-color: var(--app-accent-hover);
+  color: var(--app-ink-on-accent);
+}
+
+.btn--ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--app-muted);
+}
+
+.btn--ghost:hover:not(:disabled) {
+  background: var(--app-surface-2);
+  border-color: transparent;
+  color: var(--app-ink);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

@@ -1,0 +1,43 @@
+.dropzone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--app-space-1);
+  width: 100%;
+  padding: var(--app-space-6) var(--app-space-5);
+  border: 2px dashed var(--app-border-strong);
+  border-radius: var(--app-radius-lg);
+  background: var(--app-surface-2);
+  color: var(--app-muted);
+  font-size: var(--app-text-body);
+  text-align: center;
+  cursor: pointer;
+  transition:
+    border-color var(--app-transition),
+    background var(--app-transition);
+}
+
+.dropzone:hover:not(:disabled),
+.dropzone--activa {
+  border-color: var(--app-accent);
+  background: var(--app-accent-soft);
+}
+
+.dropzone:disabled {
+  cursor: progress;
+  opacity: 0.6;
+}
+
+.dropzone__titulo {
+  color: var(--app-ink);
+  font-size: var(--app-text-md);
+  font-weight: var(--fs-weight-semibold);
+}
+
+.dropzone__ayuda {
+  font-size: var(--app-text-sm);
+}
+
+.dropzone__input {
+  display: none;
+}

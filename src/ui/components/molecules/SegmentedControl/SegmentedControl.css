@@ -1,0 +1,30 @@
+.segmented {
+  display: inline-flex;
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius);
+  overflow: hidden;
+  background: var(--app-surface);
+}
+
+.segmented__opcion {
+  border: none;
+  background: transparent;
+  color: var(--app-muted);
+  padding: var(--app-space-1) var(--app-space-3);
+  font-size: var(--app-text-sm);
+  font-weight: var(--fs-weight-semibold);
+  cursor: pointer;
+  transition:
+    background var(--app-transition),
+    color var(--app-transition);
+}
+
+.segmented__opcion:hover:not(.segmented__opcion--on) {
+  background: var(--app-surface-2);
+  color: var(--app-ink);
+}
+
+.segmented__opcion--on {
+  background: var(--app-accent);
+  color: var(--app-ink-on-accent);
+}

@@ -1,0 +1,33 @@
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: var(--app-space-3);
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--app-space-3) var(--app-space-4);
+  border-radius: var(--app-radius);
+  background: var(--app-surface-2);
+}
+
+.stat__valor {
+  font-size: var(--app-text-xl);
+  font-weight: var(--fs-weight-bold);
+  font-variant-numeric: var(--app-numeric);
+  line-height: var(--app-leading-tight);
+}
+
+.stat__etiqueta {
+  font-size: var(--app-text-xs);
+  color: var(--app-muted);
+  text-transform: uppercase;
+  letter-spacing: var(--app-tracking-caps);
+}
+
+.stat__nota {
+  font-size: var(--app-text-xs);
+  color: var(--app-muted);
+}

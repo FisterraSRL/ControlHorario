@@ -16,13 +16,18 @@ is the specification of the rules; read `legacy/README.md` before touching the e
 
 ```bash
 npm install
+npm run dev       # the app, on http://localhost:5173
+npm run build     # typecheck + production bundle into dist/
+npm run preview   # serve dist/ as Static Web Apps will
 npm test          # run the suite once
 npm run test:watch
 npm run typecheck
 ```
 
-Slice 1 has no Azure dependency, no database connection and no server. `npm test` runs the
-whole of it.
+The rules engine has no Azure dependency, no database connection and no server, and `npm
+test` runs the whole of it. The app in `src/ui` has no database either yet: the historial
+lives behind a repository port with a localStorage adapter, which slice 2c replaces with
+Postgres without touching a screen.
 
 ## The three slices
 
@@ -46,8 +51,19 @@ the audit trail that makes the whole thing hold up.
 db/migrations/001_initial.sql   the schema, heavily commented — read it before slice 2
 src/domain/fichadas/            the rules engine: pure, no DOM, no I/O, no dependencies
 src/ui/tokens/                  brand tokens (vendored, unedited) + the application layer
+src/ui/features/<negocio>/      one folder per screen, named for the business
+src/ui/components/              atoms / molecules / organisms — the shared library only
+src/ui/historial/               the persistence port and its adapter
+src/ui/periodo/                 the día / semana / mes / año window
+src/ui/app/                     routing, shell, sidebar counts
 legacy/app.html                 the implementation being replaced. Reference only.
 ```
+
+The UI is organised the same way the domain is: the top-level folders under `features/`
+name the business — `carga`, `ausencias`, `notificaciones` — not the technology. Atomic
+design applies only to `components/`, which is the shared library: anything used by exactly
+one screen lives in that screen's folder. Containers hold state and talk to the domain and
+the repository; presentational components take props and render, and import neither.
 
 `src/domain` is organised by what the code is about, not by what it technically is. There
 is no `models/`, `services/` or `utils/`: a folder called `utils` tells you nothing about

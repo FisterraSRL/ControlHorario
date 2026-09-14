@@ -1,0 +1,27 @@
+.placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--app-space-2);
+  padding: var(--app-space-6) var(--app-space-4);
+  border: 1px dashed var(--app-border-strong);
+  border-radius: var(--app-radius);
+  background: var(--app-surface-2);
+  text-align: center;
+}
+
+.placeholder__marca {
+  margin: 0;
+  font-size: var(--app-text-md);
+  font-weight: var(--fs-weight-bold);
+  color: var(--app-muted);
+  text-transform: uppercase;
+  letter-spacing: var(--app-tracking-caps);
+}
+
+.placeholder__detalle {
+  margin: 0;
+  max-width: 60ch;
+  color: var(--app-muted);
+  font-size: var(--app-text-sm);
+}
