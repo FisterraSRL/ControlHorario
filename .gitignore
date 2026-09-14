@@ -1,0 +1,36 @@
+# --- Dependencies ---
+node_modules/
+.pnpm-store/
+
+# --- Build output ---
+dist/
+build/
+out/
+coverage/
+*.tsbuildinfo
+
+# --- Environment / secrets ---
+.env
+.env.*
+!.env.example
+local.settings.json
+
+# --- Real payroll data. NEVER commit a QUICKPASS export. ---
+# The exports carry DNI, legajo and full names of real employees.
+*.xlsx
+*.xls
+*.xlsm
+*.csv
+datos/
+uploads/
+
+# --- Editor / OS ---
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.swp
+
+# Local tooling cache (skill registry)
+.atl/
