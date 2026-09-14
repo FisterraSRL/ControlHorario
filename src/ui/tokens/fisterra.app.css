@@ -1,0 +1,312 @@
+/* ============================================================================
+   Fisterra — application token layer
+   ============================================================================
+
+   `fisterra.tokens.css` is the marketing source of truth: it is a byte-identical
+   vendored copy of `Assets - Fisterra/brand/tokens/fisterra.tokens.css` and it is
+   NEVER edited here. Re-vendor it when the brand file changes; do not patch it.
+
+   That system targets 16:9 slides and 1:1 posts. Three things it does not have,
+   because a slide does not need them, and this app does:
+
+     1. Semantic colour. A slide never says "this shift is late". The brand has
+        exactly one saturated colour, `--fs-red`, and it is the accent. Reusing it
+        for danger would make every error badge read as a call to action.
+     2. An application type scale. The brand scale is measured on a 1440px slide
+        canvas: 18px body, 47px display. At 1440px of *browser* that body text is
+        a poster. This app is a dense table of fichadas.
+     3. Dark mode. Section 7 of DESIGN-SYSTEM.md records this debt for FSTrack and
+        asks for "rojos semánticos unificados, distinto del rojo de marca para no
+        colisionar con el acento". This file is that answer.
+
+   CONTRAST. Every pairing below was computed, not eyeballed. The ratio is noted
+   wherever it lands under 7:1. The one inherited hazard:
+
+     --fs-red on the Fisterra surface is 3.6:1 — LARGE BOLD TYPE ONLY (>=24px
+     bold / >=18.66px bold). Never body text, never a small badge, never an icon
+     that carries meaning on its own. Use --app-danger for anything small.
+   ============================================================================ */
+
+@import './fisterra.tokens.css';
+
+/* ---------------------------------------------------------------------------
+   Montserrat, self-hosted.
+
+   The implementation being replaced pulled IBM Plex from Google Fonts on every
+   load: a third-party request carrying the reader's IP, on a payroll tool, and a
+   hard dependency on a CDN the company does not control. These two variable
+   files ship with the app.
+   --------------------------------------------------------------------------- */
+
+@font-face {
+  font-family: 'Montserrat';
+  src: url('./fonts/Montserrat-Variable-400-700.woff2') format('woff2-variations'),
+       url('./fonts/Montserrat-Variable-400-700.woff2') format('woff2');
+  font-weight: 400 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Montserrat';
+  src: url('./fonts/Montserrat-Variable-Italic.woff2') format('woff2-variations'),
+       url('./fonts/Montserrat-Variable-Italic.woff2') format('woff2');
+  font-weight: 400 700;
+  font-style: italic;
+  font-display: swap;
+}
+
+/* ---------------------------------------------------------------------------
+   LIGHT — the default. Bare :root, so it is what a browser with no preference,
+   no media query support and no JS gets.
+   --------------------------------------------------------------------------- */
+
+:root {
+  color-scheme: light;
+
+  /* -- Surfaces ------------------------------------------------------------
+     The brand system has no white page, and this keeps that: the ground is the
+     brand's own --fs-surface, and panels sit *above* it rather than being white.
+     ---------------------------------------------------------------------- */
+  --app-bg: var(--fs-surface);            /* #D7D8DD */
+  --app-surface: #ECEDF0;                 /* panels, cards, table body */
+  --app-surface-2: #E0E1E6;               /* table header, inset rows */
+  --app-surface-3: #D1D3DA;               /* pressed, selected row */
+  --app-border: #BCC1CA;                  /* hairline between regions */
+  --app-border-strong: #7C8796;           /* input outline, 3.1:1 on --app-surface */
+
+  /* -- Text ---------------------------------------------------------------- */
+  --app-ink: var(--fs-ink);               /* #202B56 — 11.6:1 on --app-surface, AAA */
+  --app-ink-on-accent: var(--fs-white);   /* 13.9:1 on --fs-navy, AAA */
+  --app-muted: #4E5967;                   /* 6.1:1 on --app-surface, 5.0:1 on --app-bg */
+
+  /* -- Accent -------------------------------------------------------------
+     The app's working accent is navy, not brand red: navy carries white text at
+     13.9:1, so it can be a button, a tab, a filled badge. Brand red stays what
+     the brand says it is — a typographic accent, used sparingly, large and bold.
+     ---------------------------------------------------------------------- */
+  --app-accent: var(--fs-navy);           /* #0A2F43 */
+  --app-accent-hover: #15384B;
+  --app-accent-soft: #D3DDE4;             /* navy-tinted wash; --app-accent on it is 10.2:1 */
+  --app-brand-accent: var(--fs-red);      /* 3.6:1 — LARGE BOLD TYPE ONLY. See header. */
+
+  /* -- Semantic -----------------------------------------------------------
+     Four signals, each with a soft background for badges and banners. The danger
+     red is a crimson, deliberately cooler and far darker than the vermilion
+     --fs-red, so a failed state never reads as a brand accent — and, unlike the
+     brand red, it is legible at badge size.
+     ---------------------------------------------------------------------- */
+  --app-ok: #1B6040;                      /* 6.4:1 on --app-surface, 5.3:1 on --app-bg */
+  --app-ok-soft: #DCEBE1;                 /* --app-ok on it: 6.1:1 */
+  --app-warn: #7A4E04;                    /* 6.1:1 on --app-surface, 5.1:1 on --app-bg */
+  --app-warn-soft: #F5E9CE;               /* --app-warn on it: 6.0:1 */
+  --app-danger: #A61B32;                  /* 6.5:1 on --app-surface, 5.4:1 on --app-bg */
+  --app-danger-soft: #F7DEE2;             /* --app-danger on it: 6.0:1 */
+  --app-info: #1D5B8C;                    /* 6.1:1 on --app-surface, 5.0:1 on --app-bg */
+  --app-info-soft: #DCE7F2;               /* --app-info on it: 5.7:1 */
+
+  /* -- Type ---------------------------------------------------------------
+     An application scale, not the slide scale. 14px body, tight leading, because
+     the primary screen is a week of fichadas per person. The brand --fs-text-*
+     tokens stay available and untouched for anything print-shaped (a cover page
+     on an exported notification).
+     ---------------------------------------------------------------------- */
+  --app-font: var(--fs-font);
+  --app-font-mono: 'Montserrat', ui-monospace, 'Cascadia Mono', 'Consolas', monospace;
+
+  --app-text-xs: 11px;                    /* table meta, timestamps */
+  --app-text-sm: 12px;                    /* badges, secondary labels */
+  --app-text-body: 14px;                  /* body, table cells, inputs */
+  --app-text-md: 16px;                    /* section headings */
+  --app-text-lg: 20px;                    /* panel titles */
+  --app-text-xl: 26px;                    /* page title */
+  --app-text-display: 32px;               /* the one paired headline per screen */
+
+  --app-leading-tight: 1.2;
+  --app-leading-body: 1.45;
+  --app-tracking-caps: 0.04em;            /* small caps labels need the air */
+
+  /* Numeric columns are read by comparison, so they must align. */
+  --app-numeric: tabular-nums;
+
+  /* -- Radii --------------------------------------------------------------
+     The brand's 28px panel radius belongs to a slide-sized panel. At the scale
+     of a toolbar button it reads as a lozenge.
+     ---------------------------------------------------------------------- */
+  --app-radius-sm: 6px;                   /* badges, inputs, small buttons */
+  --app-radius: 8px;                      /* buttons, cards, table wrapper */
+  --app-radius-lg: 12px;                  /* dialogs, main panels */
+  --app-radius-pill: var(--fs-radius-pill);
+
+  /* -- Space --------------------------------------------------------------- */
+  --app-space-1: 4px;
+  --app-space-2: 8px;
+  --app-space-3: 12px;
+  --app-space-4: 16px;
+  --app-space-5: 24px;
+  --app-space-6: 32px;
+
+  /* -- Elevation and motion ------------------------------------------------ */
+  --app-shadow-sm: 0 1px 2px rgba(10, 47, 67, 0.08);
+  --app-shadow: 0 1px 2px rgba(10, 47, 67, 0.06), 0 6px 20px -8px rgba(10, 47, 67, 0.18);
+  --app-shadow-lg: 0 12px 32px -12px rgba(10, 47, 67, 0.28);
+  --app-focus-ring: 0 0 0 2px var(--app-bg), 0 0 0 4px var(--app-accent);
+  --app-transition: 120ms ease;
+}
+
+/* ---------------------------------------------------------------------------
+   DARK — derived from --fs-navy #0A2F43, which becomes the panel surface rather
+   than an accent. Three-way switch, the same shape the implementation being
+   replaced already used:
+
+     :root                                    light, always defined
+     @media (prefers-color-scheme: dark)      the OS preference...
+       :root:not([data-theme="light"])        ...unless the reader forced light
+     :root[data-theme="dark"]                 the reader forced dark
+
+   Every token redefined below already has a light value above. Never give a
+   colour its only definition inside one of these blocks.
+   --------------------------------------------------------------------------- */
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+
+    --app-bg: #061C29;                    /* navy, two steps down */
+    --app-surface: var(--fs-navy);        /* #0A2F43 */
+    --app-surface-2: #123A50;
+    --app-surface-3: #1B4A63;
+    --app-border: #21455B;
+    --app-border-strong: #3D6379;
+
+    --app-ink: #E6EDF2;                   /* 11.8:1 on --app-surface, AAA */
+    --app-ink-on-accent: var(--fs-navy);  /* on the light accent below: 7.5:1 */
+    --app-muted: #9DB0BE;                 /* 6.3:1 on --app-surface */
+
+    /* Navy cannot be the accent on a navy surface: it inverts to pale steel. */
+    --app-accent: #8FC5DE;                /* 7.5:1 on --app-surface */
+    --app-accent-hover: #A9D4E8;
+    --app-accent-soft: #123B4F;
+    --app-brand-accent: #FF6B5E;          /* lifted --fs-red: 5.0:1, legible at last */
+
+    --app-ok: #5FC08A;                    /* 6.3:1 on --app-surface */
+    --app-ok-soft: #103A29;
+    --app-warn: #E0A63C;                  /* 6.5:1 on --app-surface */
+    --app-warn-soft: #3A2C10;
+    --app-danger: #F0808F;                /* 5.5:1 on --app-surface */
+    --app-danger-soft: #3E1A24;
+    --app-info: #79B6E4;                  /* 6.4:1 on --app-surface */
+    --app-info-soft: #0F3048;
+
+    --app-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+    --app-shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 6px 24px -8px rgba(0, 0, 0, 0.5);
+    --app-shadow-lg: 0 12px 32px -12px rgba(0, 0, 0, 0.6);
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --app-bg: #061C29;
+  --app-surface: var(--fs-navy);
+  --app-surface-2: #123A50;
+  --app-surface-3: #1B4A63;
+  --app-border: #21455B;
+  --app-border-strong: #3D6379;
+
+  --app-ink: #E6EDF2;
+  --app-ink-on-accent: var(--fs-navy);
+  --app-muted: #9DB0BE;
+
+  --app-accent: #8FC5DE;
+  --app-accent-hover: #A9D4E8;
+  --app-accent-soft: #123B4F;
+  --app-brand-accent: #FF6B5E;
+
+  --app-ok: #5FC08A;
+  --app-ok-soft: #103A29;
+  --app-warn: #E0A63C;
+  --app-warn-soft: #3A2C10;
+  --app-danger: #F0808F;
+  --app-danger-soft: #3E1A24;
+  --app-info: #79B6E4;
+  --app-info-soft: #0F3048;
+
+  --app-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --app-shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 6px 24px -8px rgba(0, 0, 0, 0.5);
+  --app-shadow-lg: 0 12px 32px -12px rgba(0, 0, 0, 0.6);
+}
+
+/* ---------------------------------------------------------------------------
+   Baseline. Tokens only describe; these few rules are the minimum that makes a
+   page inherit them. Components live elsewhere.
+   --------------------------------------------------------------------------- */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--app-bg);
+  color: var(--app-ink);
+  font-family: var(--app-font);
+  font-size: var(--app-text-body);
+  line-height: var(--app-leading-body);
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4 {
+  margin: 0;
+  font-weight: var(--fs-weight-bold);
+  line-height: var(--app-leading-tight);
+  text-wrap: balance;
+}
+
+h1 { font-size: var(--app-text-xl); }
+h2 { font-size: var(--app-text-lg); }
+h3 { font-size: var(--app-text-md); }
+h4 { font-size: var(--app-text-body); }
+
+/* Hours, minutes, DNIs and legajos are compared column-wise. */
+table,
+.app-numeric {
+  font-variant-numeric: var(--app-numeric);
+}
+
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+  font-size: inherit;
+}
+
+:focus-visible {
+  outline: none;
+  box-shadow: var(--app-focus-ring);
+  border-radius: var(--app-radius-sm);
+}
+
+::selection {
+  background: var(--app-accent-soft);
+  color: var(--app-ink);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
