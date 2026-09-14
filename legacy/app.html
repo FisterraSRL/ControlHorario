@@ -1,0 +1,2130 @@
+<title>Control de Fichadas</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+  :root{
+    --bg:#F1F4F6; --surface:#FFFFFF; --surface-2:#E7ECF0; --surface-3:#DCE3E8;
+    --ink:#1B222C; --muted:#5B6572; --border:#D7DEE4;
+    --accent:#1F6F78; --accent-ink:#FFFFFF; --accent-soft:#DCEEEC;
+    --ok:#2E7D4F; --ok-soft:#DFF0E6;
+    --warn:#A66A10; --warn-soft:#FBEBD3;
+    --danger:#B93A2A; --danger-soft:#FBE1DC;
+    --info:#2E6F9E; --info-soft:#DEEBF5;
+    --shadow: 0 1px 2px rgba(20,30,40,.06), 0 6px 20px -8px rgba(20,30,40,.18);
+    --radius: 10px;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#10151B; --surface:#181F27; --surface-2:#1F2831; --surface-3:#28323D;
+      --ink:#E8ECEF; --muted:#94A2AF; --border:#2B3642;
+      --accent:#4FB6AE; --accent-ink:#0B1613; --accent-soft:#1C3634;
+      --ok:#57B57C; --ok-soft:#1B3327;
+      --warn:#DE9F3F; --warn-soft:#3A2E16;
+      --danger:#E2695A; --danger-soft:#3A2019;
+      --info:#6DA9D6; --info-soft:#1B2E3C;
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 6px 24px -8px rgba(0,0,0,.5);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#10151B; --surface:#181F27; --surface-2:#1F2831; --surface-3:#28323D;
+    --ink:#E8ECEF; --muted:#94A2AF; --border:#2B3642;
+    --accent:#4FB6AE; --accent-ink:#0B1613; --accent-soft:#1C3634;
+    --ok:#57B57C; --ok-soft:#1B3327;
+    --warn:#DE9F3F; --warn-soft:#3A2E16;
+    --danger:#E2695A; --danger-soft:#3A2019;
+    --info:#6DA9D6; --info-soft:#1B2E3C;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 6px 24px -8px rgba(0,0,0,.5);
+  }
+
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:var(--bg); color:var(--ink);
+    font-family:'IBM Plex Sans', system-ui, sans-serif;
+    font-size:14px; line-height:1.45;
+  }
+  h1,h2,h3{font-family:'IBM Plex Sans',sans-serif; font-weight:700; text-wrap:balance; margin:0}
+  .mono{font-family:'IBM Plex Mono', ui-monospace, monospace; font-variant-numeric:tabular-nums}
+  table{font-variant-numeric:tabular-nums}
+  button, input, select{font-family:inherit; font-size:inherit}
+  ::selection{background:var(--accent-soft)}
+  :focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+
+  .app{display:grid; grid-template-columns:220px 1fr; min-height:100vh}
+  @media (max-width:820px){ .app{grid-template-columns:1fr} .sidebar{position:sticky; top:0; z-index:20} }
+
+  .sidebar{
+    background:var(--surface); border-right:1px solid var(--border);
+    display:flex; flex-direction:column; padding:20px 14px; gap:4px;
+  }
+  .brand{display:flex; align-items:center; gap:10px; padding:4px 10px 18px}
+  .brand-mark{
+    width:30px;height:30px;border-radius:8px;background:var(--accent);color:var(--accent-ink);
+    display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;flex:none;
+  }
+  .brand-text{display:flex;flex-direction:column;line-height:1.15}
+  .brand-text b{font-size:14px}
+  .brand-text span{font-size:11px;color:var(--muted)}
+
+  .navbtn{
+    display:flex; align-items:center; gap:10px; text-align:left; width:100%;
+    padding:10px 12px; border-radius:8px; border:none; background:transparent; color:var(--muted);
+    cursor:pointer; font-size:13.5px; font-weight:500; transition:background .12s, color .12s;
+  }
+  .navbtn:hover{background:var(--surface-2); color:var(--ink)}
+  .navbtn.active{background:var(--accent-soft); color:var(--accent); font-weight:600}
+  .navbtn .ico{width:18px;text-align:center;flex:none;opacity:.9}
+  .navbtn .count{
+    margin-left:auto; font-size:11px; padding:1px 7px; border-radius:99px;
+    background:var(--surface-3); color:var(--muted); font-family:'IBM Plex Mono',monospace;
+  }
+  .navbtn.active .count{background:var(--accent); color:var(--accent-ink)}
+  .navbtn .count.alert{background:var(--danger); color:#fff}
+
+  .sidebar-foot{margin-top:auto; padding:10px; font-size:11px; color:var(--muted)}
+
+  .main{display:flex; flex-direction:column; min-width:0}
+  .topbar{
+    display:flex; align-items:center; gap:14px; flex-wrap:wrap;
+    padding:16px 24px; border-bottom:1px solid var(--border); background:var(--surface);
+    position:sticky; top:0; z-index:10;
+  }
+  .topbar h1{font-size:17px}
+  .period{display:flex; align-items:center; gap:8px; margin-left:auto; flex-wrap:wrap}
+  .period select, .period input[type=date]{
+    padding:7px 10px; border-radius:8px; border:1px solid var(--border); background:var(--surface);
+    color:var(--ink);
+  }
+  .iconbtn{
+    width:32px;height:32px;border-radius:8px;border:1px solid var(--border);background:var(--surface);
+    color:var(--ink); cursor:pointer; display:flex;align-items:center;justify-content:center; font-size:14px;
+  }
+  .iconbtn:hover{background:var(--surface-2)}
+  .period-range{font-size:12px; color:var(--muted); white-space:nowrap}
+
+  .content{padding:24px; display:flex; flex-direction:column; gap:18px; max-width:1400px; width:100%; margin:0 auto}
+  .hidden{display:none !important}
+
+  .card{
+    background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+    box-shadow:var(--shadow); padding:20px;
+  }
+  .card h2{font-size:15px; margin-bottom:4px}
+  .card .sub{color:var(--muted); font-size:12.5px; margin-bottom:14px}
+
+  .grid-stats{display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:12px}
+  .stat{background:var(--surface-2); border-radius:8px; padding:12px 14px}
+  .stat b{display:block; font-size:22px; font-family:'IBM Plex Mono',monospace}
+  .stat span{font-size:11.5px; color:var(--muted); text-transform:uppercase; letter-spacing:.04em}
+
+  .dropzone{
+    border:2px dashed var(--border); border-radius:var(--radius); padding:36px 20px; text-align:center;
+    color:var(--muted); cursor:pointer; transition:border-color .15s, background .15s;
+  }
+  .dropzone:hover, .dropzone.drag{border-color:var(--accent); background:var(--accent-soft)}
+  .dropzone b{color:var(--ink); display:block; margin-bottom:4px; font-size:14px}
+
+  .btn{
+    display:inline-flex; align-items:center; gap:6px; padding:8px 14px; border-radius:8px; border:1px solid var(--border);
+    background:var(--surface); color:var(--ink); cursor:pointer; font-weight:500; font-size:13px;
+  }
+  .btn:hover{background:var(--surface-2)}
+  .btn.primary{background:var(--accent); border-color:var(--accent); color:var(--accent-ink)}
+  .btn.primary:hover{filter:brightness(1.06)}
+  .btn.small{padding:5px 10px; font-size:12px}
+  .btn:disabled{opacity:.5; cursor:not-allowed}
+
+  table.tbl{width:100%; border-collapse:collapse; font-size:13px}
+  table.tbl th{
+    text-align:left; padding:9px 10px; font-size:11px; text-transform:uppercase; letter-spacing:.04em;
+    color:var(--muted); border-bottom:1px solid var(--border); white-space:nowrap; cursor:default;
+  }
+  table.tbl td{padding:9px 10px; border-bottom:1px solid var(--border); vertical-align:top}
+  table.tbl tr:last-child td{border-bottom:none}
+  table.tbl tr.grp td{background:var(--surface-2); font-weight:600; padding-top:12px; padding-bottom:6px}
+  .tbl-wrap{overflow-x:auto}
+
+  .chip{
+    display:inline-flex; align-items:center; gap:5px; padding:2px 9px; border-radius:99px; font-size:11.5px; font-weight:600;
+    white-space:nowrap;
+  }
+  .chip.incompleta{background:var(--warn-soft); color:var(--warn)}
+  .chip.descanso{background:var(--info-soft); color:var(--info)}
+  .chip.tardanza{background:var(--danger-soft); color:var(--danger)}
+  .chip.ok{background:var(--ok-soft); color:var(--ok)}
+  .chip.muted{background:var(--surface-3); color:var(--muted)}
+
+  .pillnum{font-family:'IBM Plex Mono',monospace; font-weight:600}
+  .diff-pos{color:var(--ok)}
+  .diff-neg{color:var(--danger)}
+
+  a.link{color:var(--accent); text-decoration:none; font-weight:600; cursor:pointer}
+  a.link:hover{text-decoration:underline}
+
+  .field{display:flex; flex-direction:column; gap:5px; margin-bottom:14px}
+  .field label{font-size:12px; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:.03em}
+  .field input[type=text], .field input[type=number], .field select{
+    padding:8px 10px; border-radius:8px; border:1px solid var(--border); background:var(--surface); color:var(--ink);
+    max-width:320px;
+  }
+  .row{display:flex; gap:24px; flex-wrap:wrap}
+  .row > .field{flex:1; min-width:200px}
+
+  .sectorrule{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:8px 0; border-bottom:1px solid var(--border)}
+  .sectorrule:last-child{border-bottom:none}
+  .sectorrule .name{font-weight:500}
+  .sectorrule .n{font-size:11px; color:var(--muted); font-family:'IBM Plex Mono',monospace}
+  .seg{display:inline-flex; border:1px solid var(--border); border-radius:8px; overflow:hidden}
+  .seg button{border:none; background:var(--surface); color:var(--muted); padding:5px 12px; font-size:12.5px; font-weight:600; cursor:pointer}
+  .seg button.on{background:var(--accent); color:var(--accent-ink)}
+
+  .taglist{display:flex; flex-wrap:wrap; gap:8px; margin-top:8px}
+  .tag{display:flex; align-items:center; gap:8px; background:var(--surface-2); border-radius:99px; padding:5px 6px 5px 12px; font-size:12.5px}
+  .tag button{border:none; background:var(--surface-3); color:var(--ink); width:18px;height:18px;border-radius:99px; cursor:pointer; font-size:11px; line-height:1}
+
+  .empty{color:var(--muted); font-size:13px; padding:30px 10px; text-align:center}
+  .banner{
+    display:flex; align-items:flex-start; gap:10px; padding:12px 14px; border-radius:8px; font-size:13px;
+    background:var(--warn-soft); color:var(--warn); border:1px solid transparent;
+  }
+  .banner.info{background:var(--info-soft); color:var(--info)}
+  .banner b{color:inherit}
+
+  details.dayrow > summary{cursor:pointer; list-style:none}
+  details.dayrow > summary::-webkit-details-marker{display:none}
+  .daydetail{padding:10px 12px; background:var(--surface-2); border-radius:8px; margin:6px 0 12px}
+  .punchmap{display:flex; gap:14px; flex-wrap:wrap; margin-top:6px}
+  .punch{display:flex; flex-direction:column; align-items:center; gap:2px; font-size:11.5px; color:var(--muted)}
+  .punch b{font-family:'IBM Plex Mono',monospace; font-size:13px; color:var(--ink)}
+  .punch.missing b{color:var(--danger)}
+  .punch.est b{color:var(--info); font-style:italic}
+  .punch.est{position:relative}
+
+  select.motivo-select{padding:5px 8px; border-radius:6px; border:1px solid var(--border); background:var(--surface); color:var(--ink); font-size:12.5px}
+
+  .calendar-pop{
+    position:absolute; top:calc(100% + 6px); left:0; z-index:50; background:var(--surface); border:1px solid var(--border);
+    border-radius:10px; box-shadow:var(--shadow); padding:12px; width:250px;
+  }
+  .cal-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; font-weight:600; font-size:13px}
+  .cal-head button{border:none; background:transparent; color:var(--muted); cursor:pointer; font-size:14px; padding:2px 6px; border-radius:6px}
+  .cal-head button:hover{background:var(--surface-2); color:var(--ink)}
+  .cal-grid{display:grid; grid-template-columns:repeat(7,1fr); gap:2px; text-align:center; font-size:12px}
+  .cal-dow{color:var(--muted); font-size:10px; padding:4px 0; text-transform:uppercase; letter-spacing:.03em}
+  .cal-day{padding:6px 0; border-radius:6px; cursor:pointer; color:var(--ink); background:none; border:none; font-family:inherit; font-size:12px}
+  .cal-day:hover{background:var(--surface-2)}
+  .cal-day.out{color:var(--muted); opacity:.4}
+  .cal-day.in-range{background:var(--accent-soft)}
+  .cal-day.anchor{background:var(--accent); color:var(--accent-ink); font-weight:700}
+  .cal-today{text-decoration:underline; text-underline-offset:2px}
+
+  .toast{
+    position:fixed; bottom:20px; right:20px; background:var(--ink); color:var(--bg);
+    padding:10px 16px; border-radius:8px; font-size:13px; box-shadow:var(--shadow); z-index:100;
+    opacity:0; transform:translateY(6px); transition:opacity .2s, transform .2s; pointer-events:none;
+  }
+  .toast.show{opacity:1; transform:translateY(0)}
+</style>
+
+<div class="app">
+  <nav class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">QP</div>
+      <div class="brand-text"><b>Control de Fichadas</b><span>QUICKPASS · Ganadera Norte Neuquina</span></div>
+    </div>
+    <button class="navbtn active" data-tab="carga"><span class="ico">&#8593;</span> Cargar datos</button>
+    <button class="navbtn" data-tab="notif"><span class="ico">&#9888;</span> Notificaciones <span class="count" id="nav-count-notif">0</span></button>
+    <button class="navbtn" data-tab="ausencias"><span class="ico">&#128203;</span> Ausencias <span class="count" id="nav-count-ausencias">0</span></button>
+    <button class="navbtn" data-tab="indicador"><span class="ico">&#9636;</span> Indicador</button>
+    <button class="navbtn" data-tab="horas"><span class="ico">&#128337;</span> Horas trabajadas <span class="count" id="nav-count-horas">0</span></button>
+    <button class="navbtn" data-tab="config"><span class="ico">&#9881;</span> Configuración</button>
+    <div class="sidebar-foot">Los datos que cargás quedan solo en tu navegador — nada se envía a un servidor.</div>
+  </nav>
+
+  <div class="main">
+    <div class="topbar">
+      <h1 id="page-title">Cargar datos</h1>
+      <div class="period" id="period-controls">
+        <div class="seg" id="period-mode">
+          <button data-mode="dia">Día</button>
+          <button data-mode="semana" class="on">Semana</button>
+          <button data-mode="mes">Mes</button>
+          <button data-mode="anio">Año</button>
+        </div>
+        <button class="iconbtn" id="period-prev">&#8592;</button>
+        <div style="position:relative">
+          <button class="btn small" id="period-calendar-btn">&#128197; <span id="period-anchor-label"></span></button>
+          <div class="calendar-pop hidden" id="calendar-pop"></div>
+        </div>
+        <button class="iconbtn" id="period-next">&#8594;</button>
+        <span class="period-range" id="period-range-label"></span>
+      </div>
+    </div>
+
+    <div class="content">
+
+      <div class="card hidden" id="shared-unavailable-banner">
+        <div class="banner"><span>&#9888;&#65039;</span><div><b>El guardado compartido no está disponible en este dispositivo ahora mismo.</b> La configuración y el registro de ausencias se están guardando solo en este navegador — otras personas del equipo no van a ver estos cambios hasta que el guardado compartido vuelva a estar disponible.</div></div>
+      </div>
+
+      <section id="tab-carga">
+        <div class="card">
+          <h2>Importar planilla de QUICKPASS</h2>
+          <div class="sub">Subí el Excel de fichadas en crudo (el mismo formato que exporta QUICKPASS, con columnas Sector, Usuario, DNI, Fecha, Movimientos, Turno, etc.). Cada día que trae se guarda como registro original permanente y compartido con el equipo — podés subir distintos períodos en momentos distintos, sin perder los anteriores.</div>
+          <div class="dropzone" id="dropzone">
+            <b>Hacé clic para elegir un archivo .xlsx</b>
+            o arrastralo aquí
+            <input type="file" id="file-input" accept=".xlsx,.xls" class="hidden">
+          </div>
+        </div>
+        <div class="card hidden" id="carga-summary">
+          <h2>Resumen de la carga</h2>
+          <div class="sub" id="carga-file-name"></div>
+          <div class="grid-stats" id="carga-stats"></div>
+        </div>
+      </section>
+
+      <section id="tab-notif" class="hidden">
+        <div class="card hidden" id="notif-ausencias-banner"></div>
+        <div class="card">
+          <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:14px; flex-wrap:wrap">
+            <div>
+              <h2>Notificaciones a generar</h2>
+              <div class="sub">Fichadas incompletas, exceso de descanso y llegadas tarde del período seleccionado, agrupadas por sector y persona.</div>
+            </div>
+            <div style="display:flex; gap:8px; flex-wrap:wrap">
+              <button class="btn" id="notif-gen-selected" disabled>Generar seleccionados</button>
+              <button class="btn primary" id="notif-gen-all" disabled>Generar todos los Word</button>
+            </div>
+          </div>
+          <div class="tbl-wrap"><table class="tbl" id="notif-table"></table></div>
+        </div>
+      </section>
+
+      <section id="tab-ausencias" class="hidden">
+        <div class="card">
+          <h2>Registro de ausencias</h2>
+          <div class="sub">Días sin fichadas, con su motivo y documentación de respaldo. Queda en el registro compartido del equipo cada vez que cargás una planilla, así se puede consultar más adelante por persona o sector aunque ya no tengas ese archivo cargado.</div>
+          <div id="ausencias-summary" style="margin-bottom:14px"></div>
+          <div class="row" style="margin-bottom:2px">
+            <div class="field">
+              <label>Sector</label>
+              <select id="ausencias-filter-sector"><option value="">Todos</option></select>
+            </div>
+            <div class="field">
+              <label>Persona</label>
+              <select id="ausencias-filter-usuario"><option value="">Todas</option></select>
+            </div>
+          </div>
+          <label style="display:flex; align-items:center; gap:8px; font-size:13px; color:var(--muted); margin-bottom:12px">
+            <input type="checkbox" id="ausencias-solo-pendientes" checked>
+            Mostrar solo las que faltan clasificar
+          </label>
+          <div class="tbl-wrap"><table class="tbl" id="ausencias-table"></table></div>
+        </div>
+      </section>
+
+      <section id="tab-indicador" class="hidden">
+        <div class="card">
+          <h2>Indicador de notificaciones</h2>
+          <div class="sub">Cantidad de faltas detectadas por persona en el período seleccionado.</div>
+          <div class="tbl-wrap"><table class="tbl" id="indicador-table"></table></div>
+        </div>
+      </section>
+
+      <section id="tab-horas" class="hidden">
+        <div class="card hidden" id="horas-ausencias-banner"></div>
+        <div class="card">
+          <h2>Horas trabajadas (semanal, lunes a domingo)</h2>
+          <div class="sub">Comparación entre horas turno, horas realmente trabajadas y descanso, por semana completa.</div>
+          <label style="display:flex; align-items:center; gap:8px; margin:4px 0 14px; font-size:13px">
+            <input type="checkbox" id="horas-estimar">
+            Completar fichadas faltantes según el turno asignado (estimado, solo para este reporte)
+          </label>
+          <div class="sub" id="horas-estimar-note" style="margin-top:-8px; margin-bottom:14px"></div>
+          <div style="display:flex; justify-content:flex-end; margin-bottom:10px">
+            <button class="btn" id="horas-export-csv">Exportar a Excel</button>
+          </div>
+          <div class="tbl-wrap"><table class="tbl" id="horas-table"></table></div>
+        </div>
+      </section>
+
+      <section id="tab-config" class="hidden">
+        <div class="card">
+          <h2>Reglas por sector</h2>
+          <div class="sub">Cantidad de fichadas obligatorias por sector. Por defecto son 4 (entrada, salida a descanso, reingreso, salida); Reparto, Cocina y Administración requieren 2.</div>
+          <div id="config-sectores"></div>
+        </div>
+        <div class="card">
+          <h2>Parámetros</h2>
+          <div class="row">
+            <div class="field">
+              <label>Horas turno semanales (fijo)</label>
+              <input type="number" id="cfg-horas-turno" min="1" step="0.5">
+            </div>
+            <div class="field">
+              <label>Descanso máximo (minutos)</label>
+              <input type="number" id="cfg-break-max" min="0" step="5">
+            </div>
+            <div class="field">
+              <label>Tolerancia de tardanza (minutos)</label>
+              <input type="number" id="cfg-tolerancia" min="0" step="1">
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <h2>Personas excluidas de notificaciones</h2>
+          <div class="sub">Estas personas no van a generar notificaciones de fichadas incompletas, descanso o tardanza (sí van a seguir apareciendo en el reporte de horas).</div>
+          <select class="field" id="config-exclude-select" style="max-width:420px; padding:8px; border-radius:8px; border:1px solid var(--border); background:var(--surface); color:var(--ink)"></select>
+          <div class="taglist" id="config-exclude-list"></div>
+        </div>
+        <div class="card">
+          <h2>Maestro de motivos de ausencia</h2>
+          <div class="sub">Se usa cuando una persona no tiene fichadas ese día y el turno no es "00:00 - 00:00". Hacé clic en "Sí"/"No" para cambiar si un motivo suma las horas de turno al reporte de horas trabajadas.</div>
+          <div class="tbl-wrap"><table class="tbl" id="config-motivos-table"></table></div>
+          <div class="row" style="margin-top:12px; gap:10px; align-items:flex-end; flex-wrap:wrap">
+            <div class="field" style="flex:1 1 220px">
+              <label>Nuevo motivo</label>
+              <input type="text" id="motivo-new-label" placeholder="Ej: Trámite personal">
+            </div>
+            <div class="field" style="flex:0 0 auto">
+              <label style="display:flex; align-items:center; gap:6px; white-space:nowrap"><input type="checkbox" id="motivo-new-worked"> Cuenta como trabajado</label>
+            </div>
+            <button class="btn" id="motivo-new-add">Agregar motivo</button>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script>
+(function(){
+"use strict";
+
+/* ============================== ENGINE ============================== */
+
+/* QUICKPASS's own "Partes"/novedad note flags a forgotten punch as "Olvidó fichar (xN)".
+   It's both a selectable motivo de ausencia (id 8, below — counts as worked: the person was
+   on shift, they just failed to register it) AND, on its own, grounds for a Fichadas
+   Incompletas notification: the person ultimately didn't clock in. Declared before
+   MOTIVOS_DEFAULT/PARTES_MAP so both can reference it. */
+var OLVIDO_FICHAR_RE = /olvid[oó]\s+fichar/i;
+var OLVIDO_FICHAR_MOTIVO_ID = 8;
+
+var RECUPERA_HORAS_MOTIVO_ID = 9;
+var RECUPERA_HORAS_RE = /recupera\s*horas/i;
+
+/* People excluded from disciplinary notifications by default, requested by name (QUICKPASS
+   itself only carries a DNI, not a stable person id, and names are how the company identifies
+   them) — resolved to their DNI and added to cfg.excludedUsers automatically the first time
+   their name is seen in an uploaded/historial row (see ensureDefaultExclusions). Matched
+   case/accent/whitespace-insensitively so small formatting differences in the export don't
+   cause a miss. They still appear in the Horas Trabajadas report, same as any other exclusion. */
+/* REDACTED before this file entered version control. The live artifact carries six
+   real employee names here. They identify specific people and reveal who is exempt
+   from disciplinary notifications, so they are not published — in the rewrite they
+   belong in the `exclusiones` table (db/migrations/001_initial.sql), seeded by an
+   operator at runtime and never committed. The seeding mechanism below is preserved
+   verbatim; only the list is emptied. */
+var DEFAULT_EXCLUDED_NAMES = [];
+function normalizeName(s){
+  return String(s||'').trim().toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/\s+/g,' ');
+}
+var DEFAULT_EXCLUDED_NAMES_NORM = DEFAULT_EXCLUDED_NAMES.map(normalizeName);
+
+var MOTIVOS_DEFAULT = [
+  { id: 1, label: 'Ausente sin Aviso', worked: false },
+  { id: 2, label: 'Ausente con Aviso', worked: false },
+  { id: 3, label: 'Suspensión', worked: false },
+  { id: 4, label: 'Enfermedad', worked: true },
+  { id: 5, label: 'Feriado', worked: true },
+  { id: 6, label: 'Autorizado empresa', worked: true },
+  { id: 7, label: 'Vacaciones', worked: true },
+  { id: OLVIDO_FICHAR_MOTIVO_ID, label: 'Olvidó fichar', worked: true },
+  { id: RECUPERA_HORAS_MOTIVO_ID, label: 'Recupera Horas', worked: false },
+];
+var DEFAULT_SECTOR_2 = ['Reparto', 'Cocina', 'Administración'];
+var PARTES_MAP = [
+  // Checked ahead of the looser "autorizado|compensa|trabaja fuera" pattern below, in case a
+  // real QUICKPASS note ever combines both words (e.g. "Recupera Horas - Autorizado").
+  [RECUPERA_HORAS_RE, RECUPERA_HORAS_MOTIVO_ID],
+  [/ausente sin aviso/i, 1],
+  [/ausente con aviso/i, 2],
+  [/suspensi/i, 3],
+  [/enfermedad|licencia enfermedad/i, 4],
+  [/feriado/i, 5],
+  [/autorizado|compensa|trabaja fuera/i, 6],
+  [/vacacion/i, 7],
+  [OLVIDO_FICHAR_RE, OLVIDO_FICHAR_MOTIVO_ID],
+];
+
+function parseHM(str){
+  if (str === undefined || str === null) return 0;
+  var s = String(str).trim();
+  if (s === '' || s === '-') return 0;
+  var neg = s.charAt(0) === '-';
+  var clean = neg ? s.slice(1) : s;
+  var m = clean.match(/^(\d+):(\d{2})$/);
+  if (!m) return 0;
+  var val = parseInt(m[1],10)*60 + parseInt(m[2],10);
+  return neg ? -val : val;
+}
+function parseDateDMY(str){
+  var m = String(str||'').trim().match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (!m) return null;
+  return new Date(Date.UTC(+m[3], +m[2]-1, +m[1]));
+}
+function mondayOf(date){
+  var d = new Date(date);
+  var day = d.getUTCDay();
+  var diff = (day === 0 ? -6 : 1-day);
+  d.setUTCDate(d.getUTCDate()+diff);
+  return d;
+}
+function sundayOf(date){ var m = mondayOf(date); var d = new Date(m); d.setUTCDate(d.getUTCDate()+6); return d; }
+function fmtDateISO(d){ return d.toISOString().slice(0,10); }
+function fmtDateAR(d){ if(!d) return ''; return String(d.getUTCDate()).padStart(2,'0')+'/'+String(d.getUTCMonth()+1).padStart(2,'0')+'/'+d.getUTCFullYear(); }
+function parseMovimientos(str){
+  var s = String(str||'').trim();
+  if (!s) return [];
+  return s.split('-').map(function(x){return x.trim();}).filter(Boolean).map(function(t){
+    var m = t.match(/^(\d{1,2}):(\d{2})$/);
+    return m ? (+m[1])*60+(+m[2]) : null;
+  }).filter(function(v){return v!==null;});
+}
+function turnoInfo(str){
+  var s = String(str||'').trim();
+  if (s === '') return { isDayOff:true, isFlexible:false, start:null };
+  if (s === '00:00 - 00:00') return { isDayOff:true, isFlexible:false, start:null };
+  if (/^F:/i.test(s)){
+    // "F:" is a flexible shift — but "F: 0hs" (or any zero-hour variant) means the person has
+    // no obligation to work that day at all (a franco), not a flexible workday, so it must NOT
+    // fall through to fault/absence processing. A malformed/bare "F:" with no parseable number
+    // keeps the original flexible behavior rather than being treated as a franco.
+    var fNum = s.match(/^F:\s*([\d.,]+)/i);
+    var hoursVal = fNum ? parseFloat(fNum[1].replace(',', '.')) : NaN;
+    if (!isNaN(hoursVal) && hoursVal === 0) return { isDayOff:true, isFlexible:false, start:null };
+    return { isDayOff:false, isFlexible:true, start:null };
+  }
+  var m = s.match(/^(\d{1,2}):(\d{2})\s*-\s*(\d{1,2}):(\d{2})$/);
+  if (!m) return { isDayOff:false, isFlexible:false, start:null };
+  return { isDayOff:false, isFlexible:false, start:(+m[1])*60+(+m[2]) };
+}
+function classifyPartes(partesRaw){
+  var s = String(partesRaw||'').trim();
+  if (!s) return null;
+  for (var i=0;i<PARTES_MAP.length;i++){ if (PARTES_MAP[i][0].test(s)) return PARTES_MAP[i][1]; }
+  return null;
+}
+function fmtMin(totalMin){
+  totalMin = Math.round(totalMin);
+  var sign = totalMin<0 ? '-' : '';
+  var a = Math.abs(totalMin);
+  return sign+Math.floor(a/60)+':'+String(a%60).padStart(2,'0');
+}
+function fmtClock(totalMin){
+  return String(Math.floor(totalMin/60)).padStart(2,'0')+':'+String(totalMin%60).padStart(2,'0');
+}
+
+function buildDayRecord(row, cfg){
+  var sector = row['Sector'] || '';
+  var usuario = row['Usuario'] || '';
+  var dni = row['DNI'] || '';
+  var legajo = row['Legajo'] || '';
+  var fecha = parseDateDMY(row['Fecha']);
+  var movArr = parseMovimientos(row['Movimientos']);
+  var tInfo = turnoInfo(row['Turno']);
+  var required = (cfg.sectorRules && cfg.sectorRules[sector]) || 4;
+  var horasTurno = parseHM(row['Horas Turno']);
+  var horasGross = parseHM(row['Horas']);
+  var cantidadTarde = parseHM(row['Cantidad Tarde']);
+  var partesRaw = row['Partes'] || '';
+
+  var rec = {
+    sector: sector, usuario: usuario, dni: dni, legajo: legajo,
+    fecha: fecha, fechaStr: row['Fecha'],
+    weekStart: fecha ? fmtDateISO(mondayOf(fecha)) : null,
+    movCount: movArr.length, movArr: movArr,
+    turnoRaw: row['Turno'],
+    isDayOff: tInfo.isDayOff, isFlexible: tInfo.isFlexible, turnoStart: tInfo.start,
+    required: required,
+    horasTurno: horasTurno, horasGross: horasGross, cantidadTarde: cantidadTarde,
+    partesRaw: partesRaw,
+    descansoReal: 0,
+    faults: [], dayType: null, motivoId: null, motivoSource: null,
+    excluded: false,
+  };
+
+  var excludedSet = cfg.excludedUsers || [];
+  var excluded = excludedSet.indexOf(dni) !== -1;
+  rec.excluded = excluded;
+
+  if (rec.isDayOff){ rec.dayType = 'libre'; return rec; }
+
+  if (rec.movCount === 0){
+    rec.dayType = 'ausencia';
+    var key = dni+'|'+row['Fecha'];
+    var saved = ausenciasMap[key];
+    if (saved && saved.motivoId){ rec.motivoId = saved.motivoId; rec.motivoSource = saved.motivoSource || 'manual'; }
+    else {
+      var fromPartes = classifyPartes(partesRaw);
+      if (fromPartes){ rec.motivoId = fromPartes; rec.motivoSource = 'partes'; }
+    }
+    // "Olvidó fichar" is a motivo de ausencia AND a compliance fault at the same time: the
+    // day still gets tracked as an absence (for the registry/hours report), but since the
+    // person ultimately never clocked in, it also generates a Fichadas Incompletas
+    // notification — unlike the other absence motivos, which only affect worked/not-worked.
+    if (rec.motivoId === OLVIDO_FICHAR_MOTIVO_ID && !excluded){
+      rec.faults.push({
+        type: 'incompleta',
+        detail: '0 de '+required+' fichadas — parte QUICKPASS: '+partesRaw.trim(),
+        olvidoFichar: true,
+      });
+    }
+    return rec;
+  }
+
+  rec.dayType = 'trabajo';
+  if (required === 4 && movArr.length >= 3) rec.descansoReal = movArr[2]-movArr[1];
+
+  if (excluded) return rec;
+
+  var olvidoFichar = OLVIDO_FICHAR_RE.test(partesRaw);
+  if (rec.movCount < required || olvidoFichar){
+    var incompletaDetail = rec.movCount+' de '+required+' fichadas';
+    if (olvidoFichar) incompletaDetail += ' — parte QUICKPASS: '+partesRaw.trim();
+    rec.faults.push({ type:'incompleta', detail: incompletaDetail, olvidoFichar: olvidoFichar });
+  }
+  if (required === 4 && movArr.length >= 3 && rec.descansoReal > (cfg.breakMax||30)){
+    rec.faults.push({ type:'descanso', detail: fmtMin(rec.descansoReal)+' de descanso (máx '+(cfg.breakMax||30)+' min)' });
+  }
+  if (!rec.isFlexible && rec.cantidadTarde > (cfg.tolerancia||0) && rec.turnoStart !== null){
+    rec.faults.push({ type:'tardanza', detail: fmtMin(rec.cantidadTarde)+' tarde (turno '+fmtClock(rec.turnoStart)+')' });
+  }
+  return rec;
+}
+
+function weeklyReport(recs, cfg){
+  var motivoWorked = {};
+  (cfg.motivos||MOTIVOS_DEFAULT).forEach(function(m){ motivoWorked[m.id]=m.worked; });
+  var groups = {};
+  recs.forEach(function(r){
+    if (!r.weekStart || !r.dni) return;
+    var key = r.dni+'|'+r.weekStart;
+    if (!groups[key]) groups[key] = {
+      dni:r.dni, weekStart:r.weekStart, usuario:r.usuario, legajo:r.legajo,
+      sectorCounts:{}, horasTrabajadas:0, horasDescanso:0, horasJustificadas:0,
+      diasAusenciaSinClasificar:0, dias:[]
+    };
+    var g = groups[key];
+    g.sectorCounts[r.sector] = (g.sectorCounts[r.sector]||0)+1;
+    g.dias.push(r);
+    if (r.dayType === 'trabajo'){
+      g.horasTrabajadas += r.horasGross;
+      g.horasDescanso += (r.descansoReal||0);
+    } else if (r.dayType === 'ausencia'){
+      if (r.motivoId && motivoWorked[r.motivoId]) g.horasJustificadas += r.horasTurno;
+      else if (!r.motivoId) g.diasAusenciaSinClasificar++;
+    }
+  });
+  var horasTurnoFixed = (cfg.horasTurnoFixed||51)*60;
+  var out = [];
+  Object.keys(groups).forEach(function(k){
+    var g = groups[k];
+    var sector='', best=-1;
+    Object.keys(g.sectorCounts).forEach(function(s){ if (g.sectorCounts[s]>best){best=g.sectorCounts[s]; sector=s;} });
+    out.push({
+      dni:g.dni, usuario:g.usuario, legajo:g.legajo, sector:sector, weekStart:g.weekStart,
+      horasTurno:horasTurnoFixed, horasTrabajadas:g.horasTrabajadas, horasDescanso:g.horasDescanso,
+      horasJustificadas:g.horasJustificadas, diferencia:g.horasTrabajadas+g.horasJustificadas-horasTurnoFixed,
+      diasAusenciaSinClasificar:g.diasAusenciaSinClasificar, dias:g.dias
+    });
+  });
+  out.sort(function(a,b){ return a.sector.localeCompare(b.sector) || a.usuario.localeCompare(b.usuario) || a.weekStart.localeCompare(b.weekStart); });
+  return out;
+}
+
+/* ============================== PERSISTENCE (shared, via the artifact capability) ============================== */
+/* cfg (sector rules, motivos, exclusiones) and the absence registry (ausenciasMap, attachment
+   metadata included) live in a sibling data file, `state.json`. The original QUICKPASS rows
+   (every row ever uploaded, keyed by dni+fecha) live in a second sibling file, `historial.json`
+   — that's the permanent evidentiary record the reports/notifications are built from, so a day
+   stays queryable and its faults/ausencias stay backed by the original QUICKPASS row even after
+   the Excel that produced it is long gone. Both are published alongside this page through
+   claude.use('artifact'), which makes them SHARED — every teammate who opens this page reads and
+   writes the same files, and every other open tab reloads automatically when someone saves a
+   change. Attached files are published the same way, as their own files inside attachments/. If
+   the artifact capability isn't available in a given view (e.g. opened somewhere that can't grant
+   it), changes fall back to that browser's own localStorage so the tool keeps working, with a
+   banner explaining they won't be shared. */
+
+var artifactCap = null;
+var sharedAvailable = false;
+var stateLoaded = false; // true once loadState() has resolved at least once
+var LOCAL_FALLBACK_KEY = 'qp-fichadas-state-fallback';
+
+var DEFAULT_CFG = {
+  sectorRules: (function(){ var o={}; DEFAULT_SECTOR_2.forEach(function(s){o[s]=2;}); return o; })(),
+  excludedUsers: [],
+  autoExcludedApplied: [],
+  motivos: MOTIVOS_DEFAULT.slice(),
+  breakMax: 30,
+  tolerancia: 0,
+  horasTurnoFixed: 51,
+};
+
+function freshCfg(){ return JSON.parse(JSON.stringify(DEFAULT_CFG)); }
+
+function applyState(data){
+  if (!data) return false;
+  cfg = Object.assign(freshCfg(), data.cfg||{});
+  ausenciasMap = data.ausencias || {};
+  var m1 = ensureOlvidoFicharMotivo();
+  var m2 = ensureBuiltinMotivo(RECUPERA_HORAS_MOTIVO_ID, 'Recupera Horas', false);
+  return m1 || m2;
+}
+
+/* Teams that were already using the shared registry before "Olvidó fichar" existed have a
+   saved cfg.motivos without it (loading only replaces cfg.motivos wholesale, it doesn't
+   merge new built-in entries into an existing array) — this adds it once, in place, so
+   existing deployments pick it up automatically instead of everyone having to add it by
+   hand from Configuración. It also corrects a team's copy that already has the entry but
+   with the wrong "worked" flag from an earlier version of this app (it briefly shipped as
+   worked:false; it counts as worked). Returns true if anything actually changed, so the
+   caller can persist it for the team. */
+function ensureOlvidoFicharMotivo(){
+  cfg.motivos = cfg.motivos || [];
+  var existing = cfg.motivos.filter(function(m){ return m.id === OLVIDO_FICHAR_MOTIVO_ID; })[0];
+  if (!existing){
+    cfg.motivos = cfg.motivos.concat([{ id: OLVIDO_FICHAR_MOTIVO_ID, label: 'Olvidó fichar', worked: true }]);
+    return true;
+  }
+  if (existing.worked !== true){ existing.worked = true; return true; }
+  return false;
+}
+
+/* Generic version of the same migration, for any later built-in motivo added to MOTIVOS_DEFAULT
+   after a team's cfg.motivos was already persisted: adds it if missing, entirely by id, without
+   touching a value the team may have already edited by hand (only the initial add is forced). */
+function ensureBuiltinMotivo(id, label, worked){
+  cfg.motivos = cfg.motivos || [];
+  var existing = cfg.motivos.filter(function(m){ return m.id === id; })[0];
+  if (existing) return false;
+  cfg.motivos = cfg.motivos.concat([{ id: id, label: label, worked: worked }]);
+  return true;
+}
+
+function fetchJsonFile(name){
+  return fetch(name, { cache:'no-store' }).then(function(r){ return r.ok ? r.json() : null; }).catch(function(){ return null; });
+}
+
+function loadState(){
+  return (window.claude && window.claude.use ? window.claude.use('artifact').catch(function(){ return null; }) : Promise.resolve(null))
+    .then(function(ns){
+      artifactCap = ns;
+      sharedAvailable = !!ns;
+      if (sharedAvailable) return Promise.all([fetchJsonFile('state.json'), fetchJsonFile('historial.json')]);
+      try{
+        var raw = localStorage.getItem(LOCAL_FALLBACK_KEY);
+        var parsed = raw ? JSON.parse(raw) : null;
+        return [parsed, parsed && parsed.historial];
+      }catch(e){ return [null, null]; }
+    })
+    .then(function(pair){
+      var migrated = applyState(pair[0]);
+      historialRows = pair[1] || {};
+      if (migrated) saveState(); // persist the auto-added "Olvidó fichar" motivo for the team
+    })
+    .catch(function(err){ console.warn('No se pudo cargar el estado:', err); })
+    .then(function(){ stateLoaded = true; });
+}
+
+/* Publishes cfg + ausenciasMap (and, optionally, extra files given as {path: content|Blob|null}
+   in extraFiles — new/removed attachments, or a refreshed historial.json) as the new shared
+   version. Debounced to one in-flight publish at a time — a change that arrives mid-publish is
+   queued and folded into the next one, since every call mints a full version and the capability
+   asks callers not to publish per-keystroke. */
+var savePending = false, saveQueuedFiles = null;
+function saveState(extraFiles){
+  if (!sharedAvailable){
+    try{ localStorage.setItem(LOCAL_FALLBACK_KEY, JSON.stringify({ cfg:cfg, ausencias:ausenciasMap, historial:historialRows })); }catch(e){}
+    render();
+    return Promise.resolve();
+  }
+  if (savePending){
+    saveQueuedFiles = Object.assign(saveQueuedFiles||{}, extraFiles||{});
+    return Promise.resolve();
+  }
+  savePending = true;
+  var files = Object.assign({}, extraFiles||{});
+  files['state.json'] = JSON.stringify({ cfg:cfg, ausencias:ausenciasMap, updatedAt:Date.now() });
+  return artifactCap.publish(files).then(function(){
+    savePending = false;
+    render();
+    if (saveQueuedFiles){ var q = saveQueuedFiles; saveQueuedFiles = null; return saveState(q); }
+  }).catch(function(err){
+    savePending = false;
+    var code = err && err.code;
+    if (code === 'conflict'){
+      // someone else saved first — pull their version so we don't overwrite it, then re-render
+      return Promise.all([fetchJsonFile('state.json'), fetchJsonFile('historial.json')]).then(function(pair){
+        applyState(pair[0]);
+        if (pair[1]) historialRows = pair[1];
+        recompute();
+        showToast('Alguien más actualizó el registro compartido; se trajo la última versión.');
+      });
+    }
+    if (code === 'rate_limited'){
+      return new Promise(function(res){ setTimeout(res, 1000); }).then(function(){ return saveState(extraFiles); });
+    }
+    if (code === 'not_writer' || code === 'not_granted'){
+      showToast('No tenés permiso de edición sobre este documento compartido — tu cambio no se guardó.');
+    } else if (code === 'capability_disabled'){
+      showToast('El guardado compartido no está habilitado para esta vista del documento.');
+    } else if (code === 'too_large'){
+      showToast('El registro compartido superó el tamaño permitido. Puede que necesites borrar adjuntos viejos.');
+    } else {
+      showToast('No se pudo guardar el cambio compartido. Se aplicó solo en tu pantalla por ahora.');
+    }
+    render();
+  });
+}
+
+var cfg = freshCfg();
+var ausenciasMap = {};      // id ("dni|fecha") -> shared absence record (attachments included)
+var historialRows = {};     // id ("dni|fecha") -> original QUICKPASS row, permanent shared record
+var rawRows = [];           // rows from the most recently uploaded file only (for the Carga summary)
+var recs = [];
+var sectorsSeen = [];
+var currentTab = 'carga';
+var period = { mode:'semana', anchor: new Date() };
+
+function saveCfg(){ saveState(); }
+
+/* ============================== PERIOD ============================== */
+
+function periodRange(){
+  var a = period.anchor;
+  if (period.mode === 'dia'){
+    var d0 = new Date(Date.UTC(a.getUTCFullYear(),a.getUTCMonth(),a.getUTCDate()));
+    return [d0, d0];
+  }
+  if (period.mode === 'semana'){
+    return [mondayOf(a), sundayOf(a)];
+  }
+  if (period.mode === 'mes'){
+    var start = new Date(Date.UTC(a.getUTCFullYear(), a.getUTCMonth(), 1));
+    var end = new Date(Date.UTC(a.getUTCFullYear(), a.getUTCMonth()+1, 0));
+    return [start,end];
+  }
+  var s2 = new Date(Date.UTC(a.getUTCFullYear(),0,1));
+  var e2 = new Date(Date.UTC(a.getUTCFullYear(),11,31));
+  return [s2,e2];
+}
+function inPeriod(fecha){
+  if (!fecha) return false;
+  var r = periodRange();
+  return fecha >= r[0] && fecha <= r[1];
+}
+
+/* ============================== FILE LOADING ============================== */
+
+var dropzone = document.getElementById('dropzone');
+var fileInput = document.getElementById('file-input');
+dropzone.addEventListener('click', function(){ fileInput.click(); });
+dropzone.addEventListener('dragover', function(e){ e.preventDefault(); dropzone.classList.add('drag'); });
+dropzone.addEventListener('dragleave', function(){ dropzone.classList.remove('drag'); });
+dropzone.addEventListener('drop', function(e){
+  e.preventDefault(); dropzone.classList.remove('drag');
+  if (e.dataTransfer.files && e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', function(e){
+  if (e.target.files && e.target.files[0]) handleFile(e.target.files[0]);
+});
+
+/* The uploaded Excel IS the QUICKPASS export — every row it contains is upserted (by
+   dni+fecha) into the permanent shared historial, instead of only living in this session's
+   memory. That's what lets Ausencias/Notificaciones/Horas keep showing a period after the
+   file that produced it is gone, and gives every fault/ausencia a traceable original row.
+   Re-uploading a period overwrites its rows with the newer copy; every other period already
+   in the historial is untouched. Returns true if anything actually changed. */
+function mergeIntoHistorial(rows){
+  var changed = false;
+  rows.forEach(function(row){
+    var dni = row['DNI']||'', fecha = row['Fecha']||'';
+    if (!dni || !fecha) return;
+    var key = dni+'|'+fecha;
+    var prev = historialRows[key];
+    if (!prev || JSON.stringify(prev) !== JSON.stringify(row)){ historialRows[key] = row; changed = true; }
+  });
+  return changed;
+}
+
+function handleFile(file){
+  var reader = new FileReader();
+  reader.onload = function(ev){
+    try{
+      var data = new Uint8Array(ev.target.result);
+      var wb = XLSX.read(data, { type:'array', cellDates:false });
+      var ws = wb.Sheets[wb.SheetNames[0]];
+      var json = XLSX.utils.sheet_to_json(ws, { defval:'', raw:false });
+      rawRows = json;
+      var historialChanged = mergeIntoHistorial(json);
+      var ausenciasChanged = recompute();
+      renderCargaSummary(file.name);
+      showToast('Se cargaron '+rawRows.length+' filas de este archivo ('+Object.keys(historialRows).length+' días en el historial acumulado).');
+      switchTab('notif');
+      if (historialChanged || ausenciasChanged){
+        saveState(historialChanged ? { 'historial.json': JSON.stringify(historialRows) } : undefined);
+      }
+    }catch(err){
+      showToast('No se pudo leer el archivo: '+err.message);
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+/* recs is built from the full accumulated historial (every period ever uploaded, by anyone
+   on the team), not just the file loaded this session — so period filters can reach back to
+   past uploads without re-loading their Excel. */
+function recompute(){
+  var exclusionsChanged = ensureDefaultExclusions();
+  recs = Object.values(historialRows).map(function(r){ return buildDayRecord(r, cfg); });
+  var set = {};
+  recs.forEach(function(r){ if (r.sector) set[r.sector]=true; });
+  sectorsSeen = Object.keys(set).sort();
+  var ausenciasChanged = syncAusenciasHistorial(recs);
+  var pruned = pruneStaleAusencias(recs);
+  render();
+  return ausenciasChanged || pruned || exclusionsChanged;
+}
+
+/* Resolves DEFAULT_EXCLUDED_NAMES to actual DNIs the first time each name is seen in the
+   historial, adding them to cfg.excludedUsers (the real, DNI-keyed exclusion list everything
+   else already uses). Run before recs is (re)built each time so a newly-resolved exclusion
+   takes effect immediately, in the same pass.
+   cfg.autoExcludedApplied tracks which DNIs this seeding has already been applied to, so it only
+   ever happens ONCE per person: if an operator later removes one of these people from the
+   exclusion list by hand (Configuración), this won't silently re-add them on the next recompute —
+   only a brand-new DNI matching a default name gets auto-excluded. */
+function ensureDefaultExclusions(){
+  cfg.excludedUsers = cfg.excludedUsers || [];
+  cfg.autoExcludedApplied = cfg.autoExcludedApplied || [];
+  var changed = false;
+  Object.values(historialRows).forEach(function(row){
+    var dni = row['DNI'] || '';
+    if (!dni || cfg.autoExcludedApplied.indexOf(dni) !== -1) return;
+    if (DEFAULT_EXCLUDED_NAMES_NORM.indexOf(normalizeName(row['Usuario'])) !== -1){
+      cfg.autoExcludedApplied.push(dni);
+      if (cfg.excludedUsers.indexOf(dni) === -1) cfg.excludedUsers.push(dni);
+      changed = true;
+    }
+  });
+  return changed;
+}
+
+/* A day that used to compute as an unclassified "ausencia" can stop being one after a rule
+   change (e.g. "F: 0hs" now correctly counts as a franco, not an absence) — but syncAusenciasHistorial
+   above only ever upserts current absences, it never removes ones that no longer apply, so those
+   would otherwise sit in the shared registry forever as orphaned "pending classification" entries.
+   This prunes them back out — but conservatively: only entries that came from our own historial,
+   are no longer computed as 'ausencia', have NO motivo assigned, and have NO attachments. Anything
+   an operator already classified or attached a file to is always left untouched. */
+function pruneStaleAusencias(list){
+  var stillAusencia = {};
+  list.forEach(function(r){ if (r.dayType === 'ausencia') stillAusencia[r.dni+'|'+r.fechaStr] = true; });
+  var changed = false;
+  Object.keys(ausenciasMap).forEach(function(key){
+    if (!historialRows.hasOwnProperty(key)) return;
+    if (stillAusencia[key]) return;
+    var rec = ausenciasMap[key];
+    var hasAttachments = rec.attachments && rec.attachments.length;
+    if (!rec.motivoId && !hasAttachments){
+      delete ausenciasMap[key];
+      changed = true;
+    }
+  });
+  return changed;
+}
+
+/* Every ausencia-type day computed from the accumulated historial is upserted into the shared
+   registry (in memory here — the caller decides when to publish it), so it stays queryable by
+   persona/sector independent of the historial rebuild. A motivo the operator picked by hand
+   ('manual') is never overwritten by a later re-upload; only the descriptive fields (turno,
+   nota de Partes, sector, etc.) get refreshed. Returns true if anything actually changed. */
+function syncAusenciasHistorial(list){
+  var changedAny = false;
+  list.forEach(function(r){
+    if (r.dayType !== 'ausencia') return;
+    var key = r.dni+'|'+r.fechaStr;
+    var existing = ausenciasMap[key];
+    var motivoId = r.motivoId, motivoSource = r.motivoSource;
+    if (existing && existing.motivoSource === 'manual'){ motivoId = existing.motivoId; motivoSource = 'manual'; }
+    var rec = {
+      id:key, dni:r.dni, usuario:r.usuario, sector:r.sector, legajo:r.legajo,
+      fechaStr:r.fechaStr, weekStart:r.weekStart, turnoRaw:r.turnoRaw, partesRaw:r.partesRaw,
+      motivoId: motivoId||null, motivoSource: motivoSource||null,
+      attachments: (existing && existing.attachments) || [],
+      updatedAt: (existing && existing.updatedAt) || Date.now(),
+    };
+    var changed = !existing || existing.turnoRaw!==rec.turnoRaw || existing.partesRaw!==rec.partesRaw ||
+      existing.motivoId!==rec.motivoId || existing.sector!==rec.sector || existing.usuario!==rec.usuario;
+    if (changed) rec.updatedAt = Date.now();
+    ausenciasMap[key] = rec;
+    if (changed) changedAny = true;
+  });
+  return changedAny;
+}
+
+/* Called whenever the operator sets/clears a motivo, from either the Ausencias tab or the
+   inline dropdown in Horas trabajadas. Always marks the choice as 'manual' so a later
+   re-upload won't silently override it. Publishes the change right away so teammates see it. */
+function setMotivo(key, motivoId){
+  var existing = ausenciasMap[key] || {};
+  var parts = key.split('|');
+  var rec = Object.assign({
+    id:key, dni:parts[0], fechaStr:parts.slice(1).join('|'), usuario:'', sector:'', legajo:'',
+    weekStart:null, turnoRaw:'', partesRaw:'', attachments:[],
+  }, existing, {
+    motivoId: motivoId || null,
+    motivoSource: motivoId ? 'manual' : null,
+    updatedAt: Date.now(),
+  });
+  ausenciasMap[key] = rec;
+  recompute();
+  saveState();
+}
+
+function renderCargaSummary(fileName){
+  var el = document.getElementById('carga-summary');
+  el.classList.remove('hidden');
+  document.getElementById('carga-file-name').textContent = fileName+' · '+rawRows.length+' filas en este archivo';
+  var people = {}; var minF=null, maxF=null;
+  recs.forEach(function(r){
+    people[r.dni]=true;
+    if (r.fecha){ if(!minF||r.fecha<minF) minF=r.fecha; if(!maxF||r.fecha>maxF) maxF=r.fecha; }
+  });
+  var stats = [
+    ['Personas', Object.keys(people).length],
+    ['Sectores', sectorsSeen.length],
+    ['Días en el historial', recs.length],
+    ['Rango total', minF?(fmtDateAR(minF)+' – '+fmtDateAR(maxF)):'—'],
+  ];
+  document.getElementById('carga-stats').innerHTML = stats.map(function(s){
+    return '<div class="stat"><b>'+s[1]+'</b><span>'+s[0]+'</span></div>';
+  }).join('');
+}
+
+/* ============================== TABS / NAV ============================== */
+
+var TAB_TITLES = { carga:'Cargar datos', notif:'Notificaciones', ausencias:'Ausencias', indicador:'Indicador de notificaciones', horas:'Horas trabajadas', config:'Configuración' };
+document.querySelectorAll('.navbtn').forEach(function(btn){
+  btn.addEventListener('click', function(){ switchTab(btn.getAttribute('data-tab')); });
+});
+function switchTab(tab){
+  currentTab = tab;
+  document.querySelectorAll('.navbtn').forEach(function(b){ b.classList.toggle('active', b.getAttribute('data-tab')===tab); });
+  ['carga','notif','ausencias','indicador','horas','config'].forEach(function(t){
+    document.getElementById('tab-'+t).classList.toggle('hidden', t!==tab);
+  });
+  document.getElementById('page-title').textContent = TAB_TITLES[tab];
+  document.getElementById('period-controls').style.display = (tab==='carga') ? 'none' : 'flex';
+  render();
+}
+
+/* ============================== PERIOD CONTROLS ============================== */
+
+var MESES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+var DOW = ['L','M','X','J','V','S','D'];
+var calendarViewMonth = new Date(period.anchor);
+var calendarOpen = false;
+
+document.querySelectorAll('#period-mode button').forEach(function(btn){
+  btn.addEventListener('click', function(){
+    period.mode = btn.getAttribute('data-mode');
+    document.querySelectorAll('#period-mode button').forEach(function(b){ b.classList.toggle('on', b===btn); });
+    render();
+  });
+});
+document.getElementById('period-prev').addEventListener('click', function(){ shiftPeriod(-1); });
+document.getElementById('period-next').addEventListener('click', function(){ shiftPeriod(1); });
+function shiftPeriod(dir){
+  var a = new Date(period.anchor);
+  if (period.mode==='dia') a.setUTCDate(a.getUTCDate()+dir);
+  else if (period.mode==='semana') a.setUTCDate(a.getUTCDate()+dir*7);
+  else if (period.mode==='mes') a.setUTCMonth(a.getUTCMonth()+dir);
+  else a.setUTCFullYear(a.getUTCFullYear()+dir);
+  period.anchor = a;
+  calendarViewMonth = new Date(a);
+  render();
+}
+function renderPeriodLabel(){
+  var r = periodRange();
+  document.getElementById('period-range-label').textContent = fmtDateAR(r[0])+' – '+fmtDateAR(r[1]);
+  document.getElementById('period-anchor-label').textContent =
+    String(period.anchor.getUTCDate()).padStart(2,'0')+' '+MESES[period.anchor.getUTCMonth()].slice(0,3)+' '+period.anchor.getUTCFullYear();
+}
+
+/* ---- custom calendar popover (replaces a bare native date input) ---- */
+
+var calBtn = document.getElementById('period-calendar-btn');
+var calPop = document.getElementById('calendar-pop');
+calBtn.addEventListener('click', function(e){
+  e.stopPropagation();
+  calendarOpen = !calendarOpen;
+  if (calendarOpen){ calendarViewMonth = new Date(period.anchor); renderCalendarPopover(); }
+  calPop.classList.toggle('hidden', !calendarOpen);
+});
+document.addEventListener('click', function(e){
+  if (calendarOpen && !calPop.contains(e.target) && e.target!==calBtn){
+    calendarOpen = false; calPop.classList.add('hidden');
+  }
+});
+document.addEventListener('keydown', function(e){
+  if (e.key === 'Escape' && calendarOpen){ calendarOpen = false; calPop.classList.add('hidden'); }
+});
+
+function renderCalendarPopover(){
+  var y = calendarViewMonth.getUTCFullYear(), m = calendarViewMonth.getUTCMonth();
+  var first = new Date(Date.UTC(y, m, 1));
+  var startOffset = (first.getUTCDay()+6)%7; // Monday-first
+  var daysInMonth = new Date(Date.UTC(y, m+1, 0)).getUTCDate();
+  var daysInPrevMonth = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  var range = periodRange();
+  var today = new Date(); var todayISO = fmtDateISO(new Date(Date.UTC(today.getFullYear(),today.getMonth(),today.getDate())));
+
+  var cells = [];
+  for (var i=0;i<startOffset;i++){
+    cells.push({ day: daysInPrevMonth-startOffset+i+1, out:true, date:new Date(Date.UTC(y,m-1,daysInPrevMonth-startOffset+i+1)) });
+  }
+  for (var d=1; d<=daysInMonth; d++) cells.push({ day:d, out:false, date:new Date(Date.UTC(y,m,d)) });
+  while (cells.length % 7 !== 0){
+    var next = cells.length - (startOffset+daysInMonth) + 1;
+    cells.push({ day: next, out:true, date:new Date(Date.UTC(y,m+1,next)) });
+  }
+
+  var html = '<div class="cal-head">'+
+    '<button data-cal-nav="-1" type="button">&#8592;</button>'+
+    '<span>'+MESES[m]+' '+y+'</span>'+
+    '<button data-cal-nav="1" type="button">&#8594;</button>'+
+  '</div><div class="cal-grid">';
+  DOW.forEach(function(l){ html += '<div class="cal-dow">'+l+'</div>'; });
+  cells.forEach(function(c){
+    var iso = fmtDateISO(c.date);
+    var inRange = c.date >= range[0] && c.date <= range[1];
+    var isAnchor = iso === fmtDateISO(period.anchor);
+    var cls = 'cal-day' + (c.out?' out':'') + (inRange?' in-range':'') + (isAnchor?' anchor':'') + (iso===todayISO?' cal-today':'');
+    html += '<button type="button" class="'+cls+'" data-cal-day="'+iso+'">'+c.day+'</button>';
+  });
+  html += '</div>';
+  calPop.innerHTML = html;
+
+  calPop.querySelectorAll('[data-cal-nav]').forEach(function(btn){
+    btn.addEventListener('click', function(e){
+      e.stopPropagation();
+      calendarViewMonth.setUTCMonth(calendarViewMonth.getUTCMonth()+parseInt(btn.getAttribute('data-cal-nav'),10));
+      renderCalendarPopover();
+    });
+  });
+  calPop.querySelectorAll('[data-cal-day]').forEach(function(btn){
+    btn.addEventListener('click', function(e){
+      e.stopPropagation();
+      var iso = btn.getAttribute('data-cal-day');
+      var parts = iso.split('-');
+      period.anchor = new Date(Date.UTC(+parts[0], +parts[1]-1, +parts[2]));
+      calendarOpen = false; calPop.classList.add('hidden');
+      render();
+    });
+  });
+}
+
+/* ============================== RENDER: NOTIFICACIONES ============================== */
+
+var FAULT_LABEL = { incompleta:'Fichadas incompletas', descanso:'Exceso de descanso', tardanza:'Llegada tarde' };
+var FAULT_ORDER = ['incompleta','descanso','tardanza'];
+
+function filteredRecs(){ return recs.filter(function(r){ return inPeriod(r.fecha); }); }
+
+function groupFaultsByPerson(list){
+  var byDni = {};
+  list.forEach(function(r){
+    if (!r.faults.length) return;
+    if (!byDni[r.dni]) byDni[r.dni] = { dni:r.dni, usuario:r.usuario, sector:r.sector, legajo:r.legajo, byType:{incompleta:[],descanso:[],tardanza:[]}, total:0 };
+    var g = byDni[r.dni];
+    if (r.sector) g.sector = r.sector;
+    r.faults.forEach(function(f){
+      // Carry the raw fields each fault-specific Word table needs (see buildFaultTable),
+      // not just the generic on-screen "detail" string.
+      var item = { fecha:r.fechaStr, detail:f.detail, dateObj:r.fecha, turnoRaw:r.turnoRaw };
+      if (f.type === 'tardanza'){
+        item.horarioFichado = r.movArr.length ? fmtClock(r.movArr[0]) : '—';
+        item.minutos = fmtMin(r.cantidadTarde);
+      } else if (f.type === 'descanso'){
+        item.descansoTomado = fmtMin(r.descansoReal);
+        item.exceso = fmtMin(r.descansoReal - (cfg.breakMax||30));
+      } else if (f.type === 'incompleta'){
+        item.registradas = r.movArr.length ? r.movArr.map(fmtClock).join(' - ') : '—';
+        // If it's flagged only by the QUICKPASS "Olvidó fichar" note (the punch count on
+        // its own already looks complete), say so instead of a contradictory "4 de 4".
+        item.cantidad = (f.olvidoFichar && r.movCount >= r.required)
+          ? 'Olvidó fichar (parte QUICKPASS)'
+          : r.movCount+' de '+r.required;
+      }
+      g.byType[f.type].push(item);
+      g.total++;
+    });
+  });
+  return Object.values(byDni).sort(function(a,b){ return a.sector.localeCompare(b.sector) || a.usuario.localeCompare(b.usuario); });
+}
+
+var selectedNotifDnis = {}; // dni -> bool, so a check survives incidental re-renders
+
+function renderNotifTable(){
+  var list = filteredRecs();
+  var groups = groupFaultsByPerson(list);
+  document.getElementById('nav-count-notif').textContent = groups.reduce(function(s,g){return s+g.total;},0);
+
+  var ausenciasSinClasificar = list.filter(function(r){ return r.dayType==='ausencia' && !r.motivoId; }).length;
+  var banner = document.getElementById('notif-ausencias-banner');
+  if (ausenciasSinClasificar>0){
+    banner.classList.remove('hidden');
+    banner.innerHTML = '<div class="banner"><span>&#9888;&#65039;</span><div><b>'+ausenciasSinClasificar+' día(s) sin fichadas y sin motivo asignado</b> en este período. Clasificalos en la pestaña <a class="link" data-goto="ausencias">Ausencias</a> para que el reporte de horas sea correcto.</div></div>';
+    banner.querySelector('[data-goto]').addEventListener('click', function(){ switchTab('ausencias'); });
+  } else banner.classList.add('hidden');
+
+  var genAllBtn = document.getElementById('notif-gen-all');
+  var genSelBtn = document.getElementById('notif-gen-selected');
+  genAllBtn.disabled = bulkGenInProgress || !groups.length;
+  if (!bulkGenInProgress) genAllBtn.textContent = 'Generar todos los Word'+(groups.length?' ('+groups.length+')':'');
+  genAllBtn.onclick = function(){ generarWordMasivo(groups); };
+
+  var table = document.getElementById('notif-table');
+  if (!groups.length){
+    table.innerHTML = '<tr><td class="empty">No hay notificaciones para generar en este período.</td></tr>';
+    genSelBtn.disabled = true;
+    genSelBtn.textContent = 'Generar seleccionados';
+    return;
+  }
+  var lastSector = null;
+  var html = '<thead><tr><th><input type="checkbox" id="notif-sel-all" title="Seleccionar todos"></th><th>Persona</th><th>DNI</th><th>Incompletas</th><th>Descanso</th><th>Tardanza</th><th>Total</th><th></th></tr></thead><tbody>';
+  groups.forEach(function(g){
+    if (g.sector !== lastSector){ html += '<tr class="grp"><td colspan="8">'+g.sector+'</td></tr>'; lastSector = g.sector; }
+    html += '<tr>'+
+      '<td><input type="checkbox" class="notif-sel" data-sel="'+g.dni+'"'+(selectedNotifDnis[g.dni]?' checked':'')+'></td>'+
+      '<td>'+g.usuario+'</td>'+
+      '<td class="mono">'+g.dni+'</td>'+
+      '<td>'+(g.byType.incompleta.length ? '<span class="chip incompleta">'+g.byType.incompleta.length+'</span>' : '—')+'</td>'+
+      '<td>'+(g.byType.descanso.length ? '<span class="chip descanso">'+g.byType.descanso.length+'</span>' : '—')+'</td>'+
+      '<td>'+(g.byType.tardanza.length ? '<span class="chip tardanza">'+g.byType.tardanza.length+'</span>' : '—')+'</td>'+
+      '<td class="pillnum">'+g.total+'</td>'+
+      '<td><button class="btn small primary" data-gen="'+g.dni+'">Generar Word</button></td>'+
+    '</tr>';
+  });
+  html += '</tbody>';
+  table.innerHTML = html;
+  table.querySelectorAll('[data-gen]').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var g = groups.filter(function(x){return x.dni===btn.getAttribute('data-gen');})[0];
+      generarWord(g);
+    });
+  });
+
+  function updateSelUI(){
+    var selectedGroups = groups.filter(function(g){ return selectedNotifDnis[g.dni]; });
+    genSelBtn.disabled = bulkGenInProgress || !selectedGroups.length;
+    if (!bulkGenInProgress) genSelBtn.textContent = 'Generar seleccionados'+(selectedGroups.length?' ('+selectedGroups.length+')':'');
+    genSelBtn.onclick = function(){ generarWordMasivo(selectedGroups); };
+    var selAll = document.getElementById('notif-sel-all');
+    if (selAll) selAll.checked = selectedGroups.length>0 && selectedGroups.length===groups.length;
+  }
+  table.querySelectorAll('.notif-sel').forEach(function(cb){
+    cb.addEventListener('change', function(){
+      selectedNotifDnis[cb.getAttribute('data-sel')] = cb.checked;
+      updateSelUI();
+    });
+  });
+  var selAllCb = document.getElementById('notif-sel-all');
+  if (selAllCb){
+    selAllCb.addEventListener('change', function(){
+      groups.forEach(function(g){ selectedNotifDnis[g.dni] = selAllCb.checked; });
+      table.querySelectorAll('.notif-sel').forEach(function(cb){ cb.checked = selAllCb.checked; });
+      updateSelUI();
+    });
+  }
+  updateSelUI();
+}
+
+/* ============================== RENDER: INDICADOR ============================== */
+
+function renderIndicador(){
+  var list = filteredRecs();
+  var groups = groupFaultsByPersonAll(list);
+  var table = document.getElementById('indicador-table');
+  if (!groups.length){ table.innerHTML = '<tr><td class="empty">Sin datos para este período.</td></tr>'; return; }
+  var lastSector = null;
+  var html = '<thead><tr><th>Persona</th><th>DNI</th><th>Incompletas</th><th>Descanso</th><th>Tardanza</th><th>Total</th></tr></thead><tbody>';
+  var totals = {incompleta:0,descanso:0,tardanza:0,total:0};
+  groups.forEach(function(g){
+    if (g.sector !== lastSector){ html += '<tr class="grp"><td colspan="6">'+g.sector+'</td></tr>'; lastSector = g.sector; }
+    totals.incompleta += g.byType.incompleta.length; totals.descanso += g.byType.descanso.length; totals.tardanza += g.byType.tardanza.length; totals.total += g.total;
+    html += '<tr><td>'+g.usuario+'</td><td class="mono">'+g.dni+'</td>'+
+      '<td class="pillnum">'+g.byType.incompleta.length+'</td>'+
+      '<td class="pillnum">'+g.byType.descanso.length+'</td>'+
+      '<td class="pillnum">'+g.byType.tardanza.length+'</td>'+
+      '<td class="pillnum">'+g.total+'</td></tr>';
+  });
+  html += '<tr class="grp"><td>Total período</td><td></td>'+
+    '<td class="pillnum">'+totals.incompleta+'</td><td class="pillnum">'+totals.descanso+'</td>'+
+    '<td class="pillnum">'+totals.tardanza+'</td><td class="pillnum">'+totals.total+'</td></tr>';
+  html += '</tbody>';
+  table.innerHTML = html;
+}
+function groupFaultsByPersonAll(list){
+  var byDni = {};
+  list.forEach(function(r){
+    if (r.excluded) return;
+    if (r.dayType!=='trabajo') return;
+    if (!byDni[r.dni]) byDni[r.dni] = { dni:r.dni, usuario:r.usuario, sector:r.sector, byType:{incompleta:[],descanso:[],tardanza:[]}, total:0 };
+    var g = byDni[r.dni]; if (r.sector) g.sector=r.sector;
+    r.faults.forEach(function(f){ g.byType[f.type].push(f); g.total++; });
+  });
+  return Object.values(byDni).sort(function(a,b){ return a.sector.localeCompare(b.sector) || a.usuario.localeCompare(b.usuario); });
+}
+
+/* ============================== RENDER: AUSENCIAS ============================== */
+/* Sourced from `ausenciasMap` (the persistent registry), not from the currently loaded
+   file — so it stays browsable by sector/persona across every planilla ever uploaded. */
+
+document.getElementById('ausencias-solo-pendientes').addEventListener('change', function(){ renderAusencias(); });
+document.getElementById('ausencias-filter-sector').addEventListener('change', function(){ renderAusencias(); });
+document.getElementById('ausencias-filter-usuario').addEventListener('change', function(){ renderAusencias(); });
+
+var expandedAusencias = {}; // key -> bool, survives full re-renders (e.g. after saveState())
+
+function ausenciaFechaObj(rec){ return parseDateDMY(rec.fechaStr); }
+
+function renderAusenciaFilterOptions(){
+  var all = Object.values(ausenciasMap);
+  var sectorSel = document.getElementById('ausencias-filter-sector');
+  var userSel = document.getElementById('ausencias-filter-usuario');
+  var curSector = sectorSel.value, curUser = userSel.value;
+  var sectors = {}, users = {};
+  all.forEach(function(r){ if (r.sector) sectors[r.sector]=true; if (r.dni) users[r.dni]=r.usuario; });
+  sectorSel.innerHTML = '<option value="">Todos</option>' + Object.keys(sectors).sort().map(function(s){
+    return '<option value="'+s+'"'+(s===curSector?' selected':'')+'>'+s+'</option>';
+  }).join('');
+  userSel.innerHTML = '<option value="">Todas</option>' + Object.keys(users).sort(function(a,b){return users[a].localeCompare(users[b]);}).map(function(dni){
+    return '<option value="'+dni+'"'+(dni===curUser?' selected':'')+'>'+users[dni]+'</option>';
+  }).join('');
+}
+
+function renderAusencias(){
+  renderAusenciaFilterOptions();
+  var r = periodRange();
+  var sectorFilter = document.getElementById('ausencias-filter-sector').value;
+  var userFilter = document.getElementById('ausencias-filter-usuario').value;
+  var soloPendientes = document.getElementById('ausencias-solo-pendientes').checked;
+
+  var all = Object.values(ausenciasMap).filter(function(rec){
+    var f = ausenciaFechaObj(rec);
+    if (!f || f < r[0] || f > r[1]) return false;
+    if (sectorFilter && rec.sector !== sectorFilter) return false;
+    if (userFilter && rec.dni !== userFilter) return false;
+    return true;
+  });
+  var pendientes = all.filter(function(rec){ return !rec.motivoId; });
+  var list = (soloPendientes ? pendientes : all).slice().sort(function(a,b){
+    return a.sector.localeCompare(b.sector) || a.usuario.localeCompare(b.usuario) || a.fechaStr.split('/').reverse().join('').localeCompare(b.fechaStr.split('/').reverse().join(''));
+  });
+
+  document.getElementById('ausencias-summary').innerHTML =
+    '<span class="chip '+(pendientes.length?'incompleta':'ok')+'"><b class="pillnum">'+pendientes.length+'</b>&nbsp;sin clasificar</span> '+
+    '<span class="chip muted"><b class="pillnum">'+all.length+'</b>&nbsp;ausencias en el período y filtro elegidos</span>';
+
+  var table = document.getElementById('ausencias-table');
+  if (!list.length){
+    table.innerHTML = '<tr><td class="empty">'+(soloPendientes ? 'No hay ausencias sin clasificar con este filtro.' : 'No hay ausencias registradas con este filtro.')+'</td></tr>';
+    return;
+  }
+
+  var lastSector = null;
+  var html = '<thead><tr><th></th><th>Persona</th><th>DNI</th><th>Fecha</th><th>Turno</th><th>Nota QUICKPASS</th><th>Motivo</th><th>Adjuntos</th></tr></thead><tbody>';
+  list.forEach(function(rec, idx){
+    if (rec.sector !== lastSector){ html += '<tr class="grp"><td colspan="8">'+rec.sector+'</td></tr>'; lastSector = rec.sector; }
+    var key = rec.id;
+    var opts = '<option value="">Sin clasificar</option>' + (cfg.motivos||MOTIVOS_DEFAULT).map(function(m){
+      return '<option value="'+m.id+'"'+(rec.motivoId===m.id?' selected':'')+'>'+m.label+'</option>';
+    }).join('');
+    var atts = rec.attachments || [];
+    var isOpen = !!expandedAusencias[key];
+    html += '<tr'+(!rec.motivoId?' style="background:var(--warn-soft)"':'')+'>'+
+      '<td><button class="btn small" data-toggle-att="'+key+'">'+(isOpen?'–':'+')+'</button></td>'+
+      '<td>'+rec.usuario+'</td>'+
+      '<td class="mono">'+rec.dni+'</td>'+
+      '<td class="mono">'+rec.fechaStr+'</td>'+
+      '<td class="mono">'+(rec.turnoRaw||'—')+'</td>'+
+      '<td>'+(rec.partesRaw || '<span class="empty" style="padding:0">—</span>')+'</td>'+
+      '<td><select class="motivo-select" data-key="'+key+'">'+opts+'</select></td>'+
+      '<td data-att-count-for="'+key+'">'+(atts.length ? '<span class="chip muted">'+atts.length+'</span>' : '<span class="empty" style="padding:0">—</span>')+'</td>'+
+    '</tr>';
+    html += '<tr class="'+(isOpen?'':'hidden')+'" data-panel-for="'+key+'"><td></td><td colspan="7">'+renderAttachmentManager(key)+'</td></tr>';
+  });
+  html += '</tbody>';
+  table.innerHTML = html;
+
+  table.querySelectorAll('[data-toggle-att]').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var key = btn.getAttribute('data-toggle-att');
+      expandedAusencias[key] = !expandedAusencias[key];
+      var row = document.querySelector('[data-panel-for="'+key+'"]');
+      if (row) row.classList.toggle('hidden', !expandedAusencias[key]);
+      btn.textContent = expandedAusencias[key] ? '–' : '+';
+    });
+  });
+  table.querySelectorAll('select.motivo-select').forEach(function(sel){
+    sel.addEventListener('change', function(){
+      var val = sel.value ? parseInt(sel.value,10) : null;
+      setMotivo(sel.getAttribute('data-key'), val);
+      showToast(val ? 'Motivo asignado.' : 'Se quitó la clasificación.');
+    });
+  });
+  wireAttachmentInputs(table);
+}
+
+function renderAttachmentManager(ausenciaId){
+  if (!sharedAvailable){
+    return '<div class="daydetail"><span class="empty" style="padding:0">Los adjuntos necesitan el guardado compartido, que no está disponible en este dispositivo ahora mismo.</span></div>';
+  }
+  var rec = ausenciasMap[ausenciaId];
+  var atts = (rec && rec.attachments) || [];
+  var chips = atts.map(function(a){
+    return '<div class="tag">'+
+      '<a class="link" href="'+encodeURI(a.path)+'" target="_blank" rel="noopener">'+escapeHtml(a.name)+' ('+fmtBytes(a.size)+')</a>'+
+      '<button class="btn small" style="border:none; background:none; padding:0 2px" data-dl-att="'+a.path+'" data-dl-name="'+escapeHtml(a.name)+'" title="Descargar">&#8595;</button>'+
+      '<button data-rm-att="'+a.path+'" data-rm-ausencia="'+ausenciaId+'" title="Quitar">&times;</button>'+
+    '</div>';
+  }).join('');
+  return '<div class="daydetail">'+
+    '<label class="btn small" style="cursor:pointer; display:inline-flex">Adjuntar archivo(s)'+
+    '<input type="file" class="hidden" multiple data-upload-att="'+ausenciaId+'"></label>'+
+    '<div class="taglist">'+(chips || '<span class="empty" style="padding:4px 0">Sin adjuntos todavía.</span>')+'</div>'+
+    '</div>';
+}
+
+function wireAttachmentInputs(scope){
+  scope.querySelectorAll('[data-upload-att]').forEach(function(input){
+    input.addEventListener('change', function(){
+      var ausenciaId = input.getAttribute('data-upload-att');
+      var files = Array.prototype.slice.call(input.files||[]);
+      if (!files.length) return;
+      addAttachments(ausenciaId, files).then(function(){
+        showToast(files.length>1 ? 'Se adjuntaron '+files.length+' archivos.' : 'Archivo adjuntado.');
+        refreshAttachmentUI(ausenciaId);
+      });
+    });
+  });
+  scope.querySelectorAll('[data-dl-att]').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      downloadAttachment(btn.getAttribute('data-dl-att'), btn.getAttribute('data-dl-name'));
+    });
+  });
+  scope.querySelectorAll('[data-rm-att]').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var ausenciaId = btn.getAttribute('data-rm-ausencia');
+      removeAttachment(ausenciaId, btn.getAttribute('data-rm-att')).then(function(){
+        refreshAttachmentUI(ausenciaId);
+      });
+    });
+  });
+}
+
+/* Updates just the attachment count chip + the (already open) attachment panel for one
+   ausencia record, without rebuilding the whole table — so the panel the operator is
+   looking at doesn't collapse after they add or remove a file. */
+function refreshAttachmentUI(key){
+  var rec = ausenciasMap[key];
+  var atts = (rec && rec.attachments) || [];
+  var countCell = document.querySelector('[data-att-count-for="'+key+'"]');
+  if (countCell) countCell.innerHTML = atts.length ? '<span class="chip muted">'+atts.length+'</span>' : '<span class="empty" style="padding:0">—</span>';
+  var panel = document.querySelector('[data-panel-for="'+key+'"]');
+  if (panel){
+    var cell = panel.querySelector('td:last-child');
+    if (cell){ cell.innerHTML = renderAttachmentManager(key); wireAttachmentInputs(cell); }
+  }
+}
+
+function sanitizeForPath(s){ return String(s).replace(/[^a-zA-Z0-9._-]+/g,'_').slice(0,80); }
+
+/* Attached files are published as real files inside the artifact (attachments/…), alongside
+   state.json — so they're shared and stay downloadable for anyone who opens this page, not
+   just the browser that uploaded them. */
+function addAttachments(ausenciaId, fileList){
+  if (!sharedAvailable){ showToast('No se puede guardar el adjunto: el guardado compartido no está disponible ahora.'); return Promise.resolve(); }
+  var rec = ausenciasMap[ausenciaId];
+  if (!rec) return Promise.resolve();
+  var files = {};
+  fileList.forEach(function(file){
+    var path = 'attachments/'+sanitizeForPath(ausenciaId)+'/'+Date.now()+'-'+Math.random().toString(36).slice(2,7)+'-'+sanitizeForPath(file.name);
+    rec.attachments = rec.attachments || [];
+    rec.attachments.push({ path:path, name:file.name, type:file.type, size:file.size });
+    files[path] = file; // File is already a Blob
+  });
+  return saveState(files).catch(function(){ showToast('No se pudo guardar el archivo (¿es muy pesado?).'); });
+}
+function removeAttachment(ausenciaId, path){
+  var rec = ausenciasMap[ausenciaId];
+  if (rec) rec.attachments = (rec.attachments||[]).filter(function(a){ return a.path!==path; });
+  var files = {}; files[path] = null; // null deletes the published file
+  return saveState(files);
+}
+/* The downloads capability only knows how to save a fixed list of extensions
+   (gif png jpg jpeg webp mp4 webm txt json md docx pptx epub csv ttf html svg pdf) — an
+   attachment outside that list (.xlsx, .heic, .zip, .doc, etc.) used to fall through to a
+   script-triggered <a download>, which the Artifact viewer sandbox silently ignores. That
+   is the "no me deja descargar" bug: nothing broke, the click just had nowhere to go. Now
+   an unsupported extension opens the file's own real URL in a new tab instead — that's a
+   normal navigation, not a script-triggered save, so the sandbox allows it and the browser's
+   own "Guardar como" works from there. */
+var DOWNLOAD_ALLOWED_EXT = ['gif','png','jpg','jpeg','webp','mp4','webm','txt','json','md','docx','pptx','epub','csv','ttf','html','svg','pdf'];
+function extOf(name){
+  var m = /\.([a-zA-Z0-9]+)$/.exec(String(name||'').trim());
+  return m ? m[1].toLowerCase() : '';
+}
+function downloadAttachment(path, name){
+  var ext = extOf(name);
+  if (DOWNLOAD_ALLOWED_EXT.indexOf(ext) === -1){
+    showToast((ext ? 'Los archivos .'+ext : 'Este archivo')+' no admiten descarga directa acá — se abrió en una pestaña nueva, guardalo desde ahí con el navegador.');
+    window.open(path, '_blank');
+    return;
+  }
+  fetch(path).then(function(r){
+    if (!r.ok) throw new Error('not found');
+    return r.blob();
+  }).then(function(blob){
+    return offerDownload(name, blob);
+  }).then(function(saved){
+    if (!saved) { showToast('No se guardó automáticamente. Abrilo con "Ver" y guardalo manualmente si hace falta.'); }
+  }).catch(function(){ showToast('No se pudo descargar el archivo.'); });
+}
+function fmtBytes(n){
+  if (!n && n!==0) return '';
+  if (n < 1024) return n+' B';
+  if (n < 1024*1024) return (n/1024).toFixed(0)+' KB';
+  return (n/1024/1024).toFixed(1)+' MB';
+}
+function escapeHtml(s){ return String(s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+
+/* ============================== RENDER: HORAS TRABAJADAS ============================== */
+
+var PUNCH_LABELS_4 = ['Entrada al trabajo','Salida a descanso','Reingreso de descanso','Salida del trabajo'];
+var PUNCH_LABELS_2 = ['Entrada al trabajo','Salida del trabajo'];
+
+/* Parses "HH:MM - HH:MM" independently of turnoInfo() (which only exposes the start) —
+   kept separate from the engine on purpose so the fault-detection code path is untouched;
+   this is only used to synthesize the alternate, estimated Horas Trabajadas view. Handles
+   overnight shifts (end <= start) by rolling the end past midnight. */
+function parseTurnoRange(turnoRaw){
+  var m = String(turnoRaw||'').trim().match(/^(\d{1,2}):(\d{2})\s*-\s*(\d{1,2}):(\d{2})$/);
+  if (!m) return null;
+  var start = (+m[1])*60+(+m[2]);
+  var end = (+m[3])*60+(+m[4]);
+  if (end <= start) end += 1440;
+  return { start:start, end:end };
+}
+
+/* Returns a copy of `list` where any "trabajo" day with fewer punches than its sector
+   requires (and a fixed, non-flexible turno) gets its movimientos completed as if the
+   person had punched exactly on schedule: turno start/end for the 2 required punches, and
+   for the 4-required case a break of cfgLocal.breakMax minutes centered on the shift's
+   midpoint. Days that already have the required punches, absences, francos and flexible
+   ("F:") turnos are returned untouched — this only fills in gaps, never overrides a real
+   fichada. Used solely to compute an alternate "Horas Trabajadas" view; never mutates or
+   feeds back into `recs`, faults or notifications. */
+function buildIdealizedRecs(list, cfgLocal){
+  return list.map(function(r){
+    if (r.dayType !== 'trabajo' || r.isFlexible || r.movCount >= r.required) return r;
+    var range = parseTurnoRange(r.turnoRaw);
+    if (!range) return r;
+    var idealMovArr;
+    if (r.required === 4){
+      var breakMax = cfgLocal.breakMax || 30;
+      var mid = (range.start+range.end)/2;
+      var half = breakMax/2;
+      idealMovArr = [range.start, Math.round(mid-half), Math.round(mid+half), range.end];
+    } else {
+      idealMovArr = [range.start, range.end];
+    }
+    var clone = Object.assign({}, r);
+    clone.movArr = idealMovArr;
+    clone.movCount = idealMovArr.length;
+    clone.horasGross = idealMovArr[idealMovArr.length-1] - idealMovArr[0];
+    clone.descansoReal = (r.required===4) ? (idealMovArr[2]-idealMovArr[1]) : 0;
+    clone.estimado = true;
+    return clone;
+  });
+}
+
+var horasEstimarCb = document.getElementById('horas-estimar');
+horasEstimarCb.addEventListener('change', function(){ renderHoras(); });
+
+/* Kept in sync on every renderHoras() call so the export button always exports exactly what's
+   currently on screen (same período, same "completar fichadas" toggle state), without needing
+   to recompute the report from scratch on click. */
+var lastHorasReport = [];
+function csvField(val){
+  var s = val===null||val===undefined ? '' : String(val);
+  if (/["\n\r;]/.test(s)) s = '"'+s.replace(/"/g,'""')+'"';
+  return s;
+}
+function exportHorasCsv(){
+  if (!lastHorasReport.length){ showToast('No hay datos para exportar en este período.'); return; }
+  var header = ['Sector','Persona','DNI','Legajo','Semana desde','Semana hasta','Horas Turno','Horas Trabajadas','Horas Descanso','Diferencia','Días sin clasificar'];
+  var rows = [header];
+  lastHorasReport.forEach(function(w){
+    var wkStart = new Date(w.weekStart+'T00:00:00Z');
+    var wkEnd = sundayOf(wkStart);
+    rows.push([
+      w.sector, w.usuario, w.dni, w.legajo||'',
+      fmtDateAR(wkStart), fmtDateAR(wkEnd),
+      fmtMin(w.horasTurno), fmtMin(w.horasTrabajadas+w.horasJustificadas), fmtMin(w.horasDescanso),
+      (w.diferencia>=0?'+':'')+fmtMin(w.diferencia),
+      w.diasAusenciaSinClasificar||0,
+    ]);
+  });
+  // Semicolon-delimited + UTF-8 BOM: Excel en español (AR) usa la coma como separador decimal,
+  // así que interpreta ";" como delimitador de columnas al abrir el .csv directamente.
+  var csv = rows.map(function(r){ return r.map(csvField).join(';'); }).join('\r\n');
+  var blob = new Blob(['\ufeff'+csv], { type:'text/csv;charset=utf-8;' });
+  offerDownload('horas_trabajadas_'+fmtDateISO(new Date())+'.csv', blob);
+}
+document.getElementById('horas-export-csv').addEventListener('click', exportHorasCsv);
+
+function renderHoras(){
+  var list = filteredRecs();
+  var estimar = horasEstimarCb.checked;
+  var note = document.getElementById('horas-estimar-note');
+  note.textContent = estimar
+    ? 'Los días con fichadas incompletas se completan con el horario del turno asignado (entrada/salida, y descanso centrado según "minutos de descanso máximo"), solo para este cálculo — no afecta faltas ni notificaciones. Las fichadas completadas se muestran en celeste e itálica.'
+    : '';
+  var reportList = estimar ? buildIdealizedRecs(list, cfg) : list;
+  var report = weeklyReport(reportList, cfg);
+  lastHorasReport = report;
+  document.getElementById('nav-count-horas').textContent = report.filter(function(w){return w.diasAusenciaSinClasificar>0;}).length;
+
+  var sinClasifTotal = report.reduce(function(s,w){return s+w.diasAusenciaSinClasificar;},0);
+  var banner = document.getElementById('horas-ausencias-banner');
+  if (sinClasifTotal>0){
+    banner.classList.remove('hidden');
+    banner.innerHTML = '<div class="banner"><span>&#9888;&#65039;</span><div><b>'+sinClasifTotal+' día(s) por clasificar.</b> Desplegá la fila de la persona para clasificarlos acá, o hacelo todos juntos en la pestaña <a class="link" data-goto="ausencias">Ausencias</a>.</div></div>';
+    var gotoBtn = banner.querySelector('[data-goto]');
+    if (gotoBtn) gotoBtn.addEventListener('click', function(){ switchTab('ausencias'); });
+  } else banner.classList.add('hidden');
+
+  var table = document.getElementById('horas-table');
+  if (!report.length){ table.innerHTML = '<tr><td class="empty">Sin datos para este período.</td></tr>'; return; }
+
+  var lastSector = null;
+  var html = '<thead><tr><th></th><th>Persona</th><th>DNI</th><th>Semana</th><th>Turno</th><th>Trabajadas</th><th>Descanso</th><th>Diferencia</th></tr></thead><tbody>';
+  report.forEach(function(w, idx){
+    if (w.sector !== lastSector){ html += '<tr class="grp"><td colspan="8">'+w.sector+'</td></tr>'; lastSector = w.sector; }
+    var wkStart = new Date(w.weekStart+'T00:00:00Z');
+    var wkEnd = sundayOf(wkStart);
+    var diffClass = w.diferencia >= 0 ? 'diff-pos' : 'diff-neg';
+    var rowId = 'wk-'+idx;
+    html += '<tr>'+
+      '<td><button class="btn small" data-toggle="'+rowId+'">+</button></td>'+
+      '<td>'+w.usuario+(w.diasAusenciaSinClasificar? ' <span class="chip incompleta">'+w.diasAusenciaSinClasificar+' sin clasif.</span>':'')+'</td>'+
+      '<td class="mono">'+w.dni+'</td>'+
+      '<td class="mono">'+fmtDateAR(wkStart)+' – '+fmtDateAR(wkEnd)+'</td>'+
+      '<td class="pillnum">'+fmtMin(w.horasTurno)+'</td>'+
+      '<td class="pillnum">'+fmtMin(w.horasTrabajadas+w.horasJustificadas)+'</td>'+
+      '<td class="pillnum">'+fmtMin(w.horasDescanso)+'</td>'+
+      '<td class="pillnum '+diffClass+'">'+(w.diferencia>=0?'+':'')+fmtMin(w.diferencia)+'</td>'+
+    '</tr>';
+    html += '<tr id="row-'+rowId+'" class="hidden"><td></td><td colspan="7">'+renderWeekDetail(w)+'</td></tr>';
+  });
+  html += '</tbody>';
+  table.innerHTML = html;
+
+  table.querySelectorAll('[data-toggle]').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var id = btn.getAttribute('data-toggle');
+      var row = document.getElementById('row-'+id);
+      row.classList.toggle('hidden');
+      btn.textContent = row.classList.contains('hidden') ? '+' : '–';
+    });
+  });
+  table.querySelectorAll('select.motivo-select').forEach(function(sel){
+    sel.addEventListener('change', function(){
+      var val = sel.value ? parseInt(sel.value,10) : null;
+      setMotivo(sel.getAttribute('data-key'), val);
+      showToast(val ? 'Motivo asignado.' : 'Se quitó la clasificación.');
+    });
+  });
+}
+
+function renderWeekDetail(w){
+  var days = w.dias.slice().sort(function(a,b){ return a.fecha - b.fecha; });
+  var rows = days.map(function(d){
+    var labels = d.required===2 ? PUNCH_LABELS_2 : PUNCH_LABELS_4;
+    var punches = labels.map(function(lbl, i){
+      var t = d.movArr[i];
+      var cls = t===undefined ? ' missing' : (d.estimado ? ' est' : '');
+      return '<div class="punch'+cls+'"><b>'+(t===undefined?'FALTA':fmtClock(t))+'</b>'+lbl+'</div>';
+    }).join('');
+    var estado = d.estimado ? '<span class="chip muted" title="Fichadas completadas según el turno asignado, no son un registro real">Estimado</span> ' : '';
+    if (d.dayType==='libre') estado += '<span class="chip muted">Franco</span>';
+    else if (d.dayType==='ausencia'){
+      if (d.motivoId){
+        var mot = (cfg.motivos||MOTIVOS_DEFAULT).filter(function(m){return m.id===d.motivoId;})[0];
+        estado = '<span class="chip '+(mot&&mot.worked?'ok':'muted')+'">'+(mot?mot.label:('Motivo '+d.motivoId))+(d.motivoSource==='partes'?' (auto)':'')+'</span>';
+      } else {
+        var key = d.dni+'|'+d.fechaStr;
+        var opts = '<option value="">Sin clasificar</option>' + (cfg.motivos||MOTIVOS_DEFAULT).map(function(m){ return '<option value="'+m.id+'">'+m.label+'</option>'; }).join('');
+        estado = '<select class="motivo-select" data-key="'+key+'">'+opts+'</select>';
+      }
+    } else if (d.estimado){
+      // The real faults still apply for compliance purposes (see Notificaciones), but showing
+      // them here next to a synthesized, fully-completed punch map would read as contradictory.
+      estado += '<span class="chip ok">Completado para este cálculo</span>';
+    } else {
+      var chips = d.faults.map(function(f){ return '<span class="chip '+f.type+'">'+FAULT_LABEL[f.type]+'</span>'; }).join(' ');
+      estado = chips || '<span class="chip ok">Ok</span>';
+    }
+    return '<div class="daydetail"><div style="display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap"><b class="mono">'+d.fechaStr+' · '+ (d.turnoRaw||'—') +'</b>'+estado+'</div>'+
+      (d.dayType==='trabajo' ? '<div class="punchmap">'+punches+'</div>' : '')+
+      '</div>';
+  }).join('');
+  return rows;
+}
+
+/* ============================== RENDER: CONFIG ============================== */
+
+function renderConfigSectores(){
+  var all = {};
+  sectorsSeen.forEach(function(s){ all[s]=true; });
+  Object.keys(cfg.sectorRules).forEach(function(s){ all[s]=true; });
+  var list = Object.keys(all).sort();
+  var el = document.getElementById('config-sectores');
+  if (!list.length){ el.innerHTML = '<div class="empty">Cargá una planilla para ver los sectores.</div>'; return; }
+  el.innerHTML = list.map(function(s){
+    var n = cfg.sectorRules[s] || 4;
+    return '<div class="sectorrule"><span class="name">'+s+'</span>'+
+      '<div class="seg" data-sector="'+encodeURIComponent(s)+'">'+
+      '<button data-n="2" class="'+(n===2?'on':'')+'">2 fichadas</button>'+
+      '<button data-n="4" class="'+(n===4?'on':'')+'">4 fichadas</button>'+
+      '</div></div>';
+  }).join('');
+  el.querySelectorAll('.seg').forEach(function(seg){
+    seg.querySelectorAll('button').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var sector = decodeURIComponent(seg.getAttribute('data-sector'));
+        cfg.sectorRules[sector] = parseInt(btn.getAttribute('data-n'),10);
+        recompute(); saveCfg();
+      });
+    });
+  });
+}
+
+function renderConfigParams(){
+  document.getElementById('cfg-horas-turno').value = cfg.horasTurnoFixed;
+  document.getElementById('cfg-break-max').value = cfg.breakMax;
+  document.getElementById('cfg-tolerancia').value = cfg.tolerancia;
+}
+document.getElementById('cfg-horas-turno').addEventListener('change', function(e){ cfg.horasTurnoFixed = parseFloat(e.target.value)||51; recompute(); saveCfg(); });
+document.getElementById('cfg-break-max').addEventListener('change', function(e){ cfg.breakMax = parseFloat(e.target.value)||30; recompute(); saveCfg(); });
+document.getElementById('cfg-tolerancia').addEventListener('change', function(e){ cfg.tolerancia = parseFloat(e.target.value)||0; recompute(); saveCfg(); });
+
+function renderConfigExcluded(){
+  var sel = document.getElementById('config-exclude-select');
+  var people = {};
+  recs.forEach(function(r){ if (r.dni) people[r.dni] = r.usuario; });
+  var opts = ['<option value="">Agregar persona…</option>'];
+  Object.keys(people).sort(function(a,b){return people[a].localeCompare(people[b]);}).forEach(function(dni){
+    if (cfg.excludedUsers.indexOf(dni)!==-1) return;
+    opts.push('<option value="'+dni+'">'+people[dni]+' — '+dni+'</option>');
+  });
+  sel.innerHTML = opts.join('');
+  sel.onchange = function(){
+    if (sel.value){ cfg.excludedUsers.push(sel.value); recompute(); saveCfg(); }
+  };
+  var list = document.getElementById('config-exclude-list');
+  if (!cfg.excludedUsers.length){ list.innerHTML = '<div class="empty">No hay personas excluidas.</div>'; return; }
+  list.innerHTML = cfg.excludedUsers.map(function(dni){
+    var nombre = people[dni] || dni;
+    return '<div class="tag">'+nombre+' <button data-rm="'+dni+'">&times;</button></div>';
+  }).join('');
+  list.querySelectorAll('[data-rm]').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      cfg.excludedUsers = cfg.excludedUsers.filter(function(d){ return d!==btn.getAttribute('data-rm'); });
+      recompute(); saveCfg();
+    });
+  });
+}
+
+function renderConfigMotivos(){
+  var table = document.getElementById('config-motivos-table');
+  var html = '<thead><tr><th>ID</th><th>Motivo</th><th>Cuenta como trabajado</th><th></th></tr></thead><tbody>';
+  cfg.motivos.forEach(function(m){
+    html += '<tr><td class="mono">'+m.id+'</td><td>'+escapeHtml(m.label)+'</td><td>'+
+      '<button class="chip '+(m.worked?'ok':'muted')+'" style="border:none; cursor:pointer; font:inherit" data-toggle-worked="'+m.id+'" title="Click para cambiar">'+(m.worked?'Sí':'No')+'</button></td>'+
+      '<td><button class="btn small" data-rm-motivo="'+m.id+'" title="Quitar motivo">&times;</button></td></tr>';
+  });
+  html += '</tbody>';
+  table.innerHTML = html;
+  table.querySelectorAll('[data-toggle-worked]').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var id = parseInt(btn.getAttribute('data-toggle-worked'), 10);
+      var m = cfg.motivos.filter(function(x){ return x.id === id; })[0];
+      if (!m) return;
+      m.worked = !m.worked;
+      recompute(); saveCfg();
+      showToast('"'+m.label+'" ahora cuenta como '+(m.worked?'trabajado.':'no trabajado.'));
+    });
+  });
+  table.querySelectorAll('[data-rm-motivo]').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var id = parseInt(btn.getAttribute('data-rm-motivo'), 10);
+      cfg.motivos = cfg.motivos.filter(function(x){ return x.id !== id; });
+      recompute(); saveCfg();
+      showToast('Motivo quitado.');
+    });
+  });
+}
+
+document.getElementById('motivo-new-add').addEventListener('click', function(){
+  var input = document.getElementById('motivo-new-label');
+  var label = input.value.trim();
+  if (!label){ showToast('Escribí una etiqueta para el motivo antes de agregarlo.'); return; }
+  var workedCb = document.getElementById('motivo-new-worked');
+  var nextId = (cfg.motivos||[]).reduce(function(m,x){ return Math.max(m, x.id); }, 0) + 1;
+  cfg.motivos = (cfg.motivos||[]).concat([{ id: nextId, label: label, worked: !!workedCb.checked }]);
+  input.value = '';
+  workedCb.checked = false;
+  recompute(); saveCfg();
+  showToast('Motivo agregado: '+label);
+});
+
+/* ============================== RENDER ROOT ============================== */
+
+function render(){
+  renderPeriodLabel();
+  document.getElementById('shared-unavailable-banner').classList.toggle('hidden', !stateLoaded || sharedAvailable);
+  if (calendarOpen) renderCalendarPopover();
+  if (currentTab==='notif') renderNotifTable();
+  if (currentTab==='ausencias') renderAusencias();
+  if (currentTab==='indicador') renderIndicador();
+  if (currentTab==='horas') renderHoras();
+  if (currentTab==='config'){ renderConfigSectores(); renderConfigParams(); renderConfigExcluded(); renderConfigMotivos(); }
+  // keep nav counts fresh regardless of tab
+  var list = filteredRecs();
+  document.getElementById('nav-count-notif').textContent = groupFaultsByPerson(list).reduce(function(s,g){return s+g.total;},0);
+  var r = periodRange();
+  var pendientesAusencias = Object.values(ausenciasMap).filter(function(rec){
+    if (rec.motivoId) return false;
+    var f = ausenciaFechaObj(rec);
+    return f && f>=r[0] && f<=r[1];
+  }).length;
+  var ac = document.getElementById('nav-count-ausencias');
+  ac.textContent = pendientesAusencias;
+  ac.classList.toggle('alert', pendientesAusencias>0);
+  var rpt = weeklyReport(list, cfg);
+  var sinClasif = rpt.filter(function(w){return w.diasAusenciaSinClasificar>0;}).length;
+  var hc = document.getElementById('nav-count-horas');
+  hc.textContent = sinClasif || '0';
+  hc.classList.toggle('alert', sinClasif>0);
+}
+
+/* ============================== TOAST ============================== */
+
+function showToast(msg){
+  var t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(function(){ t.classList.remove('show'); }, 3200);
+}
+
+/* ============================== WORD GENERATION ============================== */
+
+/* One notification page per person: a shared header/intro, then one highlighted
+   table per fault type the person actually incurred that period, then one shared
+   closing. Colors mirror the app's own fault chips (incompleta=amber, descanso=blue,
+   tardanza=red) so the printed page uses the same visual language as the screen. */
+/* Only label/color/shade differ by fault type now — the surrounding letter text is the
+   same regardless of which fault(s) triggered it ("estandar indistinto del evento"). Each
+   fault only shows up as its own titled, highlighted table, stacked one below the other. */
+var FAULT_META = {
+  incompleta: { label: 'Fichadas incompletas', color: 'A66A10', shade: 'FBEBD3' },
+  descanso: { label: 'Exceso de descanso', color: '2E6F9E', shade: 'DEEBF5' },
+  tardanza: { label: 'Llegadas tarde', color: 'B93A2A', shade: 'FBE1DC' }
+};
+var NOTIF_HEADING = 'Apercibimiento';
+var NOTIF_INTRO = 'En uso de la facultad de imponer medidas disciplinarias, se le notifica a usted que se ha tomado la decisión de sancionarlo expresamente con un apercibimiento formal, debido a los hechos que a continuación se detallan.';
+var NOTIF_BODY = 'Los motivos de la presente sanción se fundan en los registros de asistencia verificados por el sistema de control horario por huella dactilar de la empresa, conforme se detalla en el/los cuadro/s que se exponen a continuación.';
+var CLOSING_TEXT = 'Le recordamos que es obligación del trabajador prestar servicios con puntualidad, diligencia y buena fe, cumpliendo debidamente el régimen de asistencia y horarios establecido por la empresa, así como registrar la totalidad de sus movimientos mediante el sistema de control horario (arts. 62, 63, 84 y 85 de la Ley de Contrato de Trabajo). En virtud de lo expuesto, se lo apercibe expresamente por los hechos detallados en la presente. Se le hace saber que la reiteración de cualquiera de estas conductas dará lugar a la aplicación de sanciones disciplinarias más severas, pudiendo llegar a la suspensión sin goce de haberes.';
+
+function fechaLarga(d){
+  var meses = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+  return d.getUTCDate()+' de '+meses[d.getUTCMonth()]+' de '+d.getUTCFullYear();
+}
+
+/* The .docx file is built by hand as a minimal, valid OOXML package (a zip of a few XML
+   parts) via JSZip, instead of depending on a third-party "docx" library and its CDN build —
+   that dependency is what was failing ("No se pudo cargar la librería de Word"). This has no
+   external dependency beyond JSZip, which is very broadly mirrored on cdnjs. */
+
+function xmlEsc(s){
+  return String(s==null?'':s).replace(/[&<>"']/g, function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c];
+  });
+}
+/* Font size, spacing and table row padding all scale down together as one person's fault
+   count grows, so the letter reliably stays on ONE page whether they have a single fault or
+   two weeks' worth of them — see pickDensity()/CUR_DENSITY below. wRun falls back to the
+   current density's body size whenever a call doesn't ask for a specific one (headings,
+   fault subtitles), so every call site benefits without having to pass sz everywhere. */
+var CUR_DENSITY = { body:20, heading:26, sub:23, table:19, spacingScale:1, cellPadV:50 };
+function pickDensity(totalItems){
+  if (totalItems <= 6) return { body:20, heading:26, sub:23, table:19, spacingScale:1, cellPadV:50 };
+  if (totalItems <= 14) return { body:18, heading:23, sub:20, table:17, spacingScale:0.62, cellPadV:20 };
+  if (totalItems <= 30) return { body:16, heading:21, sub:18, table:14, spacingScale:0.4, cellPadV:8 };
+  return { body:15, heading:19, sub:16, table:12, spacingScale:0.28, cellPadV:4 };
+}
+/* Scales a spacing constant (twips) by the current density, with a small floor so sections
+   never collapse into each other even at the tightest tier. */
+function sp(v){ return Math.max(20, Math.round(v * CUR_DENSITY.spacingScale)); }
+
+function wRun(text, opts){
+  opts = opts || {};
+  var sz = opts.sz !== undefined ? opts.sz : CUR_DENSITY.body;
+  var rPr = '<w:rPr>'+(opts.bold?'<w:b/>':'')+(opts.color?'<w:color w:val="'+opts.color+'"/>':'')+'<w:sz w:val="'+sz+'"/><w:szCs w:val="'+sz+'"/></w:rPr>';
+  return '<w:r>'+rPr+'<w:t xml:space="preserve">'+xmlEsc(text)+'</w:t></w:r>';
+}
+function wBreak(){ return '<w:r><w:br/></w:r>'; }
+function wPara(innerXml, opts){
+  opts = opts || {};
+  var spacing = (opts.before!==undefined || opts.after!==undefined)
+    ? '<w:spacing'+(opts.before!==undefined?' w:before="'+opts.before+'"':'')+(opts.after!==undefined?' w:after="'+opts.after+'"':'')+'/>' : '';
+  var jc = opts.jc ? '<w:jc w:val="'+opts.jc+'"/>' : '';
+  var ppr = (spacing || jc) ? '<w:pPr>'+jc+spacing+'</w:pPr>' : '';
+  return '<w:p>'+ppr+innerXml+'</w:p>';
+}
+function wHeading(text, opts){
+  opts = opts || {};
+  var sz = opts.sz !== undefined ? opts.sz : CUR_DENSITY.heading;
+  var before = opts.before !== undefined ? opts.before : sp(120);
+  var after = opts.after !== undefined ? opts.after : sp(120);
+  return '<w:p><w:pPr><w:spacing w:before="'+before+'" w:after="'+after+'"/></w:pPr>'+wRun(text,{bold:true, sz:sz})+'</w:p>';
+}
+function wPageBreak(){ return '<w:p><w:r><w:br w:type="page"/></w:r></w:p>'; }
+function wTableCell(text, opts){
+  opts = opts || {};
+  var shd = opts.shade ? '<w:shd w:val="clear" w:color="auto" w:fill="'+opts.shade+'"/>' : '';
+  var tcPr = '<w:tcPr><w:tcW w:w="0" w:type="auto"/>'+shd+'</w:tcPr>';
+  var runOpts = { sz: CUR_DENSITY.table }; if (opts.bold) runOpts.bold = true; if (opts.color) runOpts.color = opts.color;
+  return '<w:tc>'+tcPr+wPara(wRun(text, runOpts), {jc:'center'})+'</w:tc>';
+}
+/* opts.highlightCol + opts.color/opts.shade visually call out the offending value (e.g.
+   "Minutos de Tardanza") in its own column — bold, fault-colored text on a soft tint —
+   which is how "resaltando la falta" is expressed on the printed page. Row padding
+   (tblCellMar) shrinks with CUR_DENSITY.cellPadV so long tables stay compact. */
+function wTable(headers, rows, opts){
+  opts = opts || {};
+  var borders = ['top','left','bottom','right','insideH','insideV'].map(function(edge){
+    return '<w:'+edge+' w:val="single" w:sz="4" w:space="0" w:color="D0D7DD"/>';
+  }).join('');
+  var cellMar = '<w:tblCellMar>'+
+    '<w:top w:w="'+CUR_DENSITY.cellPadV+'" w:type="dxa"/><w:bottom w:w="'+CUR_DENSITY.cellPadV+'" w:type="dxa"/>'+
+    '<w:left w:w="80" w:type="dxa"/><w:right w:w="80" w:type="dxa"/></w:tblCellMar>';
+  var tblPr = '<w:tblPr><w:tblW w:w="0" w:type="auto"/><w:tblBorders>'+borders+'</w:tblBorders>'+cellMar+'</w:tblPr>';
+  var grid = '<w:tblGrid>'+headers.map(function(){ return '<w:gridCol w:w="'+Math.floor(9026/headers.length)+'"/>'; }).join('')+'</w:tblGrid>';
+  var headRow = '<w:tr>'+headers.map(function(h){ return wTableCell(h,{bold:true, shade:'E7ECF0'}); }).join('')+'</w:tr>';
+  var bodyRows = rows.map(function(r){
+    return '<w:tr>'+r.map(function(c, idx){
+      if (opts.highlightCol !== undefined && idx === opts.highlightCol) return wTableCell(c, {bold:true, color:opts.color, shade:opts.shade});
+      return wTableCell(c);
+    }).join('')+'</w:tr>';
+  }).join('');
+  return '<w:tbl>'+tblPr+grid+headRow+bodyRows+'</w:tbl>';
+}
+function buildDocumentXml(bodyXml){
+  return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'+
+    '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'+
+    '<w:body>'+bodyXml+
+    '<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="680" w:right="850" w:bottom="680" w:left="850" w:header="708" w:footer="708" w:gutter="0"/></w:sectPr>'+
+    '</w:body></w:document>';
+}
+var DOCX_CONTENT_TYPES =
+  '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'+
+  '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'+
+  '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'+
+  '<Default Extension="xml" ContentType="application/xml"/>'+
+  '<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>'+
+  '</Types>';
+var DOCX_RELS =
+  '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'+
+  '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'+
+  '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>'+
+  '</Relationships>';
+
+function buildDocxBlob(bodyXml){
+  if (typeof JSZip === 'undefined') return Promise.reject(new Error('JSZip no está disponible'));
+  var zip = new JSZip();
+  zip.file('[Content_Types].xml', DOCX_CONTENT_TYPES);
+  zip.folder('_rels').file('.rels', DOCX_RELS);
+  zip.folder('word').file('document.xml', buildDocumentXml(bodyXml));
+  return zip.generateAsync({ type:'blob', mimeType:'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+}
+
+/* Builds the fault-specific table for one section: same 4-column shape the reference
+   model uses for tardanza (Fecha | Horario de Turno | Horario Fichado | Minutos de
+   Tardanza), extended analogously for the other two fault types, with the last
+   (offending-value) column highlighted in that fault's color. */
+function buildFaultTable(faultType, items){
+  var meta = FAULT_META[faultType];
+  var sorted = items.slice().sort(function(a,b){ return a.dateObj - b.dateObj; });
+  var headers, rows;
+  if (faultType === 'tardanza'){
+    headers = ['Fecha','Horario de Turno','Horario Fichado','Minutos de Tardanza'];
+    rows = sorted.map(function(it){ return [it.fecha, it.turnoRaw||'—', it.horarioFichado, it.minutos]; });
+  } else if (faultType === 'descanso'){
+    headers = ['Fecha','Horario de Turno','Descanso Tomado','Minutos de Exceso'];
+    rows = sorted.map(function(it){ return [it.fecha, it.turnoRaw||'—', it.descansoTomado, it.exceso]; });
+  } else {
+    headers = ['Fecha','Horario de Turno','Fichadas Registradas','Cantidad'];
+    rows = sorted.map(function(it){ return [it.fecha, it.turnoRaw||'—', it.registradas, it.cantidad]; });
+  }
+  return wTable(headers, rows, { highlightCol: 3, color: meta.color, shade: meta.shade });
+}
+
+/* One standard page per person: header, recipient block, a highlighted section (title +
+   table) for each fault type they actually incurred that period, and one shared
+   closing/signature. Always exactly one page: CUR_DENSITY is picked from how many fault
+   rows this person actually has, and every size/spacing call below reads off it (via
+   CUR_DENSITY.* defaults in wRun/wTableCell and the sp() scaling here), so a person with a
+   couple of faults gets a comfortably laid out letter and a person with two weeks of them
+   gets the same letter in a tighter, still fully legible layout — never a second page. */
+function buildPersonaXml(persona){
+  var typesPresent = FAULT_ORDER.filter(function(t){ return persona.byType[t].length>0; });
+  if (!typesPresent.length) return '';
+  var totalItems = typesPresent.reduce(function(s,t){ return s + persona.byType[t].length; }, 0);
+  CUR_DENSITY = pickDensity(totalItems);
+
+  var hoy = new Date();
+  var xml = '';
+  xml += wPara(wRun('Neuquén, '+fechaLarga(hoy)+'.-'), {after: sp(160)});
+  xml += wPara(
+    wRun('Sr./Sra. '+persona.usuario) + wBreak() +
+    wRun('CUIL: '+persona.dni) + wBreak() +
+    wRun('Sector: '+persona.sector)
+  , {after: sp(160)});
+
+  xml += wHeading(NOTIF_HEADING, { before: sp(60), after: sp(100) });
+  xml += wPara(wRun(NOTIF_INTRO), {after: sp(110)});
+  xml += wPara(wRun(NOTIF_BODY), {after: sp(140)});
+
+  typesPresent.forEach(function(type, idx){
+    var meta = FAULT_META[type];
+    xml += wPara(wRun((idx+1)+'. '+meta.label, {bold:true, color:meta.color, sz:CUR_DENSITY.sub}), {before: idx ? sp(110) : 0, after: sp(60)});
+    xml += buildFaultTable(type, persona.byType[type]);
+  });
+
+  xml += wPara(wRun(CLOSING_TEXT), {before: sp(140), after: sp(140)});
+  xml += wPara(wRun('Sin otro particular, lo saludo atentamente.'), {after: sp(260)});
+  xml += wPara(wRun('____________________________________'));
+  xml += wPara(wRun('Firma del Empleado'));
+  xml += wPara(wRun('CUIL:'));
+  return xml;
+}
+
+/* Returns a Promise so callers (including the bulk generator) can wait for the download
+   confirmation before starting the next one — the downloads capability only allows one
+   unanswered save prompt at a time. */
+function generarWord(g){
+  var bodyXml = buildPersonaXml(g);
+  if (!bodyXml) return Promise.resolve(false);
+  return buildDocxBlob(bodyXml).then(function(blob){
+    var filename = 'Notificacion_'+g.usuario.replace(/\s+/g,'_')+'.docx';
+    return offerDownload(filename, blob);
+  }).catch(function(err){
+    showToast('No se pudo generar el Word de '+g.usuario+': '+err.message);
+    return false;
+  });
+}
+
+/* Bulk generation produces ONE combined .docx (one page per person, in the same
+   sector/usuario order as the table) instead of N separate downloads — the downloads
+   capability can't save a .zip, so a single multi-page Word file is the equivalent that
+   still gets everyone their download in one shot. */
+var bulkGenInProgress = false;
+function generarWordMasivo(groups){
+  if (bulkGenInProgress) return;
+  var withFaults = groups.filter(function(g){ return g.total>0; });
+  if (!withFaults.length){ showToast('No hay notificaciones para generar en este período.'); return; }
+  bulkGenInProgress = true;
+  var btn = document.getElementById('notif-gen-all');
+  if (btn){ btn.disabled = true; btn.textContent = 'Generando '+withFaults.length+' notificaciones…'; }
+  var bodyXml = withFaults.map(function(g, i){
+    var pxml = buildPersonaXml(g);
+    return pxml + (pxml && i < withFaults.length-1 ? wPageBreak() : '');
+  }).join('');
+  buildDocxBlob(bodyXml).then(function(blob){
+    var filename = 'Notificaciones_'+withFaults.length+'_personas_'+new Date().toISOString().slice(0,10)+'.docx';
+    return offerDownload(filename, blob);
+  }).then(function(saved){
+    bulkGenInProgress = false;
+    if (btn){ btn.disabled = false; btn.textContent = 'Generar todos los Word'; }
+    if (saved) showToast('Listo: 1 documento con '+withFaults.length+' notificación(es), una página por persona.');
+  }).catch(function(err){
+    bulkGenInProgress = false;
+    if (btn){ btn.disabled = false; btn.textContent = 'Generar todos los Word'; }
+    showToast('No se pudo generar el Word masivo: '+err.message);
+  });
+}
+
+var downloadsCap = null;
+/* Resolves true if the file was actually saved, false otherwise (declined / fallback) — never
+   rejects, so a bulk loop can always move on to the next file. */
+function offerDownload(filename, blob){
+  if (downloadsCap){
+    return downloadsCap.save({ filename: filename, data: blob }).then(function(){
+      showToast('Guardado: '+filename);
+      return true;
+    }).catch(function(err){
+      if (err && err.code === 'declined') return false;
+      if (err && err.code === 'rate_limited'){
+        return new Promise(function(res){ setTimeout(res, 900); }).then(function(){ return offerDownload(filename, blob); });
+      }
+      fallbackDownload(filename, blob);
+      return false;
+    });
+  }
+  fallbackDownload(filename, blob);
+  return Promise.resolve(false);
+}
+function fallbackDownload(filename, blob){
+  try{
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(function(){ URL.revokeObjectURL(url); }, 4000);
+  }catch(e){ showToast('No se pudo descargar el archivo.'); }
+}
+
+if (window.claude && window.claude.use){
+  window.claude.use('downloads').then(function(ns){ downloadsCap = ns; }).catch(function(){});
+}
+
+/* ============================== INIT ============================== */
+
+render(); // paint immediately with defaults so the UI isn't blank while the shared state loads
+loadState().then(function(){ if (recompute()) saveState(); });
+
+})();
+</script>
