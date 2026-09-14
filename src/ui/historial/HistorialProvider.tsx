@@ -18,7 +18,7 @@ import {
   type RegistroDia,
 } from '../../domain/fichadas/index.js';
 import { configuracionPorDefecto } from '../features/configuracion/configuracion.js';
-import { crearRepositorioLocal } from './repositorioLocal.js';
+import { crearRepositorio } from './crearRepositorio.js';
 import type { RepositorioFichadas, ResultadoGuardado } from './RepositorioFichadas.js';
 
 interface ContextoHistorial {
@@ -47,7 +47,10 @@ export function HistorialProvider({
   /** Injected in full: the provider never reaches for a concrete adapter of its own. */
   readonly repositorio?: RepositorioFichadas;
 }) {
-  const [repo] = useState<RepositorioFichadas>(() => repositorio ?? crearRepositorioLocal());
+  // `crearRepositorio` reads VITE_API_BASE_URL and returns the Postgres-backed HTTP adapter
+  // or the localStorage one. Injecting `repositorio` still overrides both — that is how a
+  // test or a story hands in a fake.
+  const [repo] = useState<RepositorioFichadas>(() => repositorio ?? crearRepositorio());
   const [filas, setFilas] = useState<readonly FilaQuickpass[]>([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);

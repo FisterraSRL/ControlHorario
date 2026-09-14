@@ -1,0 +1,35 @@
+{
+  // The API is the one thing in this repo that is not compiled by a bundler: it is plain
+  // Node ESM, emitted to disk and run with `node dist-api/api/main.js`. That needs four
+  // things the root config deliberately does not have — NodeNext resolution, Node's type
+  // definitions instead of the DOM's, emit turned on, and an outDir — so it gets its own
+  // config rather than bending the frontend's.
+  //
+  // `src/api` is excluded from the root tsconfig for the mirror-image reason: compiled
+  // there it would be typechecked with `lib: DOM` and without `@types/node`, and every
+  // `process.env` would be an error.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "NodeNext",
+    "moduleResolution": "nodenext",
+    "lib": ["ES2023"],
+    "types": ["node"],
+
+    "noEmit": false,
+    "outDir": "dist-api",
+    "rootDir": "src",
+    "sourceMap": true,
+    "declaration": false,
+    "tsBuildInfoFile": "./node_modules/.tmp/controlhorario-api.tsbuildinfo"
+  },
+  "include": [
+    "src/api/**/*.ts",
+    // Imported for real, not copied: `parsearFechaDMY` decides which rows Postgres can
+    // store, and `claveDeFila` decides which rows are discarded. Sharing the functions with
+    // the engine and the port is what stops the API and the browser from disagreeing about
+    // what a storable row is.
+    "src/domain/**/*.ts",
+    "src/ui/historial/RepositorioFichadas.ts"
+  ],
+  "exclude": ["node_modules", "legacy", "dist", "dist-api", "**/*.test.ts"]
+}

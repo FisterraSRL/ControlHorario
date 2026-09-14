@@ -26,5 +26,8 @@
     "tsBuildInfoFile": "./node_modules/.tmp/controlhorario.tsbuildinfo"
   },
   "include": ["src/**/*.ts", "src/**/*.tsx", "vite.config.ts", "vitest.config.ts"],
-  "exclude": ["node_modules", "legacy", "dist"]
+  // `src/api` is Node, not browser: it needs @types/node, NodeNext resolution and real
+  // emit, none of which belong here. It is compiled by tsconfig.api.json instead. Leaving
+  // it in this project would fail the frontend build on every `process.env`.
+  "exclude": ["node_modules", "legacy", "dist", "dist-api", "src/api"]
 }
