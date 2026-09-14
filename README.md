@@ -16,18 +16,24 @@ is the specification of the rules; read `legacy/README.md` before touching the e
 
 ```bash
 npm install
-npm run dev       # the app, on http://localhost:5173
+npm run dev       # the app, on http://localhost:5173 (localStorage, no server needed)
 npm run build     # typecheck + production bundle into dist/
-npm run preview   # serve dist/ as Static Web Apps will
+npm run build:api # compile the Node API into dist-api/
+npm run api       # run the API (needs Postgres; see docs/servidor.md)
+npm run db:migrate
+npm run preview
 npm test          # run the suite once
 npm run test:watch
-npm run typecheck
+npm run typecheck # both projects: the frontend and the API
 ```
 
-The rules engine has no Azure dependency, no database connection and no server, and `npm
-test` runs the whole of it. The app in `src/ui` has no database either yet: the historial
-lives behind a repository port with a localStorage adapter, which slice 2c replaces with
-Postgres without touching a screen.
+`npm test` runs the rules engine, which has no database connection and no server. `npm run
+dev` with no `.env` runs the whole app on localStorage — no Postgres, no Docker, no
+network. That is the offline path and it is meant to keep working.
+
+**The whole server is `docker compose up -d`. Everything about running it — WSL2, autostart,
+the tunnel, backups, restores, and what to check when it is down — is in
+[`docs/servidor.md`](docs/servidor.md), in Spanish.**
 
 ## The three slices
 
@@ -37,9 +43,9 @@ layer. No cloud, no network, no I/O. The point is to get the rules out of a 2131
 file and under test *before* anything depends on them.
 
 **Slice 2 — the app.** Upload pipeline into Postgres (`cargas` + `fichadas`), the RRHH
-screens over the derived irregularities, the absence registry with attachments in Blob
-Storage, and the Word notifications. Static Web Apps + Functions in front of the schema in
-`db/migrations`.
+screens over the derived irregularities, the absence registry with attachments, and the
+Word notifications. **2c is done**: the schema runs on a real Postgres, the historial is
+persisted through a REST API behind the same port, and the whole thing is self-hosted.
 
 **Slice 3 — the attestation flow.** Tokenized magic links to department managers, the
 frozen snapshot, the answers coming back, discrepancy detection, the reminder timer, and
@@ -48,14 +54,18 @@ the audit trail that makes the whole thing hold up.
 ## Layout
 
 ```
-db/migrations/001_initial.sql   the schema, heavily commented — read it before slice 2
+db/migrations/*.sql             the schema, heavily commented — applied by the runner
 src/domain/fichadas/            the rules engine: pure, no DOM, no I/O, no dependencies
+src/api/                        the Fastify server: REST, the Postgres adapter, migrations
 src/ui/tokens/                  brand tokens (vendored, unedited) + the application layer
 src/ui/features/<negocio>/      one folder per screen, named for the business
 src/ui/components/              atoms / molecules / organisms — the shared library only
-src/ui/historial/               the persistence port and its adapter
+src/ui/historial/               the persistence port and its two adapters
 src/ui/periodo/                 the día / semana / mes / año window
 src/ui/app/                     routing, shell, sidebar counts
+docker-compose.yml              the whole server: postgres, api, tailscale, backup
+docker/                         backup, autostart and tunnel scripts mounted by compose
+docs/servidor.md                how to run, back up, restore and fix the server (Spanish)
 legacy/app.html                 the implementation being replaced. Reference only.
 ```
 
@@ -77,10 +87,20 @@ speaks and every conversation would need a glossary. Comments are in English.
 
 ## Decisions
 
-**1. The cloud is Azure.** Postgres Flexible Server, Static Web Apps + Functions, Blob
-Storage for attachments, a Functions timer trigger for reminders, Communication Services
-for email. Chosen over Supabase for procurement reasons, not technical ones — the technical
-case was close.
+**1. There is no cloud. It is self-hosted.** ~~Azure: Postgres Flexible Server, Static Web
+Apps + Functions, Blob Storage.~~ Procurement would have blocked the project indefinitely,
+so it runs on a Windows 10 Pro machine in the Fisterra office: Docker Engine inside WSL2 —
+not Docker Desktop, which does not start until somebody logs in — with Postgres in a named
+volume, one Node service, and a Tailscale Funnel for the public HTTPS address. No domain to
+buy, no inbound port, no invoice. The operational burden is accepted knowingly and is
+documented in `docs/servidor.md`.
+
+**1b. The exposure layer is an adapter, like the persistence layer.** Tailscale Funnel
+today; a Cloudflare Tunnel on a Fisterra domain the day one exists (the service is written
+and commented in `docker-compose.yml`). The application never learns which one is in front
+of it: its public address comes from `APP_URL_PUBLICA`, never from a `Host` header, because
+the magic links of slice 3 are built from it and a link built from a header is a link an
+attacker can rewrite.
 
 **2. Department managers are external to the app.** They are never users. No accounts, no
 passwords, no onboarding. They get a tokenized magic link, answer, and leave. Anything that
@@ -120,8 +140,15 @@ afterwards which rows were rewritten and which were originally right.
 
 ## Privacy
 
-Real payroll data never enters this repository. `.gitignore` excludes `*.xlsx` / `*.csv`;
-the QUICKPASS export carries DNI, legajo and full names.
+Real payroll data never enters this repository. `.gitignore` excludes `*.xlsx` / `*.csv`
+(the QUICKPASS export carries DNI, legajo and full names) and `*.dump` / `respaldos/` (a
+database dump is the whole history in one file). `.dockerignore` excludes the same things,
+plus `.env` — the build context is copied wholesale into image layers.
+
+The API never logs a row. An upload logs six integers; a database error is reduced to its
+SQLSTATE and constraint name before it reaches the log, because Postgres writes the values
+of the offending row into the error message — the `ausencias` precedence trigger prints a
+DNI and a fecha. See the header of `src/api/errores.ts`.
 
 The list of people excluded from disciplinary notifications lives in the `exclusiones`
 table, seeded by the operator at runtime — never in source, a migration, a fixture or a

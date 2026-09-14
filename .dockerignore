@@ -1,0 +1,44 @@
+# Lo que NO tiene que entrar al contexto de build.
+#
+# Además de acelerar la build, esto es una barrera de privacidad: el contexto se copia
+# entero al demonio de Docker y termina en capas de la imagen. Un .env con la contraseña de
+# la base, o una exportación de QUICKPASS con DNIs, no pueden llegar ahí por descuido.
+
+# --- Secretos ---
+.env
+.env.*
+!.env.example
+
+# --- Datos reales de nómina. NUNCA en una imagen. ---
+*.xlsx
+*.xls
+*.xlsm
+*.csv
+datos/
+uploads/
+
+# --- Dependencias y salidas: se reconstruyen adentro ---
+node_modules/
+dist/
+dist-api/
+build/
+out/
+coverage/
+*.tsbuildinfo
+
+# --- Nada de esto lo necesita la build ---
+.git/
+.github/
+.claude/
+.atl/
+docs/
+legacy/
+respaldos/
+*.md
+!README.md
+.vscode/
+.idea/
+Dockerfile
+.dockerignore
+docker-compose.yml
+docker/

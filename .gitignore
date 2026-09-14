@@ -4,10 +4,15 @@ node_modules/
 
 # --- Build output ---
 dist/
+dist-api/
 build/
 out/
 coverage/
 *.tsbuildinfo
+
+# --- Database dumps. They contain the whole payroll history, in the clear. ---
+respaldos/
+*.dump
 
 # --- Environment / secrets ---
 .env
