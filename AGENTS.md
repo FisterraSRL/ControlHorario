@@ -42,8 +42,11 @@ elimina.
 
 Finalizar el slice 2b en este orden:
 
-1. Confirmar/publicar Horas trabajadas y verificarlo con datos reales.
-2. Construir Notificaciones usando `src/notificaciones` (el generador Word ya está hecho).
-3. Construir Indicador como agregación de faltas por persona.
-4. Sólo después evaluar el modo estimado de Horas del legacy.
+1. Construir Indicador reutilizando `agruparFaltasPorPersona` de `src/ui/faltas/`. No
+   escribir una segunda agrupación: esa función es la única definición de “cantidad de
+   faltas” y la comparte con Notificaciones.
+2. Verificar Horas trabajadas con datos reales y sesión autenticada.
+3. Sólo después evaluar el modo estimado de Horas del legacy.
+
+Horas trabajadas y Notificaciones ya están implementadas.
 

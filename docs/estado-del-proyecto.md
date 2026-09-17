@@ -49,6 +49,7 @@ negocio puro está en `src/domain/fichadas`.
 - Configuración de parámetros, reglas por sector, motivos y exclusiones.
 - Registro/clasificación de ausencias y adjuntos.
 - Generador de notificaciones Word puro en `src/notificaciones`, con fixtures golden.
+- Pantalla Notificaciones: agrupación por persona y descarga del Word, individual y masiva.
 - Frontend y API desplegados; tres migraciones aplicadas.
 
 ### Decisiones de seguridad relevantes
@@ -88,32 +89,55 @@ en comandos ni pedirlas en chat para saltear ese paso. El modo legacy “complet
 faltantes según turno” y la clasificación inline desde el detalle no forman parte de esta
 primera unidad.
 
-### Notificaciones (pendiente)
+### Notificaciones
 
-`NotificacionesScreen.tsx` sigue siendo placeholder. El trabajo difícil ya existe y está
-probado en `src/notificaciones`:
+Implementada. `NotificacionesContainer` agrupa las faltas del período por persona, permite
+selección individual y masiva, y descarga los bytes mediante un object URL que se revoca.
+Nada se envía al servidor: el `.docx` se arma en el navegador.
 
-- `generarWord(persona, opciones)` para una persona;
-- `generarWordMasivo(personas, opciones)` para un documento conjunto;
-- densidad automática y compatibilidad OOXML;
-- equivalencia byte a byte con fixtures del legacy.
+La agrupación NO vive en el feature. Está en `src/ui/faltas/agrupacion.ts`, junto a
+`periodo/` e `historial/`:
 
-La pantalla debe agrupar los `RegistroDia.faltas` del período por DNI/persona, permitir
-selección individual/masiva y descargar los bytes generados mediante un object URL que se
-revoca. No enviar fichadas ni documentos al servidor para generarlos.
+```ts
+agruparFaltasPorPersona(registros, configuracion, rango): readonly NotificacionPersona[]
+```
+
+Es la **única** definición de “cantidad de faltas” del sistema, y es deliberado: Indicador la
+consume desde ahí, de modo que la pantalla y la carta nunca puedan discrepar sobre cuántas
+faltas tiene alguien. Dejarla dentro de `features/notificaciones` habría obligado a
+`features/indicador` a importar de un hermano. `src/notificaciones/tipos.ts` declara que la
+agrupación es capa UI y no forma parte de ese módulo; ese límite se respeta.
+
+Es un puerto fiel de `groupFaultsByPerson` (`legacy/app.html`, ~líneas 1154-1184), con una
+divergencia documentada en el código: las filas sin fecha parseable van al final y no al
+principio.
+
+Detalle de TypeScript que no es opcional: `new Blob([bytes])` no compila con TS 5.7, que hizo
+`Uint8Array` genérico sobre su buffer. `fflate` devuelve `Uint8Array<ArrayBufferLike>` y
+`BlobPart` sólo acepta una vista sobre un `ArrayBuffer` plano. El container lo resuelve en el
+helper `comoDocx` con un cast acotado; la alternativa copiaba el documento entero en cada
+descarga. El comentario de `src/notificaciones/tipos.ts` que muestra la llamada directa quedó
+desactualizado por este motivo.
+
+Verificado en el navegador con datos reales, no sólo con pruebas: los bytes entregados
+empiezan con el magic ZIP `50 4b 03 04` y contienen `[Content_Types].xml`, `_rels/.rels` y
+`word/document.xml`.
 
 ### Indicador (pendiente)
 
 `IndicadorScreen.tsx` sigue siendo placeholder. Debe agregar por persona las tres clases de
-falta (`incompleta`, `descanso`, `tardanza`) dentro del período y mostrar totales. Reutilizar
-la misma función de agrupación que consuma Notificaciones para evitar dos definiciones de
-“cantidad de faltas”.
+falta (`incompleta`, `descanso`, `tardanza`) dentro del período y mostrar totales. Tiene que
+importar `agruparFaltasPorPersona` de `src/ui/faltas/` y contar sobre `faltasPorTipo`; no
+escribir una segunda agrupación.
 
 ## Pruebas
 
-El último baseline anterior a Horas fue 266 pruebas. Con las tres pruebas de Horas, el
-baseline esperado es 269 pruebas en 15 archivos. Además de `npm.cmd test`, ejecutar siempre
-los dos typechecks y el build de Vite mediante `npm.cmd run typecheck` y `npm.cmd run build`.
+El baseline esperado es **280 pruebas en 16 archivos** (266 antes de Horas, 269 con Horas, y
+11 más con `src/ui/faltas/agrupacion.test.ts`). Además de `npm.cmd test`, ejecutar siempre
+los tres typechecks y el build de Vite mediante `npm.cmd run typecheck` y `npm.cmd run build`.
+
+Vitest sólo recoge `src/**/*.test.ts` en entorno `node`: una prueba `.tsx` de componente no
+se ejecuta nunca. Por eso el valor de prueba de una pantalla vive en su módulo puro.
 
 Vitest excluye deliberadamente:
 

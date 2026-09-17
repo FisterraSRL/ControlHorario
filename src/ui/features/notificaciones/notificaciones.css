@@ -1,0 +1,2 @@
+.notificaciones__chips { display:flex; flex-wrap:wrap; gap:var(--app-space-1); }
+.notificaciones__total { color:var(--app-muted); font-size:var(--app-text-sm); white-space:nowrap; }
