@@ -32,12 +32,12 @@ import {
 } from './esquemas.js';
 import type {
   ParametrosConfiguracion,
-  RepositorioConfiguracionPostgres,
+  RepositorioConfiguracionAzureSql,
 } from './repositorioConfiguracion.js';
 import { noEncontrado, responderErrorDb } from './respuestas.js';
 
 export interface DependenciasConfiguracion {
-  readonly repositorio: RepositorioConfiguracionPostgres;
+  readonly repositorio: RepositorioConfiguracionAzureSql;
 }
 
 interface ParamsId {

@@ -1,73 +1,184 @@
 /**
- * The connection pool, and the one place a `pg` type is constructed.
+ * Azure SQL connection boundary.
  *
- * No SSL: the only client is the `api` container and the only network between them is the
- * private compose bridge. Postgres is published on `127.0.0.1` and never on a routable
- * interface, so there is no path from the LAN, let alone the internet, to port 5432.
+ * The shared database also contains Centraliza and FSTrack. Every query in this project
+ * therefore names the `[controlhorario]` schema explicitly; the database user's default
+ * schema is a secondary guard, never the mechanism that chooses a table.
+ *
+ * This module exposes the deliberately small query interface the repositories need. It
+ * keeps parameter binding, JSON/date normalisation and transactions in one place instead
+ * of leaking `mssql.Request` through the application.
  */
 
-import pg from 'pg';
-import type { Pool, PoolClient } from 'pg';
-
-export type { Pool, PoolClient };
+import sql from 'mssql';
 
 import type { ConfiguracionApi } from './config.js';
 
-/**
- * `DATE` (OID 1082) must come back as the `YYYY-MM-DD` text Postgres stores, not as a
- * JavaScript `Date`. The default parser builds the Date in the host's LOCAL zone, so in
- * Argentina (UTC-3) `2026-01-05` becomes midnight local and a later `toISOString()` reads
- * `2026-01-04`. That is a fichada silently moving to the previous day — and, on a Monday,
- * to the previous week. The domain layer is careful about exactly this
- * (src/domain/fichadas/parseo.ts, header comment); the driver has to be too.
- */
-pg.types.setTypeParser(1082, (valor: string) => valor);
+export const ESQUEMA = 'controlhorario';
 
-/**
- * `BIGINT` (OID 20) comes back as a string by default because it does not fit a JS number.
- * Every bigint this API reads is a `count(*)` or an identity id far inside
- * `Number.MAX_SAFE_INTEGER`, and leaving them as strings means every call site has to
- * remember to convert. Parsed here, once, with the range actually checked.
- */
-pg.types.setTypeParser(20, (valor: string) => {
-  const n = Number(valor);
-  if (!Number.isSafeInteger(n)) {
-    throw new Error('Un BIGINT de la base excede el rango seguro de JavaScript.');
-  }
-  return n;
-});
+export interface ResultadoConsulta<T> {
+  readonly rows: T[];
+  readonly rowCount: number;
+}
 
-export function crearPool(config: ConfiguracionApi): Pool {
-  return new pg.Pool({
-    host: config.baseDeDatos.host,
-    port: config.baseDeDatos.puerto,
-    user: config.baseDeDatos.usuario,
-    password: config.baseDeDatos.contrasena,
-    database: config.baseDeDatos.base,
-    max: config.baseDeDatos.maxConexiones,
-    // Long enough to survive a Postgres restart mid-request, short enough that a wedged
-    // network does not hang the upload screen forever.
-    connectionTimeoutMillis: 10_000,
-    idleTimeoutMillis: 30_000,
-    application_name: 'controlhorario-api',
+export interface Consultable {
+  query<T = Record<string, unknown>>(
+    texto: string,
+    valores?: readonly unknown[],
+  ): Promise<ResultadoConsulta<T>>;
+}
+
+export interface PoolClient extends Consultable {
+  commit(): Promise<void>;
+  rollback(): Promise<void>;
+  release(): void;
+}
+
+export interface Pool extends Consultable {
+  connect(): Promise<PoolClient>;
+  end(): Promise<void>;
+}
+
+/** `$1`, `$2`, ... remains the repository-facing convention; Azure SQL receives `@p1`. */
+function parametrizar(texto: string): string {
+  return texto.replace(/\$(\d+)/g, (_coincidencia, numero: string) => `@p${numero}`);
+}
+
+function agregarParametros(request: sql.Request, valores: readonly unknown[]): void {
+  valores.forEach((valor, indice) => {
+    // `mssql` cannot infer a type from null. NVARCHAR NULL converts safely at the target
+    // column/CASE expression and keeps repository calls compact.
+    if (valor === null || valor === undefined) request.input(`p${indice + 1}`, sql.NVarChar, null);
+    else request.input(`p${indice + 1}`, valor);
   });
 }
 
-/** Runs `fn` inside a transaction, rolling back on any throw. */
+const CAMPOS_JSON = new Set(['payload', 'datos', 'valor']);
+
+function normalizarFila<T>(fila: Record<string, unknown>): T {
+  const salida: Record<string, unknown> = { ...fila };
+  for (const [campo, valor] of Object.entries(salida)) {
+    if (campo === 'fecha' && valor instanceof Date) {
+      salida[campo] = valor.toISOString().slice(0, 10);
+      continue;
+    }
+    if (CAMPOS_JSON.has(campo) && typeof valor === 'string') {
+      try {
+        salida[campo] = JSON.parse(valor) as unknown;
+      } catch {
+        // A CHECK(ISJSON(...)) protects persisted values. Leaving an unexpected legacy
+        // value untouched makes the validation layer report it with field context.
+      }
+    }
+  }
+  return salida as T;
+}
+
+async function ejecutar<T>(request: sql.Request, texto: string, valores: readonly unknown[] = []): Promise<ResultadoConsulta<T>> {
+  agregarParametros(request, valores);
+  const resultado = await request.query(parametrizar(texto));
+  return {
+    rows: (resultado.recordset ?? []).map((fila) => normalizarFila<T>(fila as Record<string, unknown>)),
+    rowCount: resultado.rowsAffected.reduce((total, actual) => total + actual, 0),
+  };
+}
+
+class ClienteTransaccion implements PoolClient {
+  private finalizada = false;
+
+  constructor(private readonly transaccion: sql.Transaction) {}
+
+  async query<T = Record<string, unknown>>(
+    texto: string,
+    valores: readonly unknown[] = [],
+  ): Promise<ResultadoConsulta<T>> {
+    if (this.finalizada) throw new Error('La transacción ya terminó.');
+    return ejecutar<T>(new sql.Request(this.transaccion), texto, valores);
+  }
+
+  async commit(): Promise<void> {
+    if (this.finalizada) return;
+    await this.transaccion.commit();
+    this.finalizada = true;
+  }
+
+  async rollback(): Promise<void> {
+    if (this.finalizada) return;
+    await this.transaccion.rollback();
+    this.finalizada = true;
+  }
+
+  release(): void {
+    // `commit`/`rollback` release the dedicated connection back to the pool. A caller that
+    // forgot both must not leak it; rollback is intentionally fire-and-forget here because
+    // release is used from `finally` blocks that already preserve the original error.
+    if (!this.finalizada) void this.rollback().catch(() => undefined);
+  }
+}
+
+class PoolAzureSql implements Pool {
+  constructor(private readonly interno: sql.ConnectionPool) {}
+
+  async query<T = Record<string, unknown>>(
+    texto: string,
+    valores: readonly unknown[] = [],
+  ): Promise<ResultadoConsulta<T>> {
+    await this.interno.connect();
+    return ejecutar<T>(this.interno.request(), texto, valores);
+  }
+
+  async connect(): Promise<PoolClient> {
+    await this.interno.connect();
+    const transaccion = new sql.Transaction(this.interno);
+    await transaccion.begin(sql.ISOLATION_LEVEL.READ_COMMITTED);
+    return new ClienteTransaccion(transaccion);
+  }
+
+  async end(): Promise<void> {
+    await this.interno.close();
+  }
+}
+
+export function crearPool(config: ConfiguracionApi): Pool {
+  const base = config.baseDeDatos;
+  return new PoolAzureSql(
+    new sql.ConnectionPool({
+      server: base.host,
+      port: base.puerto,
+      user: base.usuario,
+      password: base.contrasena,
+      database: base.base,
+      pool: {
+        max: base.maxConexiones,
+        min: 0,
+        idleTimeoutMillis: 30_000,
+      },
+      options: {
+        encrypt: true,
+        trustServerCertificate: false,
+        enableArithAbort: true,
+        useUTC: true,
+        appName: 'controlhorario-api',
+      },
+      connectionTimeout: 10_000,
+      requestTimeout: 30_000,
+    }),
+  );
+}
+
+/** Runs `fn` in one Azure SQL transaction, rolling back on any throw. */
 export async function enTransaccion<T>(pool: Pool, fn: (c: PoolClient) => Promise<T>): Promise<T> {
   const cliente = await pool.connect();
   try {
-    await cliente.query('BEGIN');
     const resultado = await fn(cliente);
-    await cliente.query('COMMIT');
+    await cliente.commit();
     return resultado;
   } catch (e: unknown) {
-    // A failed ROLLBACK means the connection is already gone; the original error is the one
-    // worth propagating, so this one is deliberately swallowed.
     try {
-      await cliente.query('ROLLBACK');
+      await cliente.rollback();
     } catch {
-      /* the connection is unusable; release() below discards it */
+      // The original exception explains the failed operation; a broken connection during
+      // rollback is secondary and the pool will discard it.
     }
     throw e;
   } finally {

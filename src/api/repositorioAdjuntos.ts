@@ -1,5 +1,5 @@
 /**
- * Attachments: the metadata in Postgres, the bytes on the local disk.
+ * Attachments: the metadata in Azure SQL, the bytes on the local disk.
  *
  * THESE FILES ARE MEDICAL CERTIFICATES. Everything below follows from that one sentence.
  *
@@ -91,7 +91,8 @@ function aAdjunto(f: FilaAdjunto): Adjunto {
 }
 
 const CAMPOS = `
-  id, dni, to_char(fecha, 'YYYY-MM-DD') AS fecha, nombre, bytes, tipo_mime, subido_por, subido_at
+  [id], [dni], CONVERT(char(10), [fecha], 23) AS [fecha], [nombre], [bytes],
+  [tipo_mime], [subido_por], [subido_at]
 `;
 
 /**
@@ -164,7 +165,7 @@ export interface ArchivoAbierto {
   readonly bytes: number;
 }
 
-export interface RepositorioAdjuntosPostgres {
+export interface RepositorioAdjuntosAzureSql {
   /**
    * Every attachment on record, newest last.
    *
@@ -183,11 +184,12 @@ export interface RepositorioAdjuntosPostgres {
 export function crearRepositorioAdjuntos(
   pool: Pool,
   directorio: string,
-): RepositorioAdjuntosPostgres {
+): RepositorioAdjuntosAzureSql {
   return {
     async listar() {
       const { rows } = await pool.query<FilaAdjunto>(
-        `SELECT ${CAMPOS} FROM adjuntos ORDER BY dni, fecha, subido_at, id`,
+        `SELECT ${CAMPOS} FROM [controlhorario].[adjuntos]
+          ORDER BY [dni], [fecha], [subido_at], [id]`,
       );
       return rows.map(aAdjunto);
     },
@@ -241,9 +243,13 @@ export function crearRepositorioAdjuntos(
       try {
         return await enTransaccion(pool, async (cliente) => {
           const { rows } = await cliente.query<FilaAdjunto>(
-            `INSERT INTO adjuntos (dni, fecha, blob_path, nombre, bytes, tipo_mime, subido_por)
-             VALUES ($1, $2, $3, $4, $5, $6, $7)
-             RETURNING ${CAMPOS}`,
+            `INSERT INTO [controlhorario].[adjuntos]
+               ([dni], [fecha], [blob_path], [nombre], [bytes], [tipo_mime], [subido_por])
+             OUTPUT inserted.[id], inserted.[dni],
+                    CONVERT(char(10), inserted.[fecha], 23) AS [fecha],
+                    inserted.[nombre], inserted.[bytes], inserted.[tipo_mime],
+                    inserted.[subido_por], inserted.[subido_at]
+             VALUES ($1, $2, $3, $4, $5, $6, $7)`,
             [
               datos.dni,
               datos.fecha,
@@ -276,7 +282,7 @@ export function crearRepositorioAdjuntos(
 
     async abrir(id) {
       const { rows } = await pool.query<FilaAdjunto>(
-        `SELECT ${CAMPOS}, blob_path FROM adjuntos WHERE id = $1`,
+        `SELECT ${CAMPOS}, [blob_path] FROM [controlhorario].[adjuntos] WHERE [id] = $1`,
         [id],
       );
       const fila = rows[0];
@@ -297,14 +303,14 @@ export function crearRepositorioAdjuntos(
 
     async eliminar(id, actor) {
       const objetivo = await pool.query<FilaAdjunto>(
-        `SELECT ${CAMPOS}, blob_path FROM adjuntos WHERE id = $1`,
+        `SELECT ${CAMPOS}, [blob_path] FROM [controlhorario].[adjuntos] WHERE [id] = $1`,
         [id],
       );
       const fila = objetivo.rows[0];
       if (!fila?.blob_path) return false;
 
       await enTransaccion(pool, async (cliente) => {
-        await cliente.query('DELETE FROM adjuntos WHERE id = $1', [id]);
+        await cliente.query('DELETE FROM [controlhorario].[adjuntos] WHERE [id] = $1', [id]);
         await auditar(cliente, {
           actor,
           accion: 'adjunto_eliminado',

@@ -1,191 +1,103 @@
 # ControlHorario
 
-Control de fichadas for an Argentine company running QUICKPASS time clocks.
+Aplicación interna de RRHH para analizar exportaciones QUICKPASS, revisar irregularidades,
+registrar ausencias y generar notificaciones. El frontend es una SPA React/Vite y la API es
+Fastify sobre Node.js.
 
-RRHH uploads the QUICKPASS Excel export. The system derives the attendance irregularities —
-incomplete fichadas, breaks over the limit, tardanzas — asks department managers to account
-for them, records what RRHH decides, and produces the disciplinary notifications. Every
-number it prints has to be defensible months later, which is why the evidence, the human
-decisions and the manager attestations are three separate things that never overwrite each
-other.
+## Arquitectura del piloto
 
-It replaces a single-file browser tool (`legacy/app.html`) that is still in use. That file
-is the specification of the rules; read `legacy/README.md` before touching the engine.
-
-## Running it
-
-```bash
-npm install
-npm run dev       # the app, on http://localhost:5173 (localStorage, no server needed)
-npm run build     # typecheck + production bundle into dist/
-npm run build:api # compile the Node API into dist-api/
-npm run api       # run the API (needs Postgres; see docs/servidor.md)
-npm run db:migrate
-npm run crear-usuario -- --email you@example.com --nombre "Name"   # the first operator
-npm run preview
-npm test          # run the suite once
-npm run test:watch
-npm run typecheck # three projects: the frontend, the API, and the API tests
+```text
+Navegador -> Vercel (SPA) -> API Fastify -> Azure SQL compartida
+                                      \-> almacenamiento privado de adjuntos
 ```
 
-`npm test` runs two suites. The rules engine has no database and no server. The API suite
-drives the real Fastify app and the real `db/migrations/*.sql` against **PGlite** — Postgres
-compiled to WebAssembly, in-process — so the constraints, the triggers and the
-`ON CONFLICT ... WHERE` that protects a human's decision are tested for real, with no Docker.
-See `src/api/pruebas/basePrueba.ts`, including what that harness cannot show.
+La base también contiene Centraliza y FSTrack, pero ControlHorario queda aislado:
 
-`npm run dev` with no `.env` runs the whole app on localStorage — no Postgres, no Docker, no
-network, **and no login, because there is nothing to authenticate against and nowhere safe
-to keep a medical certificate**. That is the offline path, it is meant to keep working, and
-the app says so on screen rather than letting you assume otherwise.
+- todos sus objetos viven en el esquema `[controlhorario]`;
+- todas las consultas usan el nombre de esquema explícito;
+- el rol `controlhorario_app` sólo recibe permisos sobre ese esquema;
+- no hay claves, vistas ni consultas hacia tablas de los otros proyectos;
+- el navegador nunca recibe credenciales de la base.
 
-**The whole server is `docker compose up -d`. Everything about running it — WSL2, autostart,
-the tunnel, backups, restores, and what to check when it is down — is in
-[`docs/servidor.md`](docs/servidor.md), in Spanish.**
+El piloto crea únicamente estas tablas: `empleados`, `cargas`, `fichadas`, `motivos`,
+`ausencias`, `adjuntos`, `exclusiones`, `auditoria`, `usuarios`, `sesiones`,
+`configuracion`, `sector_reglas`, `exclusiones_semilla` y `schema_migrations`.
 
-## The three slices
+## Desarrollo
 
-**Slice 1 — foundation (this one).** Repo scaffolding, the SQL schema, the rules engine
-extracted from the legacy file into pure, typed, tested functions, and the design-token
-layer. No cloud, no network, no I/O. The point is to get the rules out of a 2131-line HTML
-file and under test *before* anything depends on them.
-
-**Slice 2 — the app.** Upload pipeline into Postgres (`cargas` + `fichadas`), the RRHH
-screens over the derived irregularities, the absence registry with attachments, and the
-Word notifications. **2c is done**: the schema runs on a real Postgres, the historial is
-persisted through a REST API behind the same port, and the whole thing is self-hosted.
-**2b part 1 is done**: session login for the RRHH operators, and the Ausencias and
-Configuración screens over persisted decisions, configuration and attachments.
-Notificaciones, Indicador and Horas trabajadas are still placeholders.
-
-**Slice 3 — the attestation flow.** Tokenized magic links to department managers, the
-frozen snapshot, the answers coming back, discrepancy detection, the reminder timer, and
-the audit trail that makes the whole thing hold up.
-
-## Layout
-
-```
-db/migrations/*.sql             the schema, heavily commented — applied by the runner
-src/domain/fichadas/            the rules engine: pure, no DOM, no I/O, no dependencies
-src/api/                        the Fastify server: REST, the Postgres adapter, migrations
-src/ui/tokens/                  brand tokens (vendored, unedited) + the application layer
-src/ui/features/<negocio>/      one folder per screen, named for the business
-src/ui/components/              atoms / molecules / organisms — the shared library only
-src/ui/historial/               the evidence port and its two adapters
-src/ui/ausencias/               the decision port: the absence registry
-src/ui/configuracion/           the configuration port: rules, thresholds, motivos, exclusions
-src/ui/adjuntos/                the attachments port
-src/ui/sesion/                  the session port, and who is logged in
-src/ui/repositorios.ts          picks http or localStorage for ALL of them, once
-src/ui/periodo/                 the día / semana / mes / año window
-src/ui/app/                     routing, shell, sidebar counts
-docker-compose.yml              the whole server: postgres, api, tailscale, backup
-docker/                         backup, autostart and tunnel scripts mounted by compose
-docs/servidor.md                how to run, back up, restore and fix the server (Spanish)
-legacy/app.html                 the implementation being replaced. Reference only.
+```powershell
+npm.cmd install
+npm.cmd run dev
 ```
 
-The UI is organised the same way the domain is: the top-level folders under `features/`
-name the business — `carga`, `ausencias`, `notificaciones` — not the technology. Atomic
-design applies only to `components/`, which is the shared library: anything used by exactly
-one screen lives in that screen's folder. Containers hold state and talk to the domain and
-the repository; presentational components take props and render, and import neither.
+Sin API, la interfaz funciona en modo local para explorar el flujo. Para probar persistencia
+real, copiá `.env.example` a `.env`, completá las variables `DB_*` por un canal seguro y
+levantá la API:
 
-`src/domain` is organised by what the code is about, not by what it technically is. There
-is no `models/`, `services/` or `utils/`: a folder called `utils` tells you nothing about
-the business, and the business is the hard part here. Files are named for the concept —
-`dia.ts`, `semana.ts`, `motivos.ts`, `parseo.ts`.
+```powershell
+npm.cmd run build:api
+npm.cmd run api
+```
 
-Domain identifiers are in **Spanish** and stay that way. `fichada`, `ausencia`, `motivo`,
-`legajo`, `turno`, `parte`, `descanso`, `tardanza` are the words the business uses and the
-words QUICKPASS prints; translating them would invent a second vocabulary that nobody
-speaks and every conversation would need a glossary. Comments are in English.
+No pegues contraseñas en commits, capturas ni conversaciones.
 
-## Decisions
+## Crear el esquema sin riesgos
 
-**1. There is no cloud. It is self-hosted.** ~~Azure: Postgres Flexible Server, Static Web
-Apps + Functions, Blob Storage.~~ Procurement would have blocked the project indefinitely,
-so it runs on a Windows 10 Pro machine in the Fisterra office: Docker Engine inside WSL2 —
-not Docker Desktop, which does not start until somebody logs in — with Postgres in a named
-volume, one Node service, and a Tailscale Funnel for the public HTTPS address. No domain to
-buy, no inbound port, no invoice. The operational burden is accepted knowingly and is
-documented in `docs/servidor.md`.
+El bootstrap administrativo crea sólo el esquema y el rol. No crea usuarios ni contiene
+contraseñas:
 
-**1b. The exposure layer is an adapter, like the persistence layer.** Tailscale Funnel
-today; a Cloudflare Tunnel on a Fisterra domain the day one exists (the service is written
-and commented in `docker-compose.yml`). The application never learns which one is in front
-of it: its public address comes from `APP_URL_PUBLICA`, never from a `Host` header, because
-the magic links of slice 3 are built from it and a link built from a header is a link an
-attacker can rewrite.
+1. Con las credenciales administrativas cargadas temporalmente en `DB_*`, comprobar primero
+   que el nombre esté libre:
 
-**2. Department managers are external to the app.** They are never users. No accounts, no
-passwords, no onboarding. They get a tokenized magic link, answer, and leave. Anything that
-would require a manager to *have an account* is out of scope by construction: the people
-who have to answer these requests will not maintain a login for something they touch once a
-month.
+   ```powershell
+   npm.cmd run build:api
+   npm.cmd run db:preflight
+   ```
 
-**3. The manager's signature is choosing a motivo.** Not a checkbox, not a free-text reply:
-one motivo per employee, from the same closed list RRHH uses. A free-text answer is not
-comparable with an RRHH decision, and comparing them is the entire point of slice 3.
+2. Revisar `db/bootstrap/000_esquema_y_rol.sql` y ejecutarlo con esa identidad:
 
-**4. The request payload is frozen at send time.** `solicitudes.snapshot` is a copy of
-exactly the irregularities put in front of that manager, with `snapshot_hash` beside it. It
-is never re-derived from a live query. If a later upload changes the underlying fichadas,
-the manager is still answering — and still bound by — what they were actually shown. A
-snapshot that no longer matches its hash is not the thing that was signed.
+   ```powershell
+   npm.cmd run db:bootstrap
+   ```
+3. Validar las migraciones con rollback automático:
 
-**5. On a collision, RRHH wins and the manager's answer is kept.** When RRHH (`manual`) and
-a manager (`encargado`) disagree about the same `(dni, fecha)`, the RRHH decision stands and
-the manager's answer is preserved in `discrepancias`, with both motivos side by side. It is
-never silently overwritten: a disagreement between HR and a department about someone's
-attendance is information, and discarding it is how the record stops being trustworthy. A
-trigger on `ausencias` enforces the precedence at the database level.
+   ```powershell
+   npm.cmd run db:verify
+   ```
 
-**6. "Sin clasificar" is derived, never stored.** It means `motivo_id IS NULL` and nothing
-else. An `estado` column would create two sources of truth for one fact — the motivo, and a
-status string every write path has to keep in agreement with it — and they drift. The first
-write path that forgets leaves the pending queue lying, and you find out when someone gets
-notified for a day that was already resolved. See the VIEW section of the migration.
+4. Si la verificación termina correctamente, aplicar las migraciones:
 
-**7. Faults are always derived from the evidence, never stored.** `fichada incompleta`,
-`descanso excedido` and `tardanza` are computed from the QUICKPASS row plus the current
-rules, on every read. That is exactly what makes a rule fix retroactive: correct the rule
-and the whole history re-derives correctly. A stored fault freezes the bug into the record
-permanently, and the table would have to be recomputed and rewritten — with no way to tell
-afterwards which rows were rewritten and which were originally right.
+   ```powershell
+   npm.cmd run db:migrate
+   npm.cmd run db:inspect
+   npm.cmd run db:smoke
+   ```
 
-**8. Every `/api/*` route requires a session, and the default is denied.** The check is one
-`onRequest` hook over the whole instance with an allow-list of exact `METHOD /path` strings
-— `/health` and the login — not a decorator per route, because a decorator is a thing
-somebody forgets. A route added next month by somebody who never read `autenticacion.ts`
-answers 401, and opening it means editing a list whose name says what it means. There is a
-test that registers such a route and expects the 401.
+5. Crear un usuario contenido para la API, agregarlo a `controlhorario_app` y reemplazar
+   las credenciales administrativas por las de ese usuario. La cuenta permanente no puede
+   crear ni borrar tablas.
 
-**9. A DNI never appears in a URL.** `PUT /api/ausencias/motivo` carries the day in its
-body, and so do both exclusion routes, even though the path would read better. A path is
-written into the request log, into any proxy in front, and into the browser's own history;
-a body is redacted. The only things in a path are surrogate integer ids.
+Las migraciones están numeradas y guardan checksum. No se deben editar después de
+aplicarlas; cualquier cambio posterior va en un archivo nuevo.
 
-**10. Attachments are not static files.** They are medical certificates, so they go through
-an authenticated route that streams them with `Content-Disposition: attachment` and
-`Cache-Control: no-store`. On disk they are a UUID plus an extension derived from the
-validated content type; the operator's own filename is data, it lives in the database, and
-it never touches a path.
+## Comprobaciones
 
-## Privacy
+```powershell
+npm.cmd run typecheck
+npm.cmd test
+npm.cmd run build
+```
 
-Real payroll data never enters this repository. `.gitignore` excludes `*.xlsx` / `*.csv`
-(the QUICKPASS export carries DNI, legajo and full names) and `*.dump` / `respaldos/` (a
-database dump is the whole history in one file). `.dockerignore` excludes the same things,
-plus `.env` — the build context is copied wholesale into image layers.
+La integración con Azure SQL se valida con `db:verify`, sobre la base real y dentro de una
+transacción descartada. Las pruebas normales no necesitan credenciales.
 
-The API never logs a row. An upload logs six integers; a database error is reduced to its
-SQLSTATE and constraint name before it reaches the log, because Postgres writes the values
-of the offending row into the error message — the `ausencias` precedence trigger prints a
-DNI and a fecha. See the header of `src/api/errores.ts`.
+## Despliegue
 
-The list of people excluded from disciplinary notifications lives in the `exclusiones`
-table, seeded by the operator at runtime — never in source, a migration, a fixture or a
-test. The legacy file hardcodes six real names; that is the specific mistake this table
-exists to undo, and it is why the remote for this repository is not safe to push to until
-the privacy review of the legacy file is finished.
+- La SPA se construye para Vercel con `vercel.json`.
+- `VITE_API_BASE_URL` debe contener la URL HTTPS pública de la API terminada en `/api`.
+- La API puede ejecutarse con el `Dockerfile`; las variables de base se inyectan en runtime.
+- `API_MIGRAR_AL_INICIAR` permanece en `false`: las migraciones son una acción explícita.
+- Los adjuntos requieren almacenamiento persistente privado antes de usar más de una API.
+
+La guía operativa está en `docs/despliegue.md` y el arranque local en
+`docs/stack-local.md`.

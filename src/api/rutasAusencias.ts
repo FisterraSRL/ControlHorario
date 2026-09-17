@@ -21,7 +21,7 @@ import type { FastifyInstance } from 'fastify';
 import { parsearFechaDMY } from '../domain/fichadas/parseo.js';
 import { operadorDe } from './autenticacion.js';
 import { ESQUEMA_CUERPO_MOTIVO_DIA } from './esquemas.js';
-import type { RepositorioAusenciasPostgres } from './repositorioAusencias.js';
+import type { RepositorioAusenciasAzureSql } from './repositorioAusencias.js';
 import { noEncontrado, responderErrorDb } from './respuestas.js';
 
 interface CuerpoMotivo {
@@ -32,7 +32,7 @@ interface CuerpoMotivo {
 }
 
 export interface DependenciasAusencias {
-  readonly repositorio: RepositorioAusenciasPostgres;
+  readonly repositorio: RepositorioAusenciasAzureSql;
 }
 
 export function registrarRutasAusencias(
@@ -60,7 +60,7 @@ export function registrarRutasAusencias(
 
       /**
        * The screen speaks `DD/MM/YYYY` because that is what the QUICKPASS cell says and
-       * what `RegistroDia.fechaStr` carries. Postgres speaks DATE. `parsearFechaDMY` is the
+       * what `RegistroDia.fechaStr` carries. Azure SQL speaks DATE. `parsearFechaDMY` is the
        * engine's own parser, imported rather than reimplemented, so "a date this API
        * accepts" and "a date the engine can read" are the same set by construction.
        */

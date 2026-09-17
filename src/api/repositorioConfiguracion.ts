@@ -1,5 +1,5 @@
 /**
- * The Postgres side of `RepositorioConfiguracion`: everything the Configuración screen edits.
+ * The Azure SQL side of `RepositorioConfiguracion`: everything the Configuración screen edits.
  *
  * Four different things share this file because they are one screen and one atomic read:
  * the three global parameters (`configuracion`), the per-sector fichada rule
@@ -72,7 +72,7 @@ const CLAVES: readonly (readonly [string, keyof ParametrosConfiguracion])[] = [
 
 function numeroDeJson(valor: unknown): number | null {
   if (typeof valor === 'number' && Number.isFinite(valor)) return valor;
-  // `pg` hands JSONB back parsed, but a value written by hand with psql could be a string.
+  // The adapter parses valid JSON, but a value written by hand may still arrive as text.
   if (typeof valor === 'string') {
     const n = Number(valor);
     if (Number.isFinite(n)) return n;
@@ -82,7 +82,7 @@ function numeroDeJson(valor: unknown): number | null {
 
 async function leerParametros(cliente: Pool | PoolClient): Promise<ParametrosConfiguracion> {
   const { rows } = await cliente.query<{ clave: string; valor: unknown }>(
-    'SELECT clave, valor FROM configuracion',
+    'SELECT [clave], [valor] FROM [controlhorario].[configuracion]',
   );
   const porClave = new Map(rows.map((r) => [r.clave, r.valor]));
   const salida: Record<string, number> = { ...PARAMETROS_POR_DEFECTO };
@@ -99,7 +99,7 @@ async function leerReglasSector(
   cliente: Pool | PoolClient,
 ): Promise<Record<string, number>> {
   const { rows } = await cliente.query<{ sector: string; fichadas_requeridas: number }>(
-    'SELECT sector, fichadas_requeridas FROM sector_reglas',
+    'SELECT [sector], [fichadas_requeridas] FROM [controlhorario].[sector_reglas]',
   );
   const reglas: Record<string, number> = {};
   for (const r of rows) reglas[r.sector] = r.fichadas_requeridas;
@@ -108,7 +108,8 @@ async function leerReglasSector(
 
 async function leerMotivos(cliente: Pool | PoolClient): Promise<readonly Motivo[]> {
   const { rows } = await cliente.query<{ id: number; label: string; worked: boolean }>(
-    'SELECT id, label, worked FROM motivos WHERE activo ORDER BY id',
+    `SELECT [id], [label], [worked] FROM [controlhorario].[motivos]
+      WHERE [activo] = 1 ORDER BY [id]`,
   );
   // An empty table would silently mean "no motivo can be chosen", which looks like a broken
   // screen rather than a broken database. The engine's own list is the floor.
@@ -122,7 +123,10 @@ async function leerExclusiones(cliente: Pool | PoolClient): Promise<readonly Exc
     motivo_texto: string | null;
     creado_por: string | null;
     creado_at: Date | string;
-  }>('SELECT dni, motivo_texto, creado_por, creado_at FROM exclusiones ORDER BY dni');
+  }>(
+    `SELECT [dni], [motivo_texto], [creado_por], [creado_at]
+       FROM [controlhorario].[exclusiones] ORDER BY [dni]`,
+  );
   return rows.map((r) => ({
     dni: r.dni,
     motivoTexto: r.motivo_texto,
@@ -131,7 +135,7 @@ async function leerExclusiones(cliente: Pool | PoolClient): Promise<readonly Exc
   }));
 }
 
-export interface RepositorioConfiguracionPostgres {
+export interface RepositorioConfiguracionAzureSql {
   leer(): Promise<ConfiguracionCompleta>;
   /** The same values, shaped as the engine's own config. Used by the absence sync. */
   paraElMotor(): Promise<ConfiguracionFichadas>;
@@ -160,7 +164,7 @@ export interface RepositorioConfiguracionPostgres {
   sembrarExclusiones(dnis: readonly string[], actor: string): Promise<number>;
 }
 
-export function crearRepositorioConfiguracion(pool: Pool): RepositorioConfiguracionPostgres {
+export function crearRepositorioConfiguracion(pool: Pool): RepositorioConfiguracionAzureSql {
   return {
     async leer() {
       const [parametros, reglasSector, motivos, exclusiones] = await Promise.all([
@@ -190,12 +194,15 @@ export function crearRepositorioConfiguracion(pool: Pool): RepositorioConfigurac
           const valor = cambios[campo];
           if (valor === undefined) continue;
           await cliente.query(
-            `INSERT INTO configuracion (clave, valor, actualizado_por, actualizado_at)
-             VALUES ($1, $2::jsonb, $3, now())
-             ON CONFLICT (clave) DO UPDATE
-               SET valor = EXCLUDED.valor,
-                   actualizado_por = EXCLUDED.actualizado_por,
-                   actualizado_at = EXCLUDED.actualizado_at`,
+            `MERGE [controlhorario].[configuracion] WITH (HOLDLOCK) AS destino
+             USING (SELECT $1 AS [clave], $2 AS [valor], $3 AS [actor]) AS origen
+                ON destino.[clave] = origen.[clave]
+             WHEN MATCHED THEN UPDATE SET
+               [valor] = origen.[valor],
+               [actualizado_por] = origen.[actor],
+               [actualizado_at] = SYSUTCDATETIME()
+             WHEN NOT MATCHED THEN INSERT ([clave], [valor], [actualizado_por], [actualizado_at])
+               VALUES (origen.[clave], origen.[valor], origen.[actor], SYSUTCDATETIME());`,
             [clave, JSON.stringify(valor), actor],
           );
           await auditar(cliente, {
@@ -213,12 +220,16 @@ export function crearRepositorioConfiguracion(pool: Pool): RepositorioConfigurac
     async guardarReglaSector(sector, fichadasRequeridas, actor) {
       return enTransaccion(pool, async (cliente) => {
         await cliente.query(
-          `INSERT INTO sector_reglas (sector, fichadas_requeridas, actualizado_por, actualizado_at)
-           VALUES ($1, $2, $3, now())
-           ON CONFLICT (sector) DO UPDATE
-             SET fichadas_requeridas = EXCLUDED.fichadas_requeridas,
-                 actualizado_por = EXCLUDED.actualizado_por,
-                 actualizado_at = EXCLUDED.actualizado_at`,
+          `MERGE [controlhorario].[sector_reglas] WITH (HOLDLOCK) AS destino
+           USING (SELECT $1 AS [sector], $2 AS [fichadas], $3 AS [actor]) AS origen
+              ON destino.[sector] = origen.[sector]
+           WHEN MATCHED THEN UPDATE SET
+             [fichadas_requeridas] = origen.[fichadas],
+             [actualizado_por] = origen.[actor],
+             [actualizado_at] = SYSUTCDATETIME()
+           WHEN NOT MATCHED THEN INSERT
+             ([sector], [fichadas_requeridas], [actualizado_por], [actualizado_at])
+             VALUES (origen.[sector], origen.[fichadas], origen.[actor], SYSUTCDATETIME());`,
           [sector, fichadasRequeridas, actor],
         );
         await auditar(cliente, {
@@ -242,12 +253,14 @@ export function crearRepositorioConfiguracion(pool: Pool): RepositorioConfigurac
          * at the same moment and colliding on it.
          */
         const { rows: maximos } = await cliente.query<{ siguiente: number }>(
-          'SELECT COALESCE(max(id), 0) + 1 AS siguiente FROM motivos',
+          `SELECT ISNULL(MAX([id]), 0) + 1 AS [siguiente]
+             FROM [controlhorario].[motivos] WITH (UPDLOCK, HOLDLOCK)`,
         );
         const id = maximos[0]?.siguiente ?? 1;
         const { rows } = await cliente.query<{ id: number; label: string; worked: boolean }>(
-          `INSERT INTO motivos (id, label, worked, activo) VALUES ($1, $2, $3, TRUE)
-           RETURNING id, label, worked`,
+          `INSERT INTO [controlhorario].[motivos] ([id], [label], [worked], [activo])
+           OUTPUT inserted.[id], inserted.[label], inserted.[worked]
+           VALUES ($1, $2, $3, 1)`,
           [id, label.trim(), worked],
         );
         const motivo = rows[0];
@@ -266,7 +279,10 @@ export function crearRepositorioConfiguracion(pool: Pool): RepositorioConfigurac
     async editarMotivo(id, worked, actor) {
       return enTransaccion(pool, async (cliente) => {
         const { rows } = await cliente.query<{ id: number; label: string; worked: boolean }>(
-          'UPDATE motivos SET worked = $2 WHERE id = $1 AND activo RETURNING id, label, worked',
+          `UPDATE [controlhorario].[motivos]
+              SET [worked] = $2
+           OUTPUT inserted.[id], inserted.[label], inserted.[worked]
+            WHERE [id] = $1 AND [activo] = 1`,
           [id, worked],
         );
         const motivo = rows[0];
@@ -285,7 +301,7 @@ export function crearRepositorioConfiguracion(pool: Pool): RepositorioConfigurac
     async retirarMotivo(id, actor) {
       return enTransaccion(pool, async (cliente) => {
         const { rowCount } = await cliente.query(
-          'UPDATE motivos SET activo = FALSE WHERE id = $1 AND activo',
+          'UPDATE [controlhorario].[motivos] SET [activo] = 0 WHERE [id] = $1 AND [activo] = 1',
           [id],
         );
         if ((rowCount ?? 0) === 0) return false;
@@ -308,11 +324,13 @@ export function crearRepositorioConfiguracion(pool: Pool): RepositorioConfigurac
           creado_por: string | null;
           creado_at: Date | string;
         }>(
-          `INSERT INTO exclusiones (dni, motivo_texto, creado_por)
-           VALUES ($1, $2, $3)
-           ON CONFLICT (dni) DO UPDATE
-             SET motivo_texto = EXCLUDED.motivo_texto
-           RETURNING dni, motivo_texto, creado_por, creado_at`,
+          `MERGE [controlhorario].[exclusiones] WITH (HOLDLOCK) AS destino
+           USING (SELECT $1 AS [dni], $2 AS [motivo_texto], $3 AS [creado_por]) AS origen
+              ON destino.[dni] = origen.[dni]
+           WHEN MATCHED THEN UPDATE SET [motivo_texto] = origen.[motivo_texto]
+           WHEN NOT MATCHED THEN INSERT ([dni], [motivo_texto], [creado_por])
+             VALUES (origen.[dni], origen.[motivo_texto], origen.[creado_por])
+           OUTPUT inserted.[dni], inserted.[motivo_texto], inserted.[creado_por], inserted.[creado_at];`,
           [dni, motivoTexto, actor],
         );
         const fila = rows[0];
@@ -336,7 +354,10 @@ export function crearRepositorioConfiguracion(pool: Pool): RepositorioConfigurac
 
     async quitarExclusion(dni, actor) {
       return enTransaccion(pool, async (cliente) => {
-        const { rowCount } = await cliente.query('DELETE FROM exclusiones WHERE dni = $1', [dni]);
+        const { rowCount } = await cliente.query(
+          'DELETE FROM [controlhorario].[exclusiones] WHERE [dni] = $1',
+          [dni],
+        );
         if ((rowCount ?? 0) === 0) return false;
         /**
          * The seed ledger is NOT touched here. That is the entire point: removing somebody
@@ -359,23 +380,25 @@ export function crearRepositorioConfiguracion(pool: Pool): RepositorioConfigurac
       if (limpios.length === 0) return 0;
 
       return enTransaccion(pool, async (cliente) => {
-        // The ledger is written first and its `ON CONFLICT DO NOTHING` is what decides:
-        // only the DNIs this INSERT actually claimed get an exclusion. A DNI already in the
-        // ledger returns nothing and is skipped, whether or not it is currently excluded.
+        // The ledger is written first: only DNIs claimed by this MERGE get an exclusion.
+        // Existing ledger rows are skipped even if the current exclusion was removed.
         const { rows: nuevos } = await cliente.query<{ dni: string }>(
-          `INSERT INTO exclusiones_semilla (dni)
-           SELECT unnest($1::text[])
-           ON CONFLICT (dni) DO NOTHING
-           RETURNING dni`,
-          [limpios],
+          `MERGE [controlhorario].[exclusiones_semilla] WITH (HOLDLOCK) AS destino
+           USING (SELECT CONVERT(nvarchar(32), [value]) AS [dni] FROM OPENJSON($1)) AS origen
+              ON destino.[dni] = origen.[dni]
+           WHEN NOT MATCHED THEN INSERT ([dni]) VALUES (origen.[dni])
+           OUTPUT inserted.[dni];`,
+          [JSON.stringify(limpios)],
         );
         if (nuevos.length === 0) return 0;
 
         await cliente.query(
-          `INSERT INTO exclusiones (dni, motivo_texto, creado_por)
-           SELECT unnest($1::text[]), $2, $3
-           ON CONFLICT (dni) DO NOTHING`,
-          [nuevos.map((n) => n.dni), 'Semilla inicial del servidor', actor],
+          `MERGE [controlhorario].[exclusiones] WITH (HOLDLOCK) AS destino
+           USING (SELECT CONVERT(nvarchar(32), [value]) AS [dni] FROM OPENJSON($1)) AS origen
+              ON destino.[dni] = origen.[dni]
+           WHEN NOT MATCHED THEN INSERT ([dni], [motivo_texto], [creado_por])
+             VALUES (origen.[dni], $2, $3);`,
+          [JSON.stringify(nuevos.map((n) => n.dni)), 'Semilla inicial del servidor', actor],
         );
 
         // Counts only: the DNIs are the personal data this whole mechanism exists to keep

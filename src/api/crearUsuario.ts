@@ -187,7 +187,7 @@ async function main(): Promise<void> {
     }
 
     const { rows: existentes } = await pool.query<{ id: number; nombre: string }>(
-      'SELECT id, nombre FROM usuarios WHERE email = $1',
+      'SELECT [id], [nombre] FROM [controlhorario].[usuarios] WHERE [email] = $1',
       [email],
     );
     const existente = existentes[0];
@@ -208,7 +208,9 @@ async function main(): Promise<void> {
 
     if (existente) {
       await pool.query(
-        'UPDATE usuarios SET hash_contrasena = $2, activo = TRUE, actualizado_at = now() WHERE id = $1',
+        `UPDATE [controlhorario].[usuarios]
+            SET [hash_contrasena] = $2, [activo] = 1, [actualizado_at] = SYSUTCDATETIME()
+          WHERE [id] = $1`,
         [existente.id, hash],
       );
       // The audit row carries the id, never the hash and never the password.
@@ -224,7 +226,9 @@ async function main(): Promise<void> {
     }
 
     const { rows } = await pool.query<{ id: number }>(
-      'INSERT INTO usuarios (email, nombre, hash_contrasena) VALUES ($1, $2, $3) RETURNING id',
+      `INSERT INTO [controlhorario].[usuarios] ([email], [nombre], [hash_contrasena])
+       OUTPUT inserted.[id]
+       VALUES ($1, $2, $3)`,
       [email, nombre, hash],
     );
     const id = rows[0]?.id;
@@ -246,10 +250,10 @@ main().catch((e: unknown) => {
     stdout.write(`\nConfiguración inválida: ${e.message}\n\n`);
   } else if (e instanceof ErrorContrasena) {
     stdout.write(`\n${e.message}\n\n`);
-  } else if (e instanceof Error && 'code' in e && e.code === '42P01') {
+  } else if (e instanceof Error && 'number' in e && e.number === 208) {
     stdout.write(
       '\nLa base de datos no tiene el esquema aplicado todavía. Corré "npm run db:migrate" ' +
-        'primero (docs/servidor.md, sección 5).\n\n',
+        'primero (docs/stack-local.md, sección 5).\n\n',
     );
   } else {
     stdout.write(`\nNo se pudo crear el usuario: ${e instanceof Error ? e.message : String(e)}\n\n`);

@@ -132,18 +132,27 @@ export async function registrarAcceso(
    */
   void hashDeSenuelo();
 
+  /**
+   * THE COOKIE ATTRIBUTES, IN ONE OBJECT, USED BY ALL THREE OF SET, CLEAR AND RENEW.
+   *
+   * It has to be one object: a browser only removes a cookie when the `clearCookie`
+   * attributes match the ones it was set with, so a `clearCookie` that forgot `SameSite` or
+   * `Secure` leaves a dead session cookie in the browser forever, and the operator gets
+   * "Tu sesión terminó" on every single request with no way out but clearing site data.
+   *
+   * `sameSite` comes from configuration and is `none` on the current deployment, because the
+   * frontend is on Vercel and this API is on Azure — two different sites, and a `lax` cookie
+   * is simply not sent between them. The full reasoning, and what `none` costs in CSRF
+   * terms, is on `sesion.sameSite` in config.ts; the short version is that what replaces
+   * `lax` here is the single-origin CORS allow-list plus the fact that every write is a JSON
+   * request a browser cannot send cross-origin without a preflight we have to approve.
+   *
+   * `config.ts` refuses to boot with `sameSite: 'none'` and `secure: false`, which is the
+   * combination browsers discard without telling anybody.
+   */
   const opcionesCookie = {
     httpOnly: true,
-    /**
-     * `lax`, not `strict`.
-     *
-     * Every state-changing route in this API is a POST, PUT, PATCH or DELETE, and `lax`
-     * does not attach the cookie to a cross-site request with any of those methods — which
-     * is the CSRF vector that matters. What `lax` does allow is a top-level GET navigation,
-     * so an operator opening a bookmark, or the link somebody pasted into a chat, lands
-     * logged in instead of on a login form they have already filled in today.
-     */
-    sameSite: 'lax',
+    sameSite: config.sesion.sameSite,
     secure: config.sesion.segura,
     path: '/',
   } as const;
@@ -246,9 +255,12 @@ export async function registrarAcceso(
         email: string;
         nombre: string;
         hash_contrasena: string;
-      }>('SELECT id, email, nombre, hash_contrasena FROM usuarios WHERE email = $1 AND activo', [
-        email,
-      ]);
+      }>(
+        `SELECT [id], [email], [nombre], [hash_contrasena]
+           FROM [controlhorario].[usuarios]
+          WHERE [email] = $1 AND [activo] = 1`,
+        [email],
+      );
       const usuario = rows[0];
 
       // Same work in both branches. See `hashDeSenuelo` in contrasenas.ts.

@@ -12,15 +12,20 @@
  *     removed. No headers, no cookies, no body, no client address.
  *   * `POST /api/fichadas` logs six integers and nothing else.
  *   * database errors go through `errorDbParaLog`, which drops `detail` — the field where
- *     Postgres prints the values of the row that violated a constraint.
+ *     Database engines may print the values of the row that violated a constraint.
  *   * no route puts a DNI in a path, so the path a log line carries is never personal data.
  *     Identifiers travel in bodies, which are redacted. See the header of `rutasAusencias.ts`.
  *
- * ON ORDER. `@fastify/cookie` is registered BEFORE `registrarAcceso`, and that is not
- * cosmetic: the plugin installs its own `onRequest` hook to parse the header, Fastify runs
- * `onRequest` hooks in registration order, and the session guard reads `request.cookies`.
- * Registered the other way round, every request would arrive with no cookies parsed and
- * every operator would be permanently logged out.
+ * ON ORDER. Three `onRequest` hooks run on this instance and Fastify runs them in
+ * registration order, so the order below is behaviour and not layout:
+ *
+ *   1. `@fastify/cookie` parses the header. The session guard reads `request.cookies`;
+ *      registered after it, every request would arrive with nothing parsed and every
+ *      operator would be permanently logged out.
+ *   2. `registrarCors` answers the preflight. A browser's `OPTIONS` preflight carries no
+ *      cookies, so behind the guard it would 401 and the browser would refuse to send the
+ *      real request — for somebody who is logged in.
+ *   3. `registrarAcceso` — the guard itself. Everything under `/api/` needs a session.
  */
 
 import fastifyCookie from '@fastify/cookie';
@@ -30,6 +35,7 @@ import type { FastifyError, FastifyInstance } from 'fastify';
 
 import { registrarAcceso } from './autenticacion.js';
 import type { ConfiguracionApi } from './config.js';
+import { registrarCors } from './cors.js';
 import type { Pool } from './db.js';
 import { errorParaLog } from './errores.js';
 import { existeSpa, registrarEstatico, registrarSinSpa } from './estatico.js';
@@ -37,7 +43,7 @@ import type { LimitadorLogin } from './limitador.js';
 import { crearRepositorioAdjuntos } from './repositorioAdjuntos.js';
 import { crearRepositorioAusencias } from './repositorioAusencias.js';
 import { crearRepositorioConfiguracion } from './repositorioConfiguracion.js';
-import { crearRepositorioPostgres } from './repositorioPostgres.js';
+import { crearRepositorioAzureSql } from './repositorioAzureSql.js';
 import { registrarRutas } from './rutas.js';
 import { registrarRutasAdjuntos } from './rutasAdjuntos.js';
 import { registrarRutasAusencias } from './rutasAusencias.js';
@@ -157,12 +163,23 @@ export async function construirServidor(
     },
   });
 
+  /**
+   * BEFORE the session guard, and that ordering is load-bearing.
+   *
+   * A CORS preflight is an `OPTIONS` request that a browser sends WITHOUT cookies. Behind
+   * `registrarAcceso` it would answer 401, the browser would report a CORS error, and the
+   * real request would never leave the page — for an operator who is logged in perfectly
+   * well. Fastify runs root-level `onRequest` hooks in registration order, so this line has
+   * to stay above the one below it.
+   */
+  registrarCors(app, config);
+
   opciones.rutasAntesDelGuardia?.(app);
 
   const { limitador } = opciones;
   await registrarAcceso(app, { config, pool, ...(limitador ? { limitador } : {}) });
 
-  const repositorio = crearRepositorioPostgres(pool);
+  const repositorio = crearRepositorioAzureSql(pool);
   const ausencias = crearRepositorioAusencias(pool);
   const configuracion = crearRepositorioConfiguracion(pool);
   const adjuntos = crearRepositorioAdjuntos(pool, config.adjuntos.directorio);

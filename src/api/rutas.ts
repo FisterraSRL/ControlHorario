@@ -31,10 +31,10 @@ import type { ConfiguracionApi } from './config.js';
 import { errorDbParaLog } from './errores.js';
 import { contarMigracionesAplicadas } from './migraciones.js';
 import { ESQUEMA_CUERPO_UPSERT } from './esquemas.js';
-import type { Pool } from './db.js';
-import type { RepositorioAusenciasPostgres } from './repositorioAusencias.js';
-import type { RepositorioConfiguracionPostgres } from './repositorioConfiguracion.js';
-import type { RepositorioFichadasPostgres } from './repositorioPostgres.js';
+import { ESQUEMA, type Pool } from './db.js';
+import type { RepositorioAusenciasAzureSql } from './repositorioAusencias.js';
+import type { RepositorioConfiguracionAzureSql } from './repositorioConfiguracion.js';
+import type { RepositorioFichadasAzureSql } from './repositorioAzureSql.js';
 import { responderErrorDb } from './respuestas.js';
 
 /**
@@ -42,7 +42,7 @@ import { responderErrorDb } from './respuestas.js';
  * does not carry it: `upsert(filas)` receives rows and nothing else, and `CargaContainer`
  * — which does know the filename — hands over `planilla.filas` alone. Widening the port is
  * the fix, and it is a deliberate non-goal of this slice; inventing a plausible-looking
- * filename here would be worse than recording that nobody told us. See docs/servidor.md,
+ * filename here would be worse than recording that nobody told us. See docs/stack-local.md,
  * section 11.
  *
  * `cargas.subido_por` no longer has this problem: it is the email of the operator whose
@@ -57,9 +57,9 @@ interface CuerpoUpsert {
 export interface DependenciasRutas {
   readonly config: ConfiguracionApi;
   readonly pool: Pool;
-  readonly repositorio: RepositorioFichadasPostgres;
-  readonly ausencias: RepositorioAusenciasPostgres;
-  readonly configuracion: RepositorioConfiguracionPostgres;
+  readonly repositorio: RepositorioFichadasAzureSql;
+  readonly ausencias: RepositorioAusenciasAzureSql;
+  readonly configuracion: RepositorioConfiguracionAzureSql;
   /** Set once at boot so `/health` can report it without a query. */
   readonly iniciadoEn: number;
 }
@@ -94,6 +94,12 @@ export async function registrarRutas(
         latenciaMs,
         host: config.baseDeDatos.host,
         base: config.baseDeDatos.base,
+        // The schema everything of ours lives in. Reported because the database is shared
+        // with two other projects: "is it pointed at the right place" has to be answerable
+        // with one curl, and `migracionesAplicadas` counts rows in THIS schema's ledger.
+        esquema: ESQUEMA,
+        // Encryption and certificate validation are hard-coded in db.ts.
+        tls: true,
         // null means the ledger table is not there: the migrations were never applied.
         migracionesAplicadas: migraciones,
       },

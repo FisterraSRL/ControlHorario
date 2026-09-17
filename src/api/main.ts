@@ -7,9 +7,8 @@
  * altered in the worst. `docker compose up` therefore either comes up correct or does not
  * come up, and the failure is on stdout.
  *
- * Set `API_MIGRAR_AL_INICIAR=false` and run `npm run db:migrate` yourself if you would
- * rather apply them by hand. The default is on: on this deployment there is one instance,
- * one operator, and nobody watching the logs at the moment of the restart.
+ * The default is OFF. The runtime identity only receives DML on `[controlhorario]`; schema
+ * changes are an explicit administrative action through `npm run db:migrate`.
  */
 
 import { leerConfiguracion, ErrorConfiguracion } from './config.js';
@@ -69,6 +68,10 @@ async function main(): Promise<void> {
       'semilla de exclusiones aplicada',
     );
   }
+
+  // The Azure SQL driver is deliberately hard-coded to encrypted transport with
+  // certificate verification in db.ts; there is no environment switch that can disable it.
+  app.log.info({ host: config.baseDeDatos.host }, 'conexión Azure SQL cifrada configurada');
 
   if (config.urlPublica === '') {
     app.log.warn(

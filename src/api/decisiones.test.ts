@@ -150,7 +150,7 @@ describe('asignación de motivo', () => {
       actor: string;
       entidad_id: string;
       datos: Record<string, unknown>;
-    }>("SELECT actor, entidad_id, datos FROM auditoria WHERE accion = 'motivo_asignado'");
+    }>("SELECT actor, entidad_id, datos FROM controlhorario.auditoria WHERE accion = 'motivo_asignado'");
     expect(rows).toHaveLength(1);
     expect(rows[0]?.actor).toBe('rrhh@ejemplo.test');
     expect(rows[0]?.entidad_id).toBe('11000001|2026-01-06');
@@ -208,7 +208,7 @@ describe('asignación de motivo', () => {
   it('does not overwrite a manager answer either', async () => {
     // Slice 3 writes these; the sync must not discard one when the evidence is re-uploaded.
     await base.pool.query(
-      `UPDATE ausencias SET motivo_id = 2, motivo_source = 'encargado'
+      `UPDATE controlhorario.ausencias SET motivo_id = 2, motivo_source = 'encargado'
         WHERE dni = '11000001' AND fecha = '2026-01-06'`,
     );
     await subirFichadas(base, cookie, [
@@ -383,7 +383,7 @@ describe('adjuntos', () => {
      * and owes nothing at all to whatever the client sent.
      */
     const { rows } = await base.pool.query<{ nombre: string; blob_path: string }>(
-      'SELECT nombre, blob_path FROM adjuntos',
+      'SELECT nombre, blob_path FROM controlhorario.adjuntos',
     );
     expect(rows[0]?.nombre).toBe('passwd.pdf');
     expect(rows[0]?.blob_path).not.toContain('passwd');
@@ -406,7 +406,7 @@ describe('adjuntos', () => {
     expect(respuesta.statusCode).toBeGreaterThanOrEqual(400);
     expect(await readdir(base.dirAdjuntos)).toEqual([]);
     const { rows } = await base.pool.query<{ n: number }>(
-      'SELECT count(*)::bigint AS n FROM adjuntos',
+      'SELECT count(*)::bigint AS n FROM controlhorario.adjuntos',
     );
     expect(Number(rows[0]?.n)).toBe(0);
   });
@@ -426,7 +426,7 @@ describe('adjuntos', () => {
       headers: { cookie },
     });
     const { rows } = await base.pool.query<{ actor: string; entidad_id: string }>(
-      "SELECT actor, entidad_id FROM auditoria WHERE accion = 'adjunto_descargado'",
+      "SELECT actor, entidad_id FROM controlhorario.auditoria WHERE accion = 'adjunto_descargado'",
     );
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({
@@ -440,7 +440,7 @@ describe('adjuntos', () => {
       nombre: 'certificado psiquiatrico.pdf',
     });
     const { rows } = await base.pool.query<{ datos: Record<string, unknown> }>(
-      "SELECT datos FROM auditoria WHERE accion = 'adjunto_subido'",
+      "SELECT datos FROM controlhorario.auditoria WHERE accion = 'adjunto_subido'",
     );
     expect(JSON.stringify(rows[0]?.datos)).not.toContain('psiquiatrico');
   });
@@ -449,7 +449,7 @@ describe('adjuntos', () => {
     await subirAdjunto(base, cookie, '11000001', '06/01/2026');
     await base.app.inject({ method: 'DELETE', url: '/api/fichadas', headers: { cookie } });
     const { rows } = await base.pool.query<{ n: number }>(
-      'SELECT count(*)::bigint AS n FROM adjuntos',
+      'SELECT count(*)::bigint AS n FROM controlhorario.adjuntos',
     );
     expect(Number(rows[0]?.n)).toBe(0);
   });
@@ -497,7 +497,7 @@ describe('configuración', () => {
     });
 
     const { rows } = await base.pool.query<{ actor: string; entidad_id: string }>(
-      "SELECT actor, entidad_id FROM auditoria WHERE accion = 'config_actualizada'",
+      "SELECT actor, entidad_id FROM controlhorario.auditoria WHERE accion = 'config_actualizada'",
     );
     expect(rows[0]).toMatchObject({ actor: 'rrhh@ejemplo.test', entidad_id: 'tolerancia_min' });
   });
@@ -579,7 +579,7 @@ describe('configuración', () => {
 
     // And the decision still points at a readable motivo.
     const { rows } = await base.pool.query<{ label: string }>(
-      `SELECT m.label FROM ausencias a JOIN motivos m ON m.id = a.motivo_id`,
+      `SELECT m.label FROM controlhorario.ausencias a JOIN controlhorario.motivos m ON m.id = a.motivo_id`,
     );
     expect(rows[0]?.label).toBe('Enfermedad');
   });
@@ -648,7 +648,7 @@ describe('semilla de exclusiones', () => {
     const configuracion = crearRepositorioConfiguracion(base.pool);
     await configuracion.sembrarExclusiones(['11000001'], 'arranque');
     const { rows } = await base.pool.query<{ datos: unknown; entidad_id: string | null }>(
-      "SELECT datos, entidad_id FROM auditoria WHERE accion = 'exclusiones_sembradas'",
+      "SELECT datos, entidad_id FROM controlhorario.auditoria WHERE accion = 'exclusiones_sembradas'",
     );
     expect(rows[0]?.entidad_id).toBeNull();
     expect(JSON.stringify(rows[0]?.datos)).not.toContain('11000001');

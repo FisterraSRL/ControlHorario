@@ -1,265 +1,31 @@
-# =============================================================================
-# ControlHorario — the whole server, in one file.
-#
-# Runs on the Windows 10 Pro machine in the Fisterra office, against Docker Engine
-# INSIDE WSL2 — not Docker Desktop. Docker Desktop is a user application: it does not
-# start until a human logs into Windows, so a machine that reboots at 03:00 stays down
-# until someone walks in. docs/servidor.md sets up the engine and the Task Scheduler task
-# that brings this stack up at boot with nobody logged in.
-#
-# Bring it up:      docker compose up -d
-# Look at it:       docker compose ps
-# Read it:          docker compose logs -f api
-# Check it:         curl -s http://127.0.0.1:8080/health | jq
-#
-# Every value comes from `.env` next to this file. `.env` is gitignored; `.env.example`
-# documents each variable and contains no real value.
-# =============================================================================
-
-name: controlhorario
-
 services:
-  # ---------------------------------------------------------------------------
-  # The database. This is the thing that must not be lost: it holds the evidence
-  # behind every disciplinary notification the company sends.
-  # ---------------------------------------------------------------------------
-  postgres:
-    # Pinned exactly. `postgres:17` would silently move to the next patch on a `pull`,
-    # and the version that wrote the data directory is the version that must read it.
-    # The `backup` service pins the same tag so pg_dump always matches the server.
-    image: postgres:17.11-bookworm
-    restart: unless-stopped
-    environment:
-      POSTGRES_USER: ${PGUSER:?falta PGUSER en .env}
-      POSTGRES_PASSWORD: ${PGPASSWORD:?falta PGPASSWORD en .env}
-      POSTGRES_DB: ${PGDATABASE:?falta PGDATABASE en .env}
-      # Spanish collation for ORDER BY on names, and a locale that exists in the image.
-      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C.UTF-8"
-      # Kept inside the mount point rather than at its root: initdb wants an empty
-      # directory, and a volume root can pick up a lost+found.
-      PGDATA: /var/lib/postgresql/data/pgdata
-    volumes:
-      # A NAMED VOLUME, NOT A BIND MOUNT TO C:\. This is not a preference.
-      # A bind mount from Windows crosses the 9p/virtiofs boundary into the Linux VM:
-      # Postgres cannot set the file ownership and permission bits it requires (it
-      # refuses to start on a directory with group/world access), fsync semantics are
-      # not the ones it assumes for durability, and random 8 KiB page I/O over that
-      # boundary is an order of magnitude slower. Named volume = ext4 inside the VM.
-      - postgres_datos:/var/lib/postgresql/data
-    ports:
-      # 127.0.0.1 ONLY. Without the address prefix Docker publishes on 0.0.0.0 AND
-      # punches a hole in the Windows firewall, and the payroll database is then
-      # reachable from every machine on the office LAN. With it, only this host can
-      # connect — which is all psql and the backup restore ever need.
-      - "127.0.0.1:${PGPORT_HOST:-5432}:5432"
-    healthcheck:
-      # `-U`/`-d` matter: bare pg_isready checks the *default* database and reports
-      # healthy while ours is still being created by initdb.
-      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB -q"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      # initdb on a cold volume takes a while; without this the first `up` marks the
-      # container unhealthy and `api` never starts.
-      start_period: 60s
-    stop_grace_period: 1m
-    logging: &logging
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "5"
-
-  # ---------------------------------------------------------------------------
-  # The Node service: the REST API behind the RepositorioFichadas port, and the
-  # static server for the built React app. The ONLY service that talks to Postgres.
-  # ---------------------------------------------------------------------------
   api:
     build:
       context: .
-      dockerfile: Dockerfile
       args:
-        # Baked into the bundle at build time — Vite substitutes VITE_* at compile
-        # time, it cannot read them at runtime. Relative, so the frontend calls
-        # whatever origin served it and the tunnel in front is invisible to it.
-        VITE_API_BASE_URL: /api
-    image: controlhorario-api:local
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api}
     restart: unless-stopped
-    depends_on:
-      postgres:
-        condition: service_healthy
-    environment:
-      PGHOST: postgres
-      PGPORT: 5432
-      PGUSER: ${PGUSER:?falta PGUSER en .env}
-      PGPASSWORD: ${PGPASSWORD:?falta PGPASSWORD en .env}
-      PGDATABASE: ${PGDATABASE:?falta PGDATABASE en .env}
-      API_PUERTO: 8080
-      API_NIVEL_LOG: ${API_NIVEL_LOG:-info}
-      API_MIGRAR_AL_INICIAR: ${API_MIGRAR_AL_INICIAR:-true}
-      API_OPERADOR: ${API_OPERADOR:-rrhh}
-      # The address the outside world uses. The app never guesses it from a Host
-      # header: swapping Tailscale for Cloudflare has to be a change to .env.
-      APP_URL_PUBLICA: ${APP_URL_PUBLICA:-}
-      # --- Sessions ---------------------------------------------------------
-      # `Secure` on the session cookie. It stays TRUE here: everything from
-      # outside arrives over the tunnel's HTTPS, and a session cookie that can
-      # travel in the clear is one that can be read off a café network. The only
-      # reason to turn it off is a local `npm run dev` over plain http.
-      API_COOKIE_SEGURA: ${API_COOKIE_SEGURA:-true}
-      API_SESION_HORAS: ${API_SESION_HORAS:-12}
-      # --- Attachments ------------------------------------------------------
-      # Medical certificates. Inside the container they live here, on the named
-      # volume below; nothing serves them as static files (docs/servidor.md §12).
-      API_DIR_ADJUNTOS: /datos/adjuntos
-      API_ADJUNTO_MAX_BYTES: ${API_ADJUNTO_MAX_BYTES:-10485760}
-      # DNIs to put on the exclusion list the first time the server sees each one,
-      # and ONLY the first time: removing somebody by hand in Configuración is
-      # final. Personal data, so it lives in .env and never in a committed file.
-      EXCLUSIONES_INICIALES: ${EXCLUSIONES_INICIALES:-}
-    volumes:
-      # A NAMED VOLUME, not a bind mount, and not the database volume either.
-      #
-      # These files are medical certificates: they must not sit in a folder the
-      # Windows side of the machine browses, gets indexed by a backup agent, or
-      # syncs to a cloud drive by accident. A named volume is reachable only
-      # through Docker, and `docker compose down` does not remove it.
-      #
-      # IT IS NOT COVERED BY THE pg_dump BACKUPS. `respaldo.sh` dumps the
-      # database, which holds the METADATA of every attachment and not its bytes.
-      # Backing this up is a separate job; see docs/servidor.md §8.7.
-      - adjuntos:/datos/adjuntos
     ports:
-      # Localhost only. Everything from outside arrives through the tunnel, which
-      # reaches this container over the private compose network, not through here.
-      # This publish exists so the operator can curl /health from the machine.
-      - "127.0.0.1:${API_PUERTO_HOST:-8080}:8080"
-    healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8080/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 30s
-    logging: *logging
-
-  # ---------------------------------------------------------------------------
-  # THE TUNNEL — Tailscale Funnel.
-  #
-  # Gives a stable public HTTPS hostname, `https://<TS_HOSTNAME>.<tailnet>.ts.net`,
-  # with certificates issued and renewed automatically. No domain to buy, no DNS to
-  # change, no inbound port opened on the office router, no static IP.
-  #
-  # The hostname is stable across reboots and across `docker compose down`, which is
-  # the property that actually matters: slice 3 emails magic links to department
-  # managers and they click them days later.
-  #
-  # The "up to 6 users" limit of the free plan counts PEOPLE WITH ACCOUNTS ON THE
-  # TAILNET — whoever administers this server. Visitors who open the Funnel URL do not
-  # have Tailscale, do not sign in, and do not count. Department managers reaching the
-  # app from their phones are visitors.
-  #
-  # Setup and the exact `tailscale funnel` commands are in docs/servidor.md.
-  # ---------------------------------------------------------------------------
-  tailscale:
-    image: tailscale/tailscale:v1.102.3
-    restart: unless-stopped
-    depends_on:
-      - api
-    hostname: ${TS_HOSTNAME:-controlhorario}
+      - "127.0.0.1:${API_PORT_HOST:-8080}:8080"
     environment:
-      # Only needed the FIRST time, to join the tailnet. After that the node identity
-      # lives in the tailscale_estado volume and this can be emptied. Use a one-off,
-      # non-reusable key and delete it from the admin console afterwards.
-      TS_AUTHKEY: ${TS_AUTHKEY:-}
-      TS_HOSTNAME: ${TS_HOSTNAME:-controlhorario}
-      TS_STATE_DIR: /var/lib/tailscale
-      # Userspace networking: no /dev/net/tun, no NET_ADMIN, no privileged container.
-      # The Funnel proxy dials `api` over the normal compose network.
-      TS_USERSPACE: "true"
-      # Declares the Funnel. ${TS_CERT_DOMAIN} inside that file is substituted by the
-      # container with this node's real .ts.net name — do not hardcode the hostname.
-      TS_SERVE_CONFIG: /config/funnel.json
+      NODE_ENV: production
+      DB_SERVER: ${DB_SERVER:?falta DB_SERVER en .env}
+      DB_PORT: ${DB_PORT:-1433}
+      DB_USER: ${DB_USER:?falta DB_USER en .env}
+      DB_PASSWORD: ${DB_PASSWORD:?falta DB_PASSWORD en .env}
+      DB_NAME: ${DB_NAME:?falta DB_NAME en .env}
+      DB_MAX_CONEXIONES: ${DB_MAX_CONEXIONES:-5}
+      API_HOST: 0.0.0.0
+      API_PUERTO: 8080
+      APP_ORIGEN_FRONTEND: ${APP_ORIGEN_FRONTEND:-}
+      APP_URL_PUBLICA: ${APP_URL_PUBLICA:-}
+      API_COOKIE_SEGURA: ${API_COOKIE_SEGURA:-true}
+      API_COOKIE_SAMESITE: ${API_COOKIE_SAMESITE:-}
+      API_MIGRAR_AL_INICIAR: "false"
+      API_DIR_ADJUNTOS: /datos/adjuntos
     volumes:
-      - tailscale_estado:/var/lib/tailscale
-      - ./docker/tailscale/funnel.json:/config/funnel.json:ro
-    logging: *logging
-
-  # ---------------------------------------------------------------------------
-  # THE UPGRADE PATH — Cloudflare Tunnel.
-  #
-  # Commented out, not deleted. Switch to this once Fisterra owns a domain: a link to
-  # `https://fichadas.fisterra.com.ar` is one a department manager will click, and a
-  # link to `https://controlhorario-abc123.tailnet-xyz.ts.net` is one that looks like
-  # phishing on a phone. Nothing in the application knows which of the two is in front
-  # of it.
-  #
-  # To switch:
-  #   1. Create the tunnel and the public hostname in the Cloudflare Zero Trust
-  #      dashboard, pointing the service at http://api:8080.
-  #   2. Put the tunnel token in CLOUDFLARE_TUNNEL_TOKEN in .env.
-  #   3. Set APP_URL_PUBLICA to the new https:// address.
-  #   4. Uncomment this service, comment out `tailscale`, `docker compose up -d`.
-  #   5. Only after the new address is confirmed working, `tailscale funnel off` and
-  #      remove the old node from the admin console.
-  #
-  # cloudflared also ships as a NATIVE WINDOWS SERVICE
-  # (`cloudflared service install <token>`), which runs at boot without a login and
-  # without Docker — worth considering, since it keeps the public endpoint up even
-  # when the container stack is down, so an outage shows as a 502 you can see rather
-  # than a hostname that has vanished. If you take that route, point the Cloudflare
-  # service at http://127.0.0.1:8080 (the api publish above) and leave this commented.
-  # ---------------------------------------------------------------------------
-  # cloudflared:
-  #   image: cloudflare/cloudflared:2026.9.1
-  #   restart: unless-stopped
-  #   depends_on:
-  #     - api
-  #   command: tunnel --no-autoupdate run
-  #   environment:
-  #     TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:?falta CLOUDFLARE_TUNNEL_TOKEN en .env}
-  #   logging: *logging
-
-  # ---------------------------------------------------------------------------
-  # Backups. Not an afterthought: this database is what lets Fisterra defend a
-  # sanction that gets challenged. See docs/servidor.md, "Respaldos y restauración",
-  # which has the restore as commands you can paste.
-  # ---------------------------------------------------------------------------
-  backup:
-    image: postgres:17.11-bookworm
-    restart: unless-stopped
-    depends_on:
-      postgres:
-        condition: service_healthy
-    environment:
-      PGHOST: postgres
-      PGPORT: 5432
-      PGUSER: ${PGUSER:?falta PGUSER en .env}
-      PGPASSWORD: ${PGPASSWORD:?falta PGPASSWORD en .env}
-      PGDATABASE: ${PGDATABASE:?falta PGDATABASE en .env}
-      RESPALDO_HORA: ${RESPALDO_HORA:-03:30}
-      RESPALDO_DIARIOS: ${RESPALDO_DIARIOS:-14}
-      RESPALDO_MENSUALES: ${RESPALDO_MENSUALES:-12}
-      TZ: ${TZ:-America/Argentina/Buenos_Aires}
-    volumes:
-      - ./docker/respaldo/respaldo.sh:/usr/local/bin/respaldo.sh:ro
-      # A BIND MOUNT HERE IS CORRECT, and the opposite of the rule for PGDATA. The
-      # point of a backup you cannot reach is nothing, and a named volume is awkward
-      # to read from Windows. These are whole files written once a day, sequentially:
-      # none of the reasons PGDATA must not cross the boundary apply.
-      #
-      # The default is a path inside the WSL distro, which Explorer opens at
-      # \\wsl.localhost\Ubuntu\srv\controlhorario\respaldos — fast, and still trivial
-      # to copy to a pendrive. Point RESPALDOS_DIR at /mnt/c/... to write straight
-      # onto the Windows disk instead; see docs/servidor.md.
-      - ${RESPALDOS_DIR:-/srv/controlhorario/respaldos}:/respaldos
-    entrypoint: ["/bin/bash", "/usr/local/bin/respaldo.sh"]
-    logging: *logging
+      - adjuntos:/datos/adjuntos
 
 volumes:
-  postgres_datos:
-    name: controlhorario_postgres_datos
-  tailscale_estado:
-    name: controlhorario_tailscale_estado
-  # The attachment files. See the `api` service for why this is a named volume and
-  # why the nightly pg_dump does not cover it.
   adjuntos:
     name: controlhorario_adjuntos

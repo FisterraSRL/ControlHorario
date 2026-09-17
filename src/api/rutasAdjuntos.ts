@@ -32,13 +32,13 @@ import { auditar, idDeDia } from './auditoria.js';
 import type { ConfiguracionApi } from './config.js';
 import { LIMITES_CAMPO_ADJUNTO } from './esquemas.js';
 import type { Pool } from './db.js';
-import { ErrorAdjunto, type RepositorioAdjuntosPostgres } from './repositorioAdjuntos.js';
+import { ErrorAdjunto, type RepositorioAdjuntosAzureSql } from './repositorioAdjuntos.js';
 import { noEncontrado, responderErrorDb } from './respuestas.js';
 
 export interface DependenciasAdjuntos {
   readonly config: ConfiguracionApi;
   readonly pool: Pool;
-  readonly repositorio: RepositorioAdjuntosPostgres;
+  readonly repositorio: RepositorioAdjuntosAzureSql;
 }
 
 interface ParamsId {

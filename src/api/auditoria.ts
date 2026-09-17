@@ -1,7 +1,7 @@
 /**
  * Writing to `auditoria`.
  *
- * WHAT GOES IN, AND THE ONE PLACE THIS DIFFERS FROM THE RULE IN `repositorioPostgres.ts`.
+ * WHAT GOES IN, AND THE ONE PLACE THIS DIFFERS FROM THE RULE IN `repositorioAzureSql.ts`.
  *
  * The upload audit row says "somebody loaded 412 rows" and carries counters only, because
  * naming a person there would add nothing. The rows written here are different: they record
@@ -13,7 +13,7 @@
  *
  *   * `datos` never carries a name, a sector, a legajo, a motivo LABEL, a filename or a
  *     payload — only ids, counts and the before/after of the field that changed;
- *   * nothing in this file is ever logged: an audit row goes to Postgres, not to pino.
+ *   * nothing in this file is ever logged: an audit row goes to Azure SQL, not to pino.
  *
  * Append-only. There is no update and no delete, here or anywhere else.
  */
@@ -64,7 +64,7 @@ export async function auditar(
   entrada: EntradaAuditoria,
 ): Promise<void> {
   await cliente.query(
-    `INSERT INTO auditoria (actor, accion, entidad, entidad_id, datos)
+    `INSERT INTO [controlhorario].[auditoria] ([actor], [accion], [entidad], [entidad_id], [datos])
      VALUES ($1, $2, $3, $4, $5)`,
     [
       entrada.actor,

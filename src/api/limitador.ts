@@ -19,7 +19,7 @@
  * The email is hashed and not stored raw for the same reason nothing else here logs one: a
  * heap dump or a crash report should not be a list of who has an account.
  *
- * IN MEMORY, NOT IN POSTGRES. A restart resets both counters. That is a real weakness and
+ * IN MEMORY, NOT IN AZURE SQL. A restart resets both counters. That is a real weakness and
  * it is accepted knowingly: there is exactly one API process, restarting it is not
  * something an attacker on the outside can do, and the alternative is a write to the
  * database on every failed login — which is itself a way to fill a disk. If this ever runs

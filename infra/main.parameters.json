@@ -1,0 +1,15 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "webAppName": {
+      "value": "controlhorario-fisterra"
+    },
+    "existingPlanName": {
+      "value": "ASP-fisterrasrlgroup-9f1d"
+    },
+    "location": {
+      "value": "westus3"
+    }
+  }
+}

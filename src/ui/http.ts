@@ -4,10 +4,20 @@
  * Extracted from `historial/repositorioHttp.ts` when the second adapter appeared. Three
  * things live here because they have to be the same everywhere:
  *
- * 1. `credentials: 'same-origin'`. The session cookie is `httpOnly`, so the browser attaches
- *    it and nothing in this bundle can. Stated explicitly rather than left to the default,
- *    because the day somebody points `VITE_API_BASE_URL` at another origin the fix is a
- *    conversation about CORS, not a silent unauthenticated request.
+ * 1. `credentials: 'include'`. The session cookie is `httpOnly`, so the browser attaches it
+ *    and nothing in this bundle can — but only if it is told to, and this is where it is
+ *    told.
+ *
+ *    IT USED TO BE `'same-origin'`, WHICH IS NOW THE WRONG ANSWER. The app is served from
+ *    Vercel and the API lives on Azure: two origins, so `'same-origin'` means the browser
+ *    sends no cookie at all and every call after the login is a 401 — with the login itself
+ *    appearing to succeed. `'include'` behaves identically for a same-origin call, so the
+ *    local stack where this process also serves the SPA is unaffected.
+ *
+ *    `'include'` only works if the server plays its part: `Access-Control-Allow-Credentials:
+ *    true` with one exact origin (never `*`, which the browser refuses in this combination),
+ *    and a session cookie marked `SameSite=None; Secure`. See src/api/cors.ts and the
+ *    `sesion.sameSite` comment in src/api/config.ts.
  *
  * 2. A 401 is not an error message, it is a state. Every call can get one — a session
  *    expires on a Friday afternoon like any other — and the app has to show the login
@@ -98,7 +108,7 @@ export async function pedir(
   let respuesta: Response;
   try {
     respuesta = await fetch(url, {
-      credentials: 'same-origin',
+      credentials: 'include',
       ...init,
       signal: AbortSignal.timeout(TIEMPO_LIMITE_MS),
     });

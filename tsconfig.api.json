@@ -24,7 +24,7 @@
   },
   "include": [
     "src/api/**/*.ts",
-    // Imported for real, not copied: `parsearFechaDMY` decides which rows Postgres can
+    // Imported for real, not copied: `parsearFechaDMY` decides which rows Azure SQL can
     // store, and `claveDeFila` decides which rows are discarded. Sharing the functions with
     // the engine and the port is what stops the API and the browser from disagreeing about
     // what a storable row is.

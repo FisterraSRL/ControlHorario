@@ -23,7 +23,7 @@ export async function crearUsuarioDePrueba(
 ): Promise<number> {
   const hash = await hashearContrasena(contrasena);
   const { rows } = await pool.query<{ id: number }>(
-    'INSERT INTO usuarios (email, nombre, hash_contrasena) VALUES ($1, $2, $3) RETURNING id',
+    'INSERT INTO controlhorario.usuarios (email, nombre, hash_contrasena) VALUES ($1, $2, $3) RETURNING id',
     [email, nombre, hash],
   );
   const id = rows[0]?.id;

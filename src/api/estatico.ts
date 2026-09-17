@@ -1,14 +1,17 @@
 /**
  * Serving the built SPA, and the fallback that makes deep links work.
  *
+ * NOT USED IN PRODUCTION ANY MORE, AND KEPT ANYWAY. The production frontend is on Vercel,
+ * where the same job is done by the `rewrites` entry of `vercel.json`; on Azure this process
+ * finds no `index.html` and boots API-only through `registrarSinSpa` below, which is the
+ * intended shape. This file is what serves the SPA in the local development stack, and it
+ * is the way back if the Azure trial does not work out.
+ *
  * The app routes with `BrowserRouter`, so `/carga`, `/ausencias` and `/configuracion` are
  * real URLs that a person will bookmark, paste into a chat, and reload on. None of them is
  * a file on disk. Without a fallback the server 404s and the operator concludes the system
- * is down.
- *
- * The deleted `staticwebapp.config.json` did this for the Azure deployment
- * (`navigationFallback`). This is its replacement, and it is the reason `docs/servidor.md`
- * tells you to check `curl -I https://<dominio>/ausencias` after a deploy, not just `/`.
+ * is down. That is true of Vercel exactly as it is of this file, which is why
+ * `docs/despliegue.md` §5.5 checks `/ausencias` after a deploy and not just `/`.
  *
  * The fallback is narrow on purpose:
  *   * only GET and HEAD — a POST to a wrong path is a bug, not a deep link;

@@ -9,6 +9,8 @@ build/
 out/
 coverage/
 *.tsbuildinfo
+.azure/*.zip
+infra/main.json
 
 # --- Database dumps. They contain the whole payroll history, in the clear. ---
 respaldos/
@@ -28,6 +30,9 @@ local.settings.json
 *.csv
 datos/
 uploads/
+
+# --- Vercel CLI. Project and org ids, plus a local build cache. ---
+.vercel/
 
 # --- Editor / OS ---
 .DS_Store

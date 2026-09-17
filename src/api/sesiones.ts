@@ -68,9 +68,9 @@ export async function crearSesion(
 ): Promise<SesionCreada> {
   const token = nuevoToken();
   const { rows } = await cliente.query<{ expira_at: Date }>(
-    `INSERT INTO sesiones (id, usuario_id, expira_at)
-     VALUES ($1, $2, now() + make_interval(hours => $3))
-     RETURNING expira_at`,
+    `INSERT INTO [controlhorario].[sesiones] ([id], [usuario_id], [expira_at])
+     OUTPUT inserted.[expira_at]
+     VALUES ($1, $2, DATEADD(hour, $3, SYSUTCDATETIME()))`,
     [idDeToken(token), usuarioId, horas],
   );
   const expiraAt = rows[0]?.expira_at;
@@ -96,10 +96,10 @@ export async function buscarSesion(
     nombre: string;
     expira_at: Date;
   }>(
-    `SELECT s.id, s.usuario_id, u.email, u.nombre, s.expira_at
-       FROM sesiones s
-       JOIN usuarios u ON u.id = s.usuario_id
-      WHERE s.id = $1 AND s.expira_at > now() AND u.activo`,
+    `SELECT s.[id], s.[usuario_id], u.[email], u.[nombre], s.[expira_at]
+       FROM [controlhorario].[sesiones] s
+       JOIN [controlhorario].[usuarios] u ON u.[id] = s.[usuario_id]
+      WHERE s.[id] = $1 AND s.[expira_at] > SYSUTCDATETIME() AND u.[activo] = 1`,
     [idDeToken(token)],
   );
   const fila = rows[0];
@@ -131,10 +131,11 @@ export async function renovarSesion(
   const restanteMs = sesion.expiraAt.getTime() - Date.now();
   if (restanteMs > (horas * 3_600_000) / 2) return null;
   const { rows } = await cliente.query<{ expira_at: Date }>(
-    `UPDATE sesiones
-        SET expira_at = now() + make_interval(hours => $2), ultima_at = now()
-      WHERE id = $1
-      RETURNING expira_at`,
+    `UPDATE [controlhorario].[sesiones]
+        SET [expira_at] = DATEADD(hour, $2, SYSUTCDATETIME()),
+            [ultima_at] = SYSUTCDATETIME()
+      OUTPUT inserted.[expira_at]
+      WHERE [id] = $1`,
     [sesion.id, horas],
   );
   const nueva = rows[0]?.expira_at;
@@ -143,7 +144,7 @@ export async function renovarSesion(
 
 /** Logout. Deleting rather than flagging: an expired session is not a fact worth keeping. */
 export async function borrarSesion(cliente: Pool | PoolClient, token: string): Promise<boolean> {
-  const { rowCount } = await cliente.query('DELETE FROM sesiones WHERE id = $1', [
+  const { rowCount } = await cliente.query('DELETE FROM [controlhorario].[sesiones] WHERE [id] = $1', [
     idDeToken(token),
   ]);
   return (rowCount ?? 0) > 0;
@@ -157,6 +158,8 @@ export async function borrarSesion(cliente: Pool | PoolClient, token: string): P
  * restarted for months.
  */
 export async function limpiarSesionesVencidas(cliente: Pool | PoolClient): Promise<number> {
-  const { rowCount } = await cliente.query('DELETE FROM sesiones WHERE expira_at <= now()');
+  const { rowCount } = await cliente.query(
+    'DELETE FROM [controlhorario].[sesiones] WHERE [expira_at] <= SYSUTCDATETIME()',
+  );
   return rowCount ?? 0;
 }

@@ -15,7 +15,7 @@
  * WHAT IT IS NOT. PGlite is a single connection and a single backend process. It cannot
  * show a lock contention bug, a `pg_advisory_lock` race between two `api` containers, or
  * anything about connection pooling. Those are real gaps and they are the reason
- * `docs/servidor.md` still says to check `/health` after a deploy.
+ * `docs/stack-local.md` still says to check `/health` after a deploy.
  *
  * THE SHIM BELOW IS THE ONLY ADAPTATION, and it is deliberately thin:
  *
@@ -118,6 +118,16 @@ export interface OpcionesBase {
   readonly rutasExtra?: (app: FastifyInstance) => void;
   /** Routes registered before the guard exists. See `OpcionesServidor`. */
   readonly rutasAntes?: (app: FastifyInstance) => void;
+  /**
+   * Extra environment, applied before `leerConfiguracion` runs and undone by `cerrar`.
+   *
+   * It exists for the cross-origin tests: the whole point of `origenCruzado.test.ts` is to
+   * boot a server configured the way the Vercel deployment configures it —
+   * `APP_ORIGEN_FRONTEND` set, `API_COOKIE_SEGURA=true` — and assert on the headers that
+   * come out. Reaching into `config` afterwards would test a hand-made object instead of
+   * the real `leerConfiguracion`, which is exactly the boot-time validation worth covering.
+   */
+  readonly entorno?: Readonly<Record<string, string>>;
 }
 
 /**
@@ -128,16 +138,16 @@ export interface OpcionesBase {
  * migration left, which is the state a real server boots into.
  */
 const TABLAS_DE_DATOS = [
-  'auditoria',
-  'sesiones',
-  'usuarios',
-  'adjuntos',
-  'ausencias',
-  'fichadas',
-  'cargas',
-  'exclusiones',
-  'exclusiones_semilla',
-  'empleados',
+  'controlhorario.auditoria',
+  'controlhorario.sesiones',
+  'controlhorario.usuarios',
+  'controlhorario.adjuntos',
+  'controlhorario.ausencias',
+  'controlhorario.fichadas',
+  'controlhorario.cargas',
+  'controlhorario.exclusiones',
+  'controlhorario.exclusiones_semilla',
+  'controlhorario.empleados',
 ] as const;
 
 export async function reiniciarDatos(base: BaseDePrueba): Promise<void> {
@@ -152,15 +162,15 @@ export async function reiniciarDatos(base: BaseDePrueba): Promise<void> {
   // The three seeded tables are restored rather than truncated: their content is part of
   // the schema, not of any test.
   await base.pool.query(`
-    DELETE FROM sector_reglas;
-    INSERT INTO sector_reglas (sector, fichadas_requeridas)
+    DELETE FROM controlhorario.sector_reglas;
+    INSERT INTO controlhorario.sector_reglas (sector, fichadas_requeridas)
       VALUES ('Reparto', 2), ('Cocina', 2), ('Administración', 2);
-    UPDATE configuracion SET valor = '30'::jsonb WHERE clave = 'descanso_max_min';
-    UPDATE configuracion SET valor = '0'::jsonb  WHERE clave = 'tolerancia_min';
-    UPDATE configuracion SET valor = '51'::jsonb WHERE clave = 'horas_turno_semanales';
-    DELETE FROM motivos WHERE id > 9;
-    UPDATE motivos SET activo = TRUE;
-    UPDATE motivos SET worked = (id IN (4, 5, 6, 7, 8));
+    UPDATE controlhorario.configuracion SET valor = '30'::jsonb WHERE clave = 'descanso_max_min';
+    UPDATE controlhorario.configuracion SET valor = '0'::jsonb  WHERE clave = 'tolerancia_min';
+    UPDATE controlhorario.configuracion SET valor = '51'::jsonb WHERE clave = 'horas_turno_semanales';
+    DELETE FROM controlhorario.motivos WHERE id > 9;
+    UPDATE controlhorario.motivos SET activo = TRUE;
+    UPDATE controlhorario.motivos SET worked = (id IN (4, 5, 6, 7, 8));
   `);
 }
 
@@ -184,11 +194,56 @@ export async function levantarBase(opciones: OpcionesBase = {}): Promise<BaseDeP
   process.env['API_NIVEL_LOG'] = 'silent';
   process.env['APP_URL_PUBLICA'] = '';
   delete process.env['EXCLUSIONES_INICIALES'];
+  // Default: no cross-origin frontend, which is the local stack. `origenCruzado.test.ts`
+  // overrides both of these through `opciones.entorno` to boot the Vercel shape instead.
+  delete process.env['APP_ORIGEN_FRONTEND'];
+  delete process.env['API_COOKIE_SAMESITE'];
 
-  const config = leerConfiguracion(resolve(process.cwd()));
+  // Snapshotted so one test file cannot change the configuration another one boots with.
+  const entornoPrevio = new Map<string, string | undefined>();
+  for (const [clave, valor] of Object.entries(opciones.entorno ?? {})) {
+    entornoPrevio.set(clave, process.env[clave]);
+    process.env[clave] = valor;
+  }
+  const restaurarEntorno = (): void => {
+    for (const [clave, valor] of entornoPrevio) {
+      if (valor === undefined) delete process.env[clave];
+      else process.env[clave] = valor;
+    }
+  };
+
+  let config: ConfiguracionApi;
+  try {
+    config = leerConfiguracion(resolve(process.cwd()));
+  } catch (e: unknown) {
+    restaurarEntorno();
+    await rm(dirAdjuntos, { recursive: true, force: true });
+    throw e;
+  }
   const db = new PGlite();
   await db.waitReady;
   const pool = comoPool(db);
+
+  /**
+   * THE `search_path` IS SET TO THE WRONG THING ON PURPOSE, AND THIS IS THE POINT.
+   *
+   * Production sets `search_path=controlhorario` on every connection (see `crearPool` in
+   * `db.ts`). If the harness did the same, an unqualified `SELECT ... FROM usuarios` that
+   * somebody adds next month would resolve, the suite would pass, and the mistake would
+   * only surface on the shared Azure server — where `usuarios` is also a table belonging to
+   * the accounts system for two other projects, so it would not fail there either. It would
+   * read, or write, the wrong company's data.
+   *
+   * So here the path deliberately does NOT contain `controlhorario`. Anything that is not
+   * written `controlhorario.<name>` fails with `relation ... does not exist`, in CI, on the
+   * first run. That makes every one of the ~300 tests below a check on the rule, instead of
+   * needing one test that tries to remember every statement.
+   *
+   * `pg_catalog` and `pg_temp` are still searched — PostgreSQL searches both whether or not
+   * they are named — which is what keeps `pg_advisory_lock` and the `ausencias_vigentes`
+   * temp table of `repositorioAusencias.ts` working.
+   */
+  await db.exec("SET search_path TO ''");
 
   await aplicarMigraciones(pool, config.directorioMigraciones);
 
@@ -205,6 +260,7 @@ export async function levantarBase(opciones: OpcionesBase = {}): Promise<BaseDeP
     config,
     dirAdjuntos,
     async cerrar() {
+      restaurarEntorno();
       await app.close();
       await db.close();
       await rm(dirAdjuntos, { recursive: true, force: true });

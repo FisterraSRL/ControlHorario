@@ -18,6 +18,7 @@ function escribir(linea: string): void {
 }
 
 async function main(): Promise<void> {
+  const verificarSolamente = process.argv.includes('--dry-run');
   const config = leerConfiguracion();
   const pool = crearPool(config);
 
@@ -27,17 +28,21 @@ async function main(): Promise<void> {
   escribir('');
 
   try {
-    const resultado = await aplicarMigraciones(pool, config.directorioMigraciones);
+    const resultado = await aplicarMigraciones(pool, config.directorioMigraciones, {
+      confirmar: !verificarSolamente,
+    });
 
     for (const version of resultado.yaEstaban) {
       escribir(`  ya estaba   ${version}`);
     }
     for (const m of resultado.aplicadas) {
-      escribir(`  APLICADA    ${m.version}  (${m.duracionMs} ms)`);
+      escribir(`  ${resultado.confirmadas ? 'APLICADA' : 'VALIDADA'}   ${m.version}  (${m.duracionMs} ms)`);
     }
 
     escribir('');
-    if (resultado.aplicadas.length === 0) {
+    if (!resultado.confirmadas) {
+      escribir('Validación correcta. La transacción se revirtió: no se creó ni modificó nada.');
+    } else if (resultado.aplicadas.length === 0) {
       escribir('El esquema ya estaba al día. No se cambió nada.');
     } else {
       escribir(`Listo: ${resultado.aplicadas.length} migración/es aplicada/s.`);

@@ -1,5 +1,5 @@
 /**
- * The absence registry: the Postgres side of `RepositorioAusencias`.
+ * The absence registry: the Azure SQL side of `RepositorioAusencias`.
  *
  * WHY THIS FILE RUNS THE ENGINE.
  *
@@ -59,17 +59,17 @@ export interface ResultadoSincronizacion {
 }
 
 const SQL_REGISTRO = `
-  SELECT a.dni,
-         to_char(a.fecha, 'YYYY-MM-DD')            AS fecha,
-         a.motivo_id,
-         a.motivo_source::text                     AS motivo_source,
-         a.resuelto_por,
-         a.resuelto_at,
-         (SELECT count(*)::bigint
-            FROM adjuntos ad
-           WHERE ad.dni = a.dni AND ad.fecha = a.fecha) AS adjuntos
-    FROM ausencias a
-   ORDER BY a.dni, a.fecha
+  SELECT a.[dni],
+         CONVERT(char(10), a.[fecha], 23) AS [fecha],
+         a.[motivo_id],
+         a.[motivo_source],
+         a.[resuelto_por],
+         a.[resuelto_at],
+         (SELECT CAST(COUNT_BIG(*) AS int)
+            FROM [controlhorario].[adjuntos] ad
+           WHERE ad.[dni] = a.[dni] AND ad.[fecha] = a.[fecha]) AS [adjuntos]
+    FROM [controlhorario].[ausencias] a
+   ORDER BY a.[dni], a.[fecha]
 `;
 
 interface FilaRegistro {
@@ -125,9 +125,9 @@ export function diasDeAusencia(
     if (registro.tipoDia !== 'ausencia') continue;
     if (!registro.dni) continue;
     const fecha = parsearFechaDMY(registro.fechaStr);
-    // A day Postgres cannot date is a day that is not in `fichadas` either (the primary key
+    // A day Azure SQL cannot date is a day that is not in `fichadas` either (the primary key
     // is (dni, fecha) and fecha is a DATE), so there is nothing for a registry row to point
-    // at. `repositorioPostgres.prepararFilas` counts the same rows as `descartadas`.
+    // at. `repositorioAzureSql.prepararFilas` counts the same rows as `descartadas`.
     if (!fecha) continue;
     vigentes.push({
       dni: registro.dni,
@@ -139,81 +139,74 @@ export function diasDeAusencia(
   return vigentes;
 }
 
-/**
- * Materialises the current absence set into a temp table.
- *
- * Both statements below need it, and a `NOT EXISTS` against an inline `unnest` would be a
- * nested loop over a few thousand rows for every row of `ausencias`. `ON COMMIT DROP` ties
- * its lifetime to the transaction, so nothing survives into the next call on a pooled
- * connection.
- */
-async function materializarVigentes(
+/** Materialises and synchronises the evidence in one SQL batch. */
+async function sincronizarVigentes(
   cliente: PoolClient,
   vigentes: readonly DiaVigente[],
-): Promise<void> {
-  await cliente.query(`
-    CREATE TEMP TABLE ausencias_vigentes (
-      dni           TEXT NOT NULL,
-      fecha         DATE NOT NULL,
-      motivo_id     INTEGER,
-      motivo_source TEXT,
-      PRIMARY KEY (dni, fecha)
-    ) ON COMMIT DROP
-  `);
-  if (vigentes.length === 0) return;
-  await cliente.query(
-    `INSERT INTO ausencias_vigentes (dni, fecha, motivo_id, motivo_source)
-     SELECT t.dni, t.fecha, t.motivo_id, t.motivo_source
-       FROM unnest($1::text[], $2::date[], $3::integer[], $4::text[])
-            AS t(dni, fecha, motivo_id, motivo_source)`,
-    [
-      vigentes.map((v) => v.dni),
-      vigentes.map((v) => v.fechaIso),
-      vigentes.map((v) => v.motivoId),
-      vigentes.map((v) => v.motivoSource),
-    ],
-  );
+): Promise<{ creadas: number; refrescadas: number; podadas: number }> {
+  const { rows } = await cliente.query<{
+    creadas: number;
+    refrescadas: number;
+    podadas: number;
+  }>(`
+    DECLARE @ausencias_vigentes TABLE (
+      [dni]           nvarchar(32) NOT NULL,
+      [fecha]         date NOT NULL,
+      [motivo_id]     int NULL,
+      [motivo_source] nvarchar(16) NULL,
+      PRIMARY KEY ([dni], [fecha])
+    );
+
+    INSERT INTO @ausencias_vigentes ([dni], [fecha], [motivo_id], [motivo_source])
+     SELECT [dni], [fecha], [motivo_id], [motivo_source]
+       FROM OPENJSON($1)
+       WITH (
+         [dni] nvarchar(32) '$.dni',
+         [fecha] date '$.fechaIso',
+         [motivo_id] int '$.motivoId',
+         [motivo_source] nvarchar(16) '$.motivoSource'
+       );
+
+    DECLARE @acciones TABLE ([accion] nvarchar(10) NOT NULL);
+
+    MERGE [controlhorario].[ausencias] WITH (HOLDLOCK) AS destino
+    USING @ausencias_vigentes AS origen
+       ON destino.[dni] = origen.[dni] AND destino.[fecha] = origen.[fecha]
+    WHEN MATCHED
+         AND ISNULL(destino.[motivo_source], N'') NOT IN (N'manual', N'encargado')
+         AND (ISNULL(destino.[motivo_id], -1) <> ISNULL(origen.[motivo_id], -1)
+           OR ISNULL(destino.[motivo_source], N'') <> ISNULL(origen.[motivo_source], N''))
+      THEN UPDATE SET
+        [motivo_id] = origen.[motivo_id],
+        [motivo_source] = origen.[motivo_source]
+    WHEN NOT MATCHED THEN
+      INSERT ([dni], [fecha], [motivo_id], [motivo_source])
+      VALUES (origen.[dni], origen.[fecha], origen.[motivo_id], origen.[motivo_source])
+    OUTPUT $action INTO @acciones;
+
+    DELETE a
+      FROM [controlhorario].[ausencias] a
+     WHERE a.[motivo_id] IS NULL
+       AND NOT EXISTS (
+         SELECT 1 FROM [controlhorario].[adjuntos] ad
+          WHERE ad.[dni] = a.[dni] AND ad.[fecha] = a.[fecha]
+       )
+       AND NOT EXISTS (
+         SELECT 1 FROM @ausencias_vigentes v
+          WHERE v.[dni] = a.[dni] AND v.[fecha] = a.[fecha]
+       );
+    DECLARE @podadas int = @@ROWCOUNT;
+
+    SELECT
+      CONVERT(int, COALESCE(SUM(CASE WHEN [accion] = N'INSERT' THEN 1 ELSE 0 END), 0)) AS [creadas],
+      CONVERT(int, COALESCE(SUM(CASE WHEN [accion] = N'UPDATE' THEN 1 ELSE 0 END), 0)) AS [refrescadas],
+      @podadas AS [podadas]
+    FROM @acciones;
+  `, [JSON.stringify(vigentes)]);
+  return rows[0] ?? { creadas: 0, refrescadas: 0, podadas: 0 };
 }
 
-/**
- * RULE 1. `WHERE ausencias.motivo_source IS DISTINCT FROM 'manual' AND ... 'encargado'` is
- * the whole of "a human's decision is never overwritten by a re-upload". It is in the
- * statement rather than in a JavaScript `if` on purpose: a concurrent upload and a
- * concurrent classification cannot interleave between a read and a write that do not exist.
- *
- * The database trigger `ausencias_rrhh_gana` does NOT cover this case — it only fires for
- * an `encargado` write over a `manual` row — so this is not belt-and-braces, it is the only
- * thing standing between a re-upload and somebody's classification.
- */
-const SQL_UPSERT_VIGENTES = `
-  INSERT INTO ausencias (dni, fecha, motivo_id, motivo_source)
-  SELECT v.dni, v.fecha, v.motivo_id, v.motivo_source::motivo_source
-    FROM ausencias_vigentes v
-  ON CONFLICT (dni, fecha) DO UPDATE
-    SET motivo_id     = EXCLUDED.motivo_id,
-        motivo_source = EXCLUDED.motivo_source
-    WHERE ausencias.motivo_source IS DISTINCT FROM 'manual'
-      AND ausencias.motivo_source IS DISTINCT FROM 'encargado'
-      AND (ausencias.motivo_id     IS DISTINCT FROM EXCLUDED.motivo_id
-        OR ausencias.motivo_source IS DISTINCT FROM EXCLUDED.motivo_source)
-  RETURNING (xmax = '0'::xid) AS insertada
-`;
-
-/**
- * RULE 2. Conservative pruning.
- *
- * `motivo_id IS NULL` already implies `motivo_source IS NULL` — the
- * `ausencias_motivo_con_origen` CHECK in 001 makes the two inseparable — so the single
- * condition covers "nobody classified it", whoever that nobody would have been.
- */
-const SQL_PODAR = `
-  DELETE FROM ausencias a
-   WHERE a.motivo_id IS NULL
-     AND NOT EXISTS (SELECT 1 FROM adjuntos ad WHERE ad.dni = a.dni AND ad.fecha = a.fecha)
-     AND NOT EXISTS (SELECT 1 FROM ausencias_vigentes v WHERE v.dni = a.dni AND v.fecha = a.fecha)
-`;
-
-export interface RepositorioAusenciasPostgres {
+export interface RepositorioAusenciasAzureSql {
   listar(): Promise<readonly AusenciaRegistrada[]>;
   /**
    * Sets or clears the motivo of one day, always as `manual`.
@@ -236,7 +229,7 @@ export interface RepositorioAusenciasPostgres {
   ): Promise<ResultadoSincronizacion>;
 }
 
-export function crearRepositorioAusencias(pool: Pool): RepositorioAusenciasPostgres {
+export function crearRepositorioAusencias(pool: Pool): RepositorioAusenciasAzureSql {
   return {
     async listar() {
       const { rows } = await pool.query<FilaRegistro>(SQL_REGISTRO);
@@ -246,26 +239,32 @@ export function crearRepositorioAusencias(pool: Pool): RepositorioAusenciasPostg
     async asignarMotivo(dni, fechaIso, motivoId, actor) {
       return enTransaccion(pool, async (cliente) => {
         const { rows: previas } = await cliente.query<{ motivo_id: number | null }>(
-          'SELECT motivo_id FROM ausencias WHERE dni = $1 AND fecha = $2',
+          `SELECT [motivo_id] FROM [controlhorario].[ausencias]
+            WHERE [dni] = $1 AND [fecha] = $2`,
           [dni, fechaIso],
         );
         const anterior = previas[0]?.motivo_id ?? null;
 
         const { rows } = await cliente.query<FilaRegistro>(
-          `INSERT INTO ausencias (dni, fecha, motivo_id, motivo_source, resuelto_por, resuelto_at)
-           VALUES ($1, $2, $3, CASE WHEN $3::integer IS NULL THEN NULL ELSE 'manual'::motivo_source END, $4, now())
-           ON CONFLICT (dni, fecha) DO UPDATE
-             SET motivo_id     = EXCLUDED.motivo_id,
-                 motivo_source = EXCLUDED.motivo_source,
-                 resuelto_por  = EXCLUDED.resuelto_por,
-                 resuelto_at   = EXCLUDED.resuelto_at
-           RETURNING dni,
-                     to_char(fecha, 'YYYY-MM-DD') AS fecha,
-                     motivo_id,
-                     motivo_source::text AS motivo_source,
-                     resuelto_por,
-                     resuelto_at,
-                     0::bigint AS adjuntos`,
+          `MERGE [controlhorario].[ausencias] WITH (HOLDLOCK) AS destino
+           USING (SELECT $1 AS [dni], CONVERT(date, $2) AS [fecha], $3 AS [motivo_id],
+                         $4 AS [actor]) AS origen
+              ON destino.[dni] = origen.[dni] AND destino.[fecha] = origen.[fecha]
+           WHEN MATCHED THEN UPDATE SET
+             [motivo_id] = origen.[motivo_id],
+             [motivo_source] = CASE WHEN origen.[motivo_id] IS NULL THEN NULL ELSE N'manual' END,
+             [resuelto_por] = origen.[actor],
+             [resuelto_at] = SYSUTCDATETIME()
+           WHEN NOT MATCHED THEN INSERT
+             ([dni], [fecha], [motivo_id], [motivo_source], [resuelto_por], [resuelto_at])
+             VALUES (
+               origen.[dni], origen.[fecha], origen.[motivo_id],
+               CASE WHEN origen.[motivo_id] IS NULL THEN NULL ELSE N'manual' END,
+               origen.[actor], SYSUTCDATETIME()
+             )
+           OUTPUT inserted.[dni], CONVERT(char(10), inserted.[fecha], 23) AS [fecha],
+                  inserted.[motivo_id], inserted.[motivo_source], inserted.[resuelto_por],
+                  inserted.[resuelto_at], CONVERT(int, 0) AS [adjuntos];`,
           [dni, fechaIso, motivoId, actor],
         );
         const fila = rows[0];
@@ -282,7 +281,8 @@ export function crearRepositorioAusencias(pool: Pool): RepositorioAusenciasPostg
         });
 
         const { rows: conteo } = await cliente.query<{ n: number }>(
-          'SELECT count(*)::bigint AS n FROM adjuntos WHERE dni = $1 AND fecha = $2',
+          `SELECT CAST(COUNT_BIG(*) AS int) AS [n]
+             FROM [controlhorario].[adjuntos] WHERE [dni] = $1 AND [fecha] = $2`,
           [dni, fechaIso],
         );
         return aRegistro({ ...fila, adjuntos: Number(conteo[0]?.n ?? 0) });
@@ -293,20 +293,7 @@ export function crearRepositorioAusencias(pool: Pool): RepositorioAusenciasPostg
       const vigentes = diasDeAusencia(filas, cfg);
 
       return enTransaccion(pool, async (cliente) => {
-        await materializarVigentes(cliente, vigentes);
-
-        let creadas = 0;
-        let refrescadas = 0;
-        if (vigentes.length > 0) {
-          const { rows } = await cliente.query<{ insertada: boolean }>(SQL_UPSERT_VIGENTES);
-          for (const r of rows) {
-            if (r.insertada) creadas++;
-            else refrescadas++;
-          }
-        }
-
-        const { rowCount } = await cliente.query(SQL_PODAR);
-        const podadas = rowCount ?? 0;
+        const { creadas, refrescadas, podadas } = await sincronizarVigentes(cliente, vigentes);
 
         const resultado: ResultadoSincronizacion = {
           vigentes: vigentes.length,

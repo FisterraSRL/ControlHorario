@@ -61,7 +61,7 @@ log "el demonio respondió después de ${esperado}s"
 cd "$PROYECTO" || exit 1
 
 if [ ! -f .env ]; then
-  log "ERROR: falta $PROYECTO/.env. Copiá .env.example y completalo (docs/servidor.md)."
+  log "ERROR: falta $PROYECTO/.env. Copiá .env.example y completalo (docs/stack-local.md)."
   exit 1
 fi
 

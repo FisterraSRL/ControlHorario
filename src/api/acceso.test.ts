@@ -47,7 +47,7 @@ beforeEach(async () => {
 describe('la migración', () => {
   it('applies 001 and 002 and records both in the ledger', async () => {
     const { rows } = await base.pool.query<{ version: string }>(
-      'SELECT version FROM schema_migrations ORDER BY version',
+      'SELECT version FROM controlhorario.schema_migrations ORDER BY version',
     );
     expect(rows.map((r) => r.version)).toEqual([
       '001_initial.sql',
@@ -58,7 +58,7 @@ describe('la migración', () => {
   it('refuses to store a password that is not an argon2id PHC string', async () => {
     await expect(
       base.pool.query(
-        `INSERT INTO usuarios (email, nombre, hash_contrasena)
+        `INSERT INTO controlhorario.usuarios (email, nombre, hash_contrasena)
          VALUES ('otro@ejemplo.test', 'Otro', 'e3b0c44298fc1c149afbf4c8996fb924')`,
       ),
     ).rejects.toThrow();
@@ -67,7 +67,7 @@ describe('la migración', () => {
   it('refuses an email that is not lower-cased', async () => {
     await expect(
       base.pool.query(
-        `INSERT INTO usuarios (email, nombre, hash_contrasena)
+        `INSERT INTO controlhorario.usuarios (email, nombre, hash_contrasena)
          VALUES ('Ana@Ejemplo.Test', 'Ana', '$argon2id$v=19$m=1,t=1,p=1$x$y')`,
       ),
     ).rejects.toThrow();
@@ -155,7 +155,7 @@ describe('login', () => {
   it('stores a hash of the cookie and never the cookie itself', async () => {
     const cookie = await iniciarSesion(base);
     const valor = cookie.split('=')[1] ?? '';
-    const { rows } = await base.pool.query<{ id: string }>('SELECT id FROM sesiones');
+    const { rows } = await base.pool.query<{ id: string }>('SELECT id FROM controlhorario.sesiones');
     expect(rows).toHaveLength(1);
     expect(rows[0]?.id).not.toBe(valor);
     expect(rows[0]?.id).toMatch(/^[0-9a-f]{64}$/);
@@ -185,7 +185,7 @@ describe('login', () => {
       payload: { email: 'nadie@ejemplo.test', contrasena: 'xxxxxxxxxxxx' },
     });
     const { rows } = await base.pool.query<{ actor: string; entidad_id: string | null }>(
-      "SELECT actor, entidad_id FROM auditoria WHERE accion = 'login_fallido'",
+      "SELECT actor, entidad_id FROM controlhorario.auditoria WHERE accion = 'login_fallido'",
     );
     expect(rows).toHaveLength(1);
     expect(rows[0]?.actor).toBe('anonimo');
@@ -193,7 +193,7 @@ describe('login', () => {
   });
 
   it('refuses a deactivated operator', async () => {
-    await base.pool.query("UPDATE usuarios SET activo = FALSE WHERE email = 'rrhh@ejemplo.test'");
+    await base.pool.query("UPDATE controlhorario.usuarios SET activo = FALSE WHERE email = 'rrhh@ejemplo.test'");
     const respuesta = await base.app.inject({
       method: 'POST',
       url: '/api/sesion',
@@ -205,7 +205,7 @@ describe('login', () => {
   it('records the login in auditoria, attributed to the operator', async () => {
     await iniciarSesion(base);
     const { rows } = await base.pool.query<{ actor: string }>(
-      "SELECT actor FROM auditoria WHERE accion = 'login'",
+      "SELECT actor FROM controlhorario.auditoria WHERE accion = 'login'",
     );
     expect(rows.map((r) => r.actor)).toEqual(['rrhh@ejemplo.test']);
   });
@@ -286,7 +286,7 @@ describe('logout', () => {
     expect(salida.statusCode).toBe(204);
 
     const { rows } = await base.pool.query<{ n: number }>(
-      'SELECT count(*)::bigint AS n FROM sesiones',
+      'SELECT count(*)::bigint AS n FROM controlhorario.sesiones',
     );
     expect(Number(rows[0]?.n)).toBe(0);
 
@@ -302,7 +302,7 @@ describe('logout', () => {
     const cookie = await iniciarSesion(base);
     await base.app.inject({ method: 'DELETE', url: '/api/sesion', headers: { cookie } });
     const { rows } = await base.pool.query<{ actor: string }>(
-      "SELECT actor FROM auditoria WHERE accion = 'logout'",
+      "SELECT actor FROM controlhorario.auditoria WHERE accion = 'logout'",
     );
     expect(rows.map((r) => r.actor)).toEqual(['rrhh@ejemplo.test']);
   });
@@ -314,7 +314,7 @@ describe('sesión vencida', () => {
     // `sesiones_expira_despues` forbids moving the expiry behind the creation, so the row
     // is aged rather than truncated — which is also what actually happens over time.
     await base.pool.query(
-      `UPDATE sesiones
+      `UPDATE controlhorario.sesiones
           SET creada_at = now() - interval '2 days',
               expira_at = now() - interval '1 minute'`,
     );
@@ -332,7 +332,7 @@ describe('sesión vencida', () => {
 
   it('is refused when the operator is deactivated mid-session', async () => {
     const cookie = await iniciarSesion(base);
-    await base.pool.query('UPDATE usuarios SET activo = FALSE');
+    await base.pool.query('UPDATE controlhorario.usuarios SET activo = FALSE');
     const respuesta = await base.app.inject({
       method: 'GET',
       url: '/api/fichadas',
