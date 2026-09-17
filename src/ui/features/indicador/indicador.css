@@ -1,0 +1,6 @@
+/* The count columns read as a column of numbers, so they align right. The header needs its
+   own selector because `.tabla thead th` already wins with `text-align: left`. */
+.indicador__numero { text-align: right; }
+.tabla thead th.indicador__numero { text-align: right; }
+/* A zero is muted: a clean row should not read as loudly as one with three faltas. */
+.indicador__numero--cero { color: var(--app-muted); }

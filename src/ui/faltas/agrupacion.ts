@@ -1,10 +1,11 @@
 /**
  * The ONE definition of "faltas per person" in the period.
  *
- * Notificaciones needs it to build its Word documents and Indicador will need the same
- * buckets to count them, so it lives here rather than inside either screen: two independent
- * groupings would be two chances for the letter and the dashboard to disagree about how
- * many faltas somebody has.
+ * Notificaciones needs it to build its Word documents and Indicador counts the same buckets,
+ * so it lives here rather than inside either screen: two independent groupings would be two
+ * chances for the letter and the dashboard to disagree about how many faltas somebody has.
+ * The two screens differ only in whether clean people are listed (`incluirSinFaltas`), never
+ * in how a falta is counted.
  *
  * Pure, like `src/ui/periodo/periodo.ts` and the domain engine: no React, no I/O. It takes
  * the derived records and hands back exactly the `NotificacionPersona` shape the
@@ -59,21 +60,50 @@ function porFecha(a: ItemFaltaBase, b: ItemFaltaBase): number {
   return a.fechaOrden.getTime() - b.fechaOrden.getTime();
 }
 
+/** How the caller wants the period read. Everything here is off by default. */
+export interface OpcionesAgrupacion {
+  /** Also list people who worked in the period without a single falta. */
+  readonly incluirSinFaltas?: boolean;
+}
+
 /**
- * One entry per person who has at least one falta inside `rango`, sorted by sector and then
- * by name — the order the screen groups them in and the order the mass document prints.
+ * One entry per person with at least one falta inside `rango` — plus, when
+ * `incluirSinFaltas` is set, one zero-filled entry per person who worked the period clean.
+ * Sorted by sector and then by name: the order the screen groups them in and the order the
+ * mass document prints.
+ *
+ * Notificaciones takes the default (only people it has something to write a letter about);
+ * Indicador asks for the clean people too, because a dashboard that hides everybody at zero
+ * cannot be read as "the sector is fine".
  */
 export function agruparFaltasPorPersona(
   registros: readonly RegistroDia[],
   configuracion: ConfiguracionFichadas,
   rango: RangoPeriodo,
+  opciones: OpcionesAgrupacion = {},
 ): readonly NotificacionPersona[] {
   const descansoMax = configuracion.descansoMaxMin ?? DESCANSO_MAX_POR_DEFECTO;
+  const incluirSinFaltas = opciones.incluirSinFaltas === true;
 
   const porDni = new Map<string, Acumulador>();
   for (const r of registros) {
     if (!dentroDelPeriodo(r.fecha, rango)) continue;
-    if (r.faltas.length === 0) continue;
+
+    // DELIBERATE DIVERGENCE FROM THE LEGACY, and the reason this test is written the way it
+    // is. `groupFaultsByPersonAll` (legacy/app.html ~lines 1288-1298) opened with
+    // `if (r.excluded) return; if (r.dayType!=='trabajo') return;` applied to EVERY registro,
+    // so it silently threw away real faltas: `dia.ts` (lines 108-120) pushes an `incompleta`
+    // falta for the "olvidó fichar" case and still returns `tipoDia: 'ausencia'`, because
+    // nobody punched. Under the legacy rule that falta never reached the Indicador, and the
+    // same person was reported with one count on the Indicador and another on the
+    // Notificaciones screen.
+    //
+    // Here the `trabajo` / `excluido` test decides ONLY whether a clean person earns a row of
+    // zeros. A registro that HAS faltas is processed unconditionally, exactly as it was
+    // before this option existed, so the two screens can never disagree about a count.
+    if (r.faltas.length === 0 && !(incluirSinFaltas && !r.excluido && r.tipoDia === 'trabajo')) {
+      continue;
+    }
 
     let acc = porDni.get(r.dni);
     if (!acc) {

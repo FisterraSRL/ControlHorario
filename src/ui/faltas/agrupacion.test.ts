@@ -76,3 +76,39 @@ describe('agrupación de faltas por persona', () => {
     expect(agruparFaltasPorPersona([dia({legajo:'77',faltas})], {}, RANGO)[0]?.legajo).toBe('77');
   });
 });
+
+describe('agrupación con las personas sin faltas incluidas', () => {
+  it('suma en cero a quien trabajó el día limpio sólo cuando se pide', () => {
+    const registros = [dia()];
+    expect(agruparFaltasPorPersona(registros, {}, RANGO)).toHaveLength(0);
+    const [persona] = agruparFaltasPorPersona(registros, {}, RANGO, {incluirSinFaltas:true});
+    expect(persona?.usuario).toBe('Persona');
+    expect(persona?.faltasPorTipo).toEqual({incompleta:[],descanso:[],tardanza:[]});
+  });
+
+  it('no arma una fila en cero para una persona excluida', () => {
+    expect(agruparFaltasPorPersona([dia({excluido:true})], {}, RANGO, {incluirSinFaltas:true})).toHaveLength(0);
+  });
+
+  it('no arma una fila en cero para un día libre', () => {
+    expect(agruparFaltasPorPersona([dia({esDiaLibre:true,tipoDia:'libre'})], {}, RANGO, {incluirSinFaltas:true})).toHaveLength(0);
+  });
+
+  it('cuenta la falta de un día de ausencia por olvido de fichar, igual que Notificaciones', () => {
+    // `dia.ts` marca `tipoDia:'ausencia'` y a la vez emite la falta cuando nadie fichó y el
+    // parte QUICKPASS dice "olvidó fichar". El legacy descartaba ese registro entero y las
+    // dos pantallas informaban números distintos para la misma persona.
+    const registros = [dia({movimientos:[],cantidadMovimientos:0,fichadasRequeridas:4,tipoDia:'ausencia',faltas:[{tipo:'incompleta',detalle:'0 de 4 fichadas',olvidoFichar:true}]})];
+    const conLimpias = agruparFaltasPorPersona(registros, {}, RANGO, {incluirSinFaltas:true});
+    expect(conLimpias[0]?.faltasPorTipo.incompleta).toHaveLength(1);
+    expect(conLimpias[0]?.faltasPorTipo.incompleta).toEqual(agruparFaltasPorPersona(registros, {}, RANGO)[0]?.faltasPorTipo.incompleta);
+  });
+
+  it('mezcla en una sola lista a quien tiene faltas y a quien no', () => {
+    const personas = agruparFaltasPorPersona([
+      dia({usuario:'Ariel',dni:'1'}),
+      dia({usuario:'Zulema',dni:'2',faltas:[{tipo:'tardanza',detalle:'Llegó tarde'}]}),
+    ], {}, RANGO, {incluirSinFaltas:true});
+    expect(personas.map((p) => [p.usuario, p.faltasPorTipo.tardanza.length])).toEqual([['Ariel',0],['Zulema',1]]);
+  });
+});

@@ -16,9 +16,7 @@
  *                           through. It depends on nothing and is innermost so that
  *                           changing the period does not re-run a repository read.
  *
- * Every screen is real except Indicador, which is routed to `PlaceholderScreen`: it belongs
- * to a later slice, and routing it to a page that says so is more honest than a half-built
- * table.
+ * Every route below points at a real screen; none of them is a placeholder any more.
  */
 
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
@@ -30,7 +28,7 @@ import { AusenciasContainer } from '../features/ausencias/AusenciasContainer.js'
 import { CargaContainer } from '../features/carga/CargaContainer.js';
 import { ConfiguracionContainer } from '../features/configuracion/ConfiguracionContainer.js';
 import { HorasContainer } from '../features/horas/HorasContainer.js';
-import { IndicadorScreen } from '../features/indicador/IndicadorScreen.js';
+import { IndicadorContainer } from '../features/indicador/IndicadorContainer.js';
 import { NotificacionesContainer } from '../features/notificaciones/NotificacionesContainer.js';
 import { UsuariosContainer } from '../features/usuarios/UsuariosContainer.js';
 import { HistorialProvider } from '../historial/HistorialProvider.js';
@@ -64,7 +62,7 @@ function Autenticado() {
                 <Route path="/carga" element={<CargaContainer />} />
                 <Route path="/notificaciones" element={<NotificacionesContainer />} />
                 <Route path="/ausencias" element={<AusenciasContainer />} />
-                <Route path="/indicador" element={<IndicadorScreen />} />
+                <Route path="/indicador" element={<IndicadorContainer />} />
                 <Route path="/horas" element={<HorasContainer />} />
                 <Route path="/configuracion" element={<ConfiguracionContainer />} />
                 <Route

@@ -40,13 +40,12 @@ elimina.
 
 ## Próxima unidad recomendada
 
-Finalizar el slice 2b en este orden:
+Las tres pantallas del slice 2b están implementadas. Queda, en este orden:
 
-1. Construir Indicador reutilizando `agruparFaltasPorPersona` de `src/ui/faltas/`. No
-   escribir una segunda agrupación: esa función es la única definición de “cantidad de
-   faltas” y la comparte con Notificaciones.
-2. Verificar Horas trabajadas con datos reales y sesión autenticada.
-3. Sólo después evaluar el modo estimado de Horas del legacy.
+1. Verificar Horas trabajadas con datos reales y sesión autenticada.
+2. Sólo después evaluar el modo estimado de Horas del legacy.
 
-Horas trabajadas y Notificaciones ya están implementadas.
+Indicador consume `agruparFaltasPorPersona` de `src/ui/faltas/` con
+`{ incluirSinFaltas: true }`. Esa función sigue siendo la única definición de “cantidad de
+faltas” del sistema: no escribir una segunda agrupación.
 

@@ -50,7 +50,11 @@ negocio puro está en `src/domain/fichadas`.
 - Registro/clasificación de ausencias y adjuntos.
 - Generador de notificaciones Word puro en `src/notificaciones`, con fixtures golden.
 - Pantalla Notificaciones: agrupación por persona y descarga del Word, individual y masiva.
+- Pantalla Indicador: faltas por clase y totales del período, sobre la misma agrupación.
 - Frontend y API desplegados; tres migraciones aplicadas.
+
+Ninguna pantalla es ya un placeholder. `src/ui/app/PlaceholderScreen.tsx` quedó sin
+importadores; se conserva a propósito, no es código muerto que haya que borrar sin decidirlo.
 
 ### Decisiones de seguridad relevantes
 
@@ -99,7 +103,7 @@ La agrupación NO vive en el feature. Está en `src/ui/faltas/agrupacion.ts`, ju
 `periodo/` e `historial/`:
 
 ```ts
-agruparFaltasPorPersona(registros, configuracion, rango): readonly NotificacionPersona[]
+agruparFaltasPorPersona(registros, configuracion, rango, opciones?): readonly NotificacionPersona[]
 ```
 
 Es la **única** definición de “cantidad de faltas” del sistema, y es deliberado: Indicador la
@@ -123,17 +127,48 @@ Verificado en el navegador con datos reales, no sólo con pruebas: los bytes ent
 empiezan con el magic ZIP `50 4b 03 04` y contienen `[Content_Types].xml`, `_rels/.rels` y
 `word/document.xml`.
 
-### Indicador (pendiente)
+### Indicador
 
-`IndicadorScreen.tsx` sigue siendo placeholder. Debe agregar por persona las tres clases de
-falta (`incompleta`, `descanso`, `tardanza`) dentro del período y mostrar totales. Tiene que
-importar `agruparFaltasPorPersona` de `src/ui/faltas/` y contar sobre `faltasPorTipo`; no
-escribir una segunda agrupación.
+Implementada. `IndicadorContainer` no tiene estado ni efectos: pide
+`agruparFaltasPorPersona(registros, paraElMotor, rango, { incluirSinFaltas: true })` y
+`totalesDelPeriodo`, y no hay nada que descargar. La pantalla muestra Persona, DNI, las tres
+clases de falta y el total, con separadores por sector y una fila final «Total período». Los
+encabezados de las tres columnas de falta salen de `META_FALTAS[tipo].label`, así que se leen
+igual que los chips de Notificaciones y que los títulos del Word.
+
+`src/ui/features/indicador/indicador.ts` sólo suma: `totalesDelPeriodo` recorre
+`ORDEN_FALTAS` y usa `totalDeFaltas`, de modo que el total general de la pantalla y el total
+por persona de la carta son la misma función.
+
+#### La opción `incluirSinFaltas`
+
+Cuarto parámetro opcional de `agruparFaltasPorPersona`. Sin él, el comportamiento es
+exactamente el de antes: sólo aparece quien tiene al menos una falta, que es lo que
+Notificaciones necesita. Con él, también se lista en cero a quien trabajó el período limpio,
+que es lo que pide un indicador: un sector vacío y un sector que nadie cargó tienen que poder
+distinguirse.
+
+#### Divergencia documentada respecto del legacy
+
+`groupFaultsByPersonAll` (`legacy/app.html`, ~líneas 1288-1298) empezaba con
+`if (r.excluded) return; if (r.dayType!=='trabajo') return;` aplicado a **todos** los
+registros, y por eso descartaba faltas reales: `src/domain/fichadas/dia.ts` (líneas 108-120)
+emite una falta `incompleta` cuando nadie fichó y el parte QUICKPASS dice «olvidó fichar», y
+ese día devuelve `tipoDia: 'ausencia'`. Con la regla del legacy esa falta nunca llegaba al
+Indicador, de modo que la misma persona aparecía con un número en el Indicador y con otro en
+Notificaciones.
+
+Acá el filtro `trabajo`/`excluido` decide **únicamente** si una persona limpia se gana una
+fila de ceros; un registro que tiene faltas se procesa siempre, sin filtro nuevo. Las dos
+pantallas no pueden discrepar sobre cuántas faltas tiene alguien. Hay una prueba dedicada a
+ese caso en `src/ui/faltas/agrupacion.test.ts`.
 
 ## Pruebas
 
-El baseline esperado es **280 pruebas en 16 archivos** (266 antes de Horas, 269 con Horas, y
-11 más con `src/ui/faltas/agrupacion.test.ts`). Además de `npm.cmd test`, ejecutar siempre
+El baseline esperado es **289 pruebas en 17 archivos** (266 antes de Horas, 269 con Horas, 280
+con `src/ui/faltas/agrupacion.test.ts`, y 9 más con Indicador: 5 de `incluirSinFaltas` en esa
+misma suite y 4 en `src/ui/features/indicador/indicador.test.ts`). Además de `npm.cmd test`,
+ejecutar siempre
 los tres typechecks y el build de Vite mediante `npm.cmd run typecheck` y `npm.cmd run build`.
 
 Vitest sólo recoge `src/**/*.test.ts` en entorno `node`: una prueba `.tsx` de componente no
