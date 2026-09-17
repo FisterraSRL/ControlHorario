@@ -56,8 +56,22 @@ export function hoyUTC(): Date {
   return new Date(Date.UTC(ahora.getFullYear(), ahora.getMonth(), ahora.getDate()));
 }
 
+/**
+ * The only way to build a `Periodo`, so the anchor can never drift off its own window.
+ *
+ * In `semana` the anchor IS the Monday: the week runs Monday to Sunday, and a header that
+ * says "17 sep 2026" above a 14/09 – 20/09 range is naming a day the window does not start
+ * on. `dia` keeps the exact day, which is the whole point of that mode, and `mes`/`anio`
+ * keep it too — snapping those to the 1st of January would hide which day the operator was
+ * actually looking at when they switched modes, and `etiquetaRango` already spells both
+ * ends out.
+ */
+export function crearPeriodo(modo: ModoPeriodo, ancla: Date): Periodo {
+  return { modo, ancla: modo === 'semana' ? lunesDe(ancla) : ancla };
+}
+
 export function periodoInicial(): Periodo {
-  return { modo: 'semana', ancla: hoyUTC() };
+  return crearPeriodo('semana', hoyUTC());
 }
 
 /** Inclusive on both ends. The week runs Monday to Sunday, same as the domain engine. */
@@ -100,7 +114,7 @@ export function desplazarPeriodo(periodo: Periodo, direccion: 1 | -1): Periodo {
       a.setUTCFullYear(a.getUTCFullYear() + direccion);
       break;
   }
-  return { modo: periodo.modo, ancla: a };
+  return crearPeriodo(periodo.modo, a);
 }
 
 /** A row with no parseable `Fecha` belongs to no period and is never counted in one. */

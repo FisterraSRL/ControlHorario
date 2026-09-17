@@ -40,6 +40,20 @@ una sola vez entre HTTP y modo local. Los registros diarios se derivan en
 `HistorialProvider` usando evidencia, configuración y decisiones de ausencias. El motor de
 negocio puro está en `src/domain/fichadas`.
 
+### El período del header
+
+`crearPeriodo(modo, ancla)` es la única forma de construir un `Periodo`, y garantiza que el
+ancla nombre el comienzo de su propia ventana. En modo `semana` el ancla **es** el lunes: la
+semana corre lunes a domingo, igual que el motor, y un header que dijera «17 sep 2026» sobre
+un rango 14/09 – 20/09 estaría nombrando un día en el que la ventana no empieza. La regla vale
+para el arranque de la app, para las flechas de desplazamiento y para volver a `semana` desde
+otro modo.
+
+`dia` conserva el día exacto —encajarlo en lunes haría imposible mirar un martes— y `mes`/`anio`
+también, porque `etiquetaRango` ya deletrea ambos extremos. El caso que rompe una
+implementación ingenua es el domingo, que en `getUTCDay()` es `0` y no `7`: pertenece a la
+semana que abrió el lunes anterior. Está cubierto en `src/ui/periodo/periodo.test.ts`.
+
 ## Funcionalidad terminada
 
 - Login, logout, sesiones revocables, rate limit y cambio de la propia contraseña.
@@ -165,11 +179,11 @@ ese caso en `src/ui/faltas/agrupacion.test.ts`.
 
 ## Pruebas
 
-El baseline esperado es **289 pruebas en 17 archivos** (266 antes de Horas, 269 con Horas, 280
-con `src/ui/faltas/agrupacion.test.ts`, y 9 más con Indicador: 5 de `incluirSinFaltas` en esa
-misma suite y 4 en `src/ui/features/indicador/indicador.test.ts`). Además de `npm.cmd test`,
-ejecutar siempre
-los tres typechecks y el build de Vite mediante `npm.cmd run typecheck` y `npm.cmd run build`.
+El baseline esperado es **300 pruebas en 18 archivos** (266 antes de Horas, 269 con Horas, 280
+con `src/ui/faltas/agrupacion.test.ts`, 289 con Indicador —5 de `incluirSinFaltas` en esa
+misma suite y 4 en `src/ui/features/indicador/indicador.test.ts`— y 11 más en
+`src/ui/periodo/periodo.test.ts`). Además de `npm.cmd test`, ejecutar siempre los tres
+typechecks y el build de Vite mediante `npm.cmd run typecheck` y `npm.cmd run build`.
 
 Vitest sólo recoge `src/**/*.test.ts` en entorno `node`: una prueba `.tsx` de componente no
 se ejecuta nunca. Por eso el valor de prueba de una pantalla vive en su módulo puro.

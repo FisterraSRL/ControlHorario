@@ -7,6 +7,7 @@ import { createContext, useCallback, useContext, useMemo, useState } from 'react
 import type { ReactNode } from 'react';
 
 import {
+  crearPeriodo,
   desplazarPeriodo,
   periodoInicial,
   rangoDelPeriodo,
@@ -29,8 +30,9 @@ export function PeriodoProvider({ children }: { readonly children: ReactNode }) 
 
   const cambiarModo = useCallback((modo: ModoPeriodo) => {
     // The anchor is kept: switching from week to month should show the month that contains
-    // the week you were looking at, not jump back to today.
-    setPeriodo((actual) => ({ modo, ancla: actual.ancla }));
+    // the week you were looking at, not jump back to today. `crearPeriodo` re-snaps it, so
+    // coming back to `semana` from any other mode lands on a Monday again.
+    setPeriodo((actual) => crearPeriodo(modo, actual.ancla));
   }, []);
 
   const desplazar = useCallback((direccion: 1 | -1) => {
