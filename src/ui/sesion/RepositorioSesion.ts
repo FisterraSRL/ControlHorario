@@ -51,5 +51,6 @@ export interface RepositorioSesion {
   /** The current session, or `null` when nobody is logged in. Never throws on a 401. */
   actual(): Promise<Sesion | null>;
   iniciar(email: string, contrasena: string): Promise<Sesion>;
+  cambiarContrasena(actual: string, nueva: string): Promise<void>;
   cerrar(): Promise<void>;
 }

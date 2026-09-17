@@ -27,6 +27,9 @@ export function crearRepositorioSesionLocal(): RepositorioSesion {
     async iniciar() {
       return SESION_LOCAL;
     },
+    async cambiarContrasena() {
+      throw new Error('En el modo local no hay una cuenta ni una contraseña que cambiar.');
+    },
     async cerrar() {
       // Nothing to invalidate. Returning quietly rather than throwing keeps the header's
       // "Salir" button from having to know which adapter is underneath it.

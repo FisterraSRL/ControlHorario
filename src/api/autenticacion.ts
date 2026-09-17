@@ -35,10 +35,10 @@ import '@fastify/cookie';
 
 import type { ConfiguracionApi } from './config.js';
 import { auditar } from './auditoria.js';
-import { hashDeSenuelo, verificarContrasena } from './contrasenas.js';
-import type { Pool } from './db.js';
+import { hashearContrasena, hashDeSenuelo, verificarContrasena } from './contrasenas.js';
+import { enTransaccion, type Pool } from './db.js';
 import { crearLimitadorLogin, type LimitadorLogin } from './limitador.js';
-import { ESQUEMA_CUERPO_LOGIN } from './esquemas.js';
+import { ESQUEMA_CUERPO_CAMBIO_CONTRASENA, ESQUEMA_CUERPO_LOGIN } from './esquemas.js';
 import { borrarSesion, buscarSesion, crearSesion, renovarSesion, type Sesion } from './sesiones.js';
 
 /**
@@ -89,6 +89,11 @@ export function operadorDe(peticion: FastifyRequest): Sesion {
 interface CuerpoLogin {
   readonly email: string;
   readonly contrasena: string;
+}
+
+interface CuerpoCambioContrasena {
+  readonly actual: string;
+  readonly nueva: string;
 }
 
 export interface DependenciasAcceso {
@@ -316,6 +321,52 @@ export async function registrarAcceso(
       expiraAt: sesion.expiraAt.toISOString(),
     });
   });
+
+  app.put<{ Body: CuerpoCambioContrasena }>(
+    '/api/sesion/contrasena',
+    { schema: { body: ESQUEMA_CUERPO_CAMBIO_CONTRASENA } },
+    async (peticion, respuesta) => {
+      const sesion = operadorDe(peticion);
+      const { rows } = await pool.query<{ hash_contrasena: string }>(
+        'SELECT [hash_contrasena] FROM [controlhorario].[usuarios] WHERE [id] = $1 AND [activo] = 1',
+        [sesion.usuarioId],
+      );
+      const hashActual = rows[0]?.hash_contrasena;
+      if (!hashActual || !(await verificarContrasena(hashActual, peticion.body.actual))) {
+        return respuesta.code(400).send({
+          error: 'contrasena_actual_incorrecta',
+          mensaje: 'La contraseña actual no es correcta.',
+        });
+      }
+      if (peticion.body.actual === peticion.body.nueva) {
+        return respuesta.code(400).send({
+          error: 'contrasena_repetida',
+          mensaje: 'La contraseña nueva tiene que ser distinta de la actual.',
+        });
+      }
+      const nuevoHash = await hashearContrasena(peticion.body.nueva);
+      await enTransaccion(pool, async (c) => {
+        await c.query(
+          `UPDATE [controlhorario].[usuarios]
+              SET [hash_contrasena] = $2, [actualizado_at] = SYSUTCDATETIME()
+            WHERE [id] = $1`,
+          [sesion.usuarioId, nuevoHash],
+        );
+        await c.query(
+          'DELETE FROM [controlhorario].[sesiones] WHERE [usuario_id] = $1 AND [id] <> $2',
+          [sesion.usuarioId, sesion.id],
+        );
+        await auditar(c, {
+          actor: sesion.email,
+          accion: 'contrasena_cambiada',
+          entidad: 'usuarios',
+          entidadId: String(sesion.usuarioId),
+          datos: null,
+        });
+      });
+      return respuesta.code(204).send();
+    },
+  );
 
   /**
    * Log out. Deletes the row, so the cookie is dead server-side and not merely forgotten by

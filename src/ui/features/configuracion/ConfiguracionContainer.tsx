@@ -9,6 +9,7 @@ import { useMemo } from 'react';
 import { useConfiguracion } from '../../configuracion/ConfiguracionProvider.js';
 import type { ParametrosConfiguracion } from '../../configuracion/RepositorioConfiguracion.js';
 import { useHistorial } from '../../historial/HistorialProvider.js';
+import { useSesion } from '../../sesion/SesionProvider.js';
 import { ConfiguracionScreen } from './ConfiguracionScreen.js';
 import {
   filasDeExclusion,
@@ -18,6 +19,7 @@ import {
 } from './configuracion.js';
 
 export function ConfiguracionContainer() {
+  const { repositorios, expirar } = useSesion();
   const { registros, sectores: sectoresDelHistorial } = useHistorial();
   const {
     configuracion,
@@ -58,6 +60,15 @@ export function ConfiguracionContainer() {
       motivos={configuracion?.motivos ?? []}
       exclusiones={exclusiones}
       excluibles={excluibles}
+      permiteCambiarContrasena={repositorios.conServidor}
+      onCambiarContrasena={async (actual, nueva) => {
+        try {
+          await repositorios.sesion.cambiarContrasena(actual, nueva);
+        } catch (e: unknown) {
+          if (e instanceof Error && e.name === 'ErrorNoAutenticado') expirar();
+          throw e;
+        }
+      }}
       onSector={(sector, fichadasRequeridas) => {
         void guardarReglaSector(sector, fichadasRequeridas);
       }}

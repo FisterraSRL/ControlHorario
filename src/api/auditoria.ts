@@ -35,6 +35,7 @@ export type AccionAuditada =
   | 'usuario_activado'
   | 'usuario_desactivado'
   | 'contrasena_reiniciada'
+  | 'contrasena_cambiada'
   | 'motivo_asignado'
   | 'motivo_quitado'
   | 'ausencias_sincronizadas'

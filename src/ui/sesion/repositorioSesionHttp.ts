@@ -73,6 +73,10 @@ export function crearRepositorioSesionHttp(base: string): RepositorioSesion {
       return aSesion(cuerpo);
     },
 
+    async cambiarContrasena(actual, nueva) {
+      await pedir(`${sesion}/contrasena`, conJson('PUT', { actual, nueva }));
+    },
+
     async cerrar() {
       // A 401 is a fine outcome: the session was already gone, which is what was asked for.
       await pedir(sesion, { method: 'DELETE' }, { lanzarEn401: false });

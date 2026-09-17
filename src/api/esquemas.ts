@@ -70,6 +70,16 @@ export const ESQUEMA_CUERPO_LOGIN = {
   },
 } as const;
 
+export const ESQUEMA_CUERPO_CAMBIO_CONTRASENA = {
+  type: 'object',
+  required: ['actual', 'nueva'],
+  additionalProperties: false,
+  properties: {
+    actual: { type: 'string', minLength: 1, maxLength: 200 },
+    nueva: { type: 'string', minLength: 12, maxLength: 200 },
+  },
+} as const;
+
 export const ESQUEMA_CUERPO_USUARIO_NUEVO = {
   type: 'object',
   required: ['email', 'nombre', 'rol'],
