@@ -29,7 +29,7 @@ import { AccesoContainer } from '../features/acceso/AccesoContainer.js';
 import { AusenciasContainer } from '../features/ausencias/AusenciasContainer.js';
 import { CargaContainer } from '../features/carga/CargaContainer.js';
 import { ConfiguracionContainer } from '../features/configuracion/ConfiguracionContainer.js';
-import { HorasScreen } from '../features/horas/HorasScreen.js';
+import { HorasContainer } from '../features/horas/HorasContainer.js';
 import { IndicadorScreen } from '../features/indicador/IndicadorScreen.js';
 import { NotificacionesScreen } from '../features/notificaciones/NotificacionesScreen.js';
 import { UsuariosContainer } from '../features/usuarios/UsuariosContainer.js';
@@ -65,7 +65,7 @@ function Autenticado() {
                 <Route path="/notificaciones" element={<NotificacionesScreen />} />
                 <Route path="/ausencias" element={<AusenciasContainer />} />
                 <Route path="/indicador" element={<IndicadorScreen />} />
-                <Route path="/horas" element={<HorasScreen />} />
+                <Route path="/horas" element={<HorasContainer />} />
                 <Route path="/configuracion" element={<ConfiguracionContainer />} />
                 <Route
                   path="/usuarios"
