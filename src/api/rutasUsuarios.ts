@@ -13,7 +13,7 @@ import {
 import { responderErrorDb } from './respuestas.js';
 
 type Rol = 'admin' | 'operador';
-interface Usuario { id: number; email: string; nombre: string; rol: Rol; activo: boolean; creado_at: Date }
+interface Usuario { id: string; email: string; nombre: string; rol: Rol; activo: boolean; creado_at: Date }
 
 function prohibido(respuesta: FastifyReply): FastifyReply {
   return respuesta.code(403).send({ error: 'solo_administradores', mensaje: 'Esta sección es sólo para administradores.' });
@@ -24,7 +24,7 @@ export function registrarRutasUsuarios(app: FastifyInstance, pool: Pool): void {
     if (operadorDe(peticion).rol !== 'admin') return prohibido(respuesta);
     try {
       const { rows } = await pool.query<Usuario>(
-        `SELECT [id], [email], [nombre], [rol], [activo], [creado_at]
+        `SELECT CONVERT(varchar(20), [id]) AS [id], [email], [nombre], [rol], [activo], [creado_at]
            FROM [controlhorario].[usuarios] ORDER BY [nombre], [email]`,
       );
       return respuesta.send({ usuarios: rows.map((u) => ({ ...u, creadoAt: new Date(u.creado_at).toISOString(), creado_at: undefined })) });
@@ -65,18 +65,18 @@ export function registrarRutasUsuarios(app: FastifyInstance, pool: Pool): void {
     },
   );
 
-  app.put<{ Body: { id: number; activo: boolean } }>(
+  app.put<{ Body: { id: string; activo: boolean } }>(
     '/api/admin/usuarios/estado', { schema: { body: ESQUEMA_CUERPO_ESTADO_USUARIO } },
     async (peticion, respuesta) => {
       const actor = operadorDe(peticion);
       if (actor.rol !== 'admin') return prohibido(respuesta);
-      if (!peticion.body.activo && peticion.body.id === actor.usuarioId) {
+      if (!peticion.body.activo && peticion.body.id === String(actor.usuarioId)) {
         return respuesta.code(409).send({ error: 'cuenta_propia', mensaje: 'No podés desactivar tu propia cuenta.' });
       }
       try {
         const actualizado = await enTransaccion(pool, async (c) => {
           const { rows } = await c.query<Usuario>(
-            `SELECT [id], [email], [nombre], [rol], [activo], [creado_at]
+            `SELECT CONVERT(varchar(20), [id]) AS [id], [email], [nombre], [rol], [activo], [creado_at]
                FROM [controlhorario].[usuarios] WITH (UPDLOCK, HOLDLOCK) WHERE [id] = $1`, [peticion.body.id],
           );
           const actual = rows[0];
@@ -106,7 +106,7 @@ export function registrarRutasUsuarios(app: FastifyInstance, pool: Pool): void {
     },
   );
 
-  app.post<{ Body: { id: number } }>(
+  app.post<{ Body: { id: string } }>(
     '/api/admin/usuarios/reiniciar-contrasena', { schema: { body: ESQUEMA_CUERPO_ID_USUARIO } },
     async (peticion, respuesta) => {
       const actor = operadorDe(peticion);

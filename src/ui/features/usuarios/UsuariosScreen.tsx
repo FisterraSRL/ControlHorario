@@ -14,7 +14,7 @@ interface Props {
   usuarios: readonly UsuarioAdministrado[]; cargando: boolean; error: string | null;
   usuarioActual: string; contrasenaTemporal: string | null;
   onCrear(datos: { email: string; nombre: string; rol: RolUsuario }): void;
-  onEstado(id: number, activo: boolean): void; onReiniciar(id: number): void; onCerrarContrasena(): void;
+  onEstado(id: string, activo: boolean): void; onReiniciar(id: string): void; onCerrarContrasena(): void;
 }
 
 export function UsuariosScreen(p: Props) {

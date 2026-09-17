@@ -93,12 +93,12 @@ export const ESQUEMA_CUERPO_USUARIO_NUEVO = {
 
 export const ESQUEMA_CUERPO_ESTADO_USUARIO = {
   type: 'object', required: ['id', 'activo'], additionalProperties: false,
-  properties: { id: { type: 'integer', minimum: 1 }, activo: { type: 'boolean' } },
+  properties: { id: { type: 'string', pattern: '^[1-9][0-9]{0,18}$' }, activo: { type: 'boolean' } },
 } as const;
 
 export const ESQUEMA_CUERPO_ID_USUARIO = {
   type: 'object', required: ['id'], additionalProperties: false,
-  properties: { id: { type: 'integer', minimum: 1 } },
+  properties: { id: { type: 'string', pattern: '^[1-9][0-9]{0,18}$' } },
 } as const;
 
 /** `DD/MM/YYYY`, the raw QUICKPASS cell — the key the whole decision layer is written on. */
