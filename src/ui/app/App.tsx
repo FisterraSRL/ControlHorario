@@ -32,6 +32,7 @@ import { ConfiguracionContainer } from '../features/configuracion/ConfiguracionC
 import { HorasScreen } from '../features/horas/HorasScreen.js';
 import { IndicadorScreen } from '../features/indicador/IndicadorScreen.js';
 import { NotificacionesScreen } from '../features/notificaciones/NotificacionesScreen.js';
+import { UsuariosContainer } from '../features/usuarios/UsuariosContainer.js';
 import { HistorialProvider } from '../historial/HistorialProvider.js';
 import { PeriodoProvider } from '../periodo/PeriodoProvider.js';
 import { SesionProvider, useSesion } from '../sesion/SesionProvider.js';
@@ -66,6 +67,10 @@ function Autenticado() {
                 <Route path="/indicador" element={<IndicadorScreen />} />
                 <Route path="/horas" element={<HorasScreen />} />
                 <Route path="/configuracion" element={<ConfiguracionContainer />} />
+                <Route
+                  path="/usuarios"
+                  element={sesion.operador.rol === 'admin' ? <UsuariosContainer /> : <Navigate to={RUTA_INICIAL} replace />}
+                />
                 {/* Anything else, including "/", lands on the upload screen. */}
                 <Route path="*" element={<Navigate to={RUTA_INICIAL} replace />} />
               </Route>

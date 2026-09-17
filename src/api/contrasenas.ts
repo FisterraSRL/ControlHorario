@@ -19,6 +19,7 @@
  */
 
 import { hash, verify } from '@node-rs/argon2';
+import { randomBytes } from 'node:crypto';
 import type { Algorithm } from '@node-rs/argon2';
 
 /**
@@ -74,6 +75,11 @@ export function validarContrasena(contrasena: string): void {
 export async function hashearContrasena(contrasena: string): Promise<string> {
   validarContrasena(contrasena);
   return hash(contrasena, PARAMETROS);
+}
+
+/** One-time password returned only by an admin create/reset response. */
+export function generarContrasenaTemporal(): string {
+  return randomBytes(18).toString('base64url');
 }
 
 /**

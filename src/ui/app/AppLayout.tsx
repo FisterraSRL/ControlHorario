@@ -60,7 +60,7 @@ export function AppLayout() {
 
   const items = useMemo<readonly ItemSidebar[]>(
     () =>
-      SECCIONES.map((s) => {
+      SECCIONES.filter((s) => s.id !== 'usuarios' || sesion?.operador.rol === 'admin').map((s) => {
         const n = s.contador ? valorContador(contadores, s.contador) : null;
         return {
           path: s.path,
@@ -72,7 +72,7 @@ export function AppLayout() {
             : {}),
         };
       }),
-    [contadores],
+    [contadores, sesion?.operador.rol],
   );
 
   const modos = useMemo(

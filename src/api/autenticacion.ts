@@ -254,9 +254,10 @@ export async function registrarAcceso(
         id: number;
         email: string;
         nombre: string;
+        rol: 'admin' | 'operador';
         hash_contrasena: string;
       }>(
-        `SELECT [id], [email], [nombre], [hash_contrasena]
+        `SELECT [id], [email], [nombre], [rol], [hash_contrasena]
            FROM [controlhorario].[usuarios]
           WHERE [email] = $1 AND [activo] = 1`,
         [email],
@@ -301,7 +302,7 @@ export async function registrarAcceso(
         expires: expiraAt,
       });
       return respuesta.send({
-        usuario: { email: usuario.email, nombre: usuario.nombre },
+        usuario: { email: usuario.email, nombre: usuario.nombre, rol: usuario.rol },
         expiraAt: expiraAt.toISOString(),
       });
     },
@@ -311,7 +312,7 @@ export async function registrarAcceso(
   app.get('/api/sesion', async (peticion, respuesta) => {
     const sesion = operadorDe(peticion);
     return respuesta.send({
-      usuario: { email: sesion.email, nombre: sesion.nombre },
+      usuario: { email: sesion.email, nombre: sesion.nombre, rol: sesion.rol },
       expiraAt: sesion.expiraAt.toISOString(),
     });
   });

@@ -1,0 +1,6 @@
+.usuarios__aviso { margin-bottom: var(--app-space-4); }
+.usuarios__alta { display: grid; grid-template-columns: repeat(3, minmax(180px, 1fr)) auto; gap: var(--app-space-3); align-items: end; }
+.usuarios__rol { display: grid; gap: var(--app-space-1); color: var(--app-muted); font-size: var(--app-text-sm); }
+.usuarios__temporal, .usuarios__acciones { display: flex; flex-wrap: wrap; align-items: center; gap: var(--app-space-2); margin-bottom: var(--app-space-2); }
+.usuarios__temporal code { font-family: var(--app-font-mono); font-size: var(--app-text-body); user-select: all; }
+@media (max-width: 900px) { .usuarios__alta { grid-template-columns: 1fr; } }

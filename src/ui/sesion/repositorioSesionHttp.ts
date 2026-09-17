@@ -10,7 +10,7 @@ import { conJson, esObjeto, ErrorApi, pedir, pedirJson } from '../http.js';
 import { ErrorSesion, type RepositorioSesion, type Sesion } from './RepositorioSesion.js';
 
 interface CuerpoSesion {
-  readonly usuario: { readonly email: string; readonly nombre: string };
+  readonly usuario: { readonly email: string; readonly nombre: string; readonly rol: 'admin' | 'operador' };
   readonly expiraAt?: string;
 }
 
@@ -20,13 +20,14 @@ function esCuerpoSesion(valor: unknown): valor is CuerpoSesion {
   return (
     esObjeto(usuario) &&
     typeof usuario['email'] === 'string' &&
-    typeof usuario['nombre'] === 'string'
+    typeof usuario['nombre'] === 'string' &&
+    (usuario['rol'] === 'admin' || usuario['rol'] === 'operador')
   );
 }
 
 function aSesion(cuerpo: CuerpoSesion): Sesion {
   return {
-    operador: { email: cuerpo.usuario.email, nombre: cuerpo.usuario.nombre },
+    operador: { email: cuerpo.usuario.email, nombre: cuerpo.usuario.nombre, rol: cuerpo.usuario.rol },
     expiraAt: cuerpo.expiraAt ?? null,
     autenticada: true,
   };

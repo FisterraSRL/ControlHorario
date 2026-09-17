@@ -70,6 +70,27 @@ export const ESQUEMA_CUERPO_LOGIN = {
   },
 } as const;
 
+export const ESQUEMA_CUERPO_USUARIO_NUEVO = {
+  type: 'object',
+  required: ['email', 'nombre', 'rol'],
+  additionalProperties: false,
+  properties: {
+    email: { type: 'string', minLength: 3, maxLength: 320 },
+    nombre: { type: 'string', minLength: 1, maxLength: 200 },
+    rol: { type: 'string', enum: ['admin', 'operador'] },
+  },
+} as const;
+
+export const ESQUEMA_CUERPO_ESTADO_USUARIO = {
+  type: 'object', required: ['id', 'activo'], additionalProperties: false,
+  properties: { id: { type: 'integer', minimum: 1 }, activo: { type: 'boolean' } },
+} as const;
+
+export const ESQUEMA_CUERPO_ID_USUARIO = {
+  type: 'object', required: ['id'], additionalProperties: false,
+  properties: { id: { type: 'integer', minimum: 1 } },
+} as const;
+
 /** `DD/MM/YYYY`, the raw QUICKPASS cell — the key the whole decision layer is written on. */
 const FECHA_AR = { type: 'string', pattern: '^\\d{2}/\\d{2}/\\d{4}$' } as const;
 

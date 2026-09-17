@@ -17,6 +17,7 @@ export type NombreIcono =
   | 'indicador'
   | 'horas'
   | 'configuracion'
+  | 'usuarios'
   | 'anterior'
   | 'siguiente';
 
@@ -27,6 +28,7 @@ const TRAZOS: Readonly<Record<NombreIcono, readonly string[]>> = {
   indicador: ['M4 20V11', 'M10 20V4', 'M16 20v-6', 'M2 20h20'],
   horas: ['M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z', 'M12 7.5V12l3 2'],
   configuracion: ['M3 8h9', 'M17 8h4', 'M3 16h5', 'M13 16h8'],
+  usuarios: ['M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2', 'M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8', 'M19 8v6', 'M16 11h6'],
   anterior: ['M15 5l-7 7 7 7'],
   siguiente: ['M9 5l7 7-7 7'],
 };

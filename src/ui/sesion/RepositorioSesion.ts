@@ -21,6 +21,7 @@
 export interface Operador {
   readonly email: string;
   readonly nombre: string;
+  readonly rol: 'admin' | 'operador';
 }
 
 export interface Sesion {

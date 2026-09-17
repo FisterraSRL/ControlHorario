@@ -14,7 +14,7 @@
 import type { RepositorioSesion, Sesion } from './RepositorioSesion.js';
 
 const SESION_LOCAL: Sesion = {
-  operador: { email: 'local', nombre: 'Uso local sin servidor' },
+  operador: { email: 'local', nombre: 'Uso local sin servidor', rol: 'operador' },
   expiraAt: null,
   autenticada: false,
 };

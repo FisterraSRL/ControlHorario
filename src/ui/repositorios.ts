@@ -29,6 +29,8 @@ import type { RepositorioFichadas } from './historial/RepositorioFichadas.js';
 import { crearRepositorioSesionHttp } from './sesion/repositorioSesionHttp.js';
 import { crearRepositorioSesionLocal } from './sesion/repositorioSesionLocal.js';
 import type { RepositorioSesion } from './sesion/RepositorioSesion.js';
+import { crearRepositorioUsuariosHttp } from './usuarios/repositorioUsuariosHttp.js';
+import type { RepositorioUsuarios } from './usuarios/RepositorioUsuarios.js';
 
 export interface Repositorios {
   readonly conServidor: boolean;
@@ -37,6 +39,7 @@ export interface Repositorios {
   readonly ausencias: RepositorioAusencias;
   readonly configuracion: RepositorioConfiguracion;
   readonly adjuntos: RepositorioAdjuntos;
+  readonly usuarios: RepositorioUsuarios | null;
 }
 
 export function crearRepositorios(): Repositorios {
@@ -54,6 +57,7 @@ export function crearRepositorios(): Repositorios {
       ausencias: crearRepositorioAusenciasHttp(servidor.base),
       configuracion: crearRepositorioConfiguracionHttp(servidor.base),
       adjuntos: crearRepositorioAdjuntosHttp(servidor.base),
+      usuarios: crearRepositorioUsuariosHttp(servidor.base),
     };
   }
 
@@ -71,5 +75,6 @@ export function crearRepositorios(): Repositorios {
     ausencias: crearRepositorioAusenciasLocal(fichadas),
     configuracion: crearRepositorioConfiguracionLocal(),
     adjuntos: crearRepositorioAdjuntosLocal(),
+    usuarios: null,
   };
 }

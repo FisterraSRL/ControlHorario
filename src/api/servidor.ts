@@ -48,6 +48,7 @@ import { registrarRutas } from './rutas.js';
 import { registrarRutasAdjuntos } from './rutasAdjuntos.js';
 import { registrarRutasAusencias } from './rutasAusencias.js';
 import { registrarRutasConfiguracion } from './rutasConfiguracion.js';
+import { registrarRutasUsuarios } from './rutasUsuarios.js';
 
 /** The path without its query string. Nothing here puts personal data in a query today, and
  * this is what makes sure nothing does tomorrow either. */
@@ -195,6 +196,7 @@ export async function construirServidor(
   registrarRutasAusencias(app, { repositorio: ausencias });
   registrarRutasConfiguracion(app, { repositorio: configuracion });
   registrarRutasAdjuntos(app, { config, pool, repositorio: adjuntos });
+  registrarRutasUsuarios(app, pool);
 
   if (await existeSpa(config.directorioEstatico)) {
     await registrarEstatico(app, config.directorioEstatico);

@@ -15,7 +15,8 @@ export type IdSeccion =
   | 'ausencias'
   | 'indicador'
   | 'horas'
-  | 'configuracion';
+  | 'configuracion'
+  | 'usuarios';
 
 export type TipoContador = 'faltas' | 'ausenciasPendientes' | 'semanasSinClasificar';
 
@@ -87,6 +88,15 @@ export const SECCIONES: readonly Seccion[] = [
     label: 'Configuración',
     titulo: 'Configuración',
     icono: 'configuracion',
+    contador: null,
+    muestraPeriodo: false,
+  },
+  {
+    id: 'usuarios',
+    path: '/usuarios',
+    label: 'Usuarios',
+    titulo: 'Administración de usuarios',
+    icono: 'usuarios',
     contador: null,
     muestraPeriodo: false,
   },

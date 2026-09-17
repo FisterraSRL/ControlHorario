@@ -29,6 +29,7 @@ export interface Sesion {
   readonly usuarioId: number;
   readonly email: string;
   readonly nombre: string;
+  readonly rol: 'admin' | 'operador';
   readonly expiraAt: Date;
 }
 
@@ -94,9 +95,10 @@ export async function buscarSesion(
     usuario_id: number;
     email: string;
     nombre: string;
+    rol: 'admin' | 'operador';
     expira_at: Date;
   }>(
-    `SELECT s.[id], s.[usuario_id], u.[email], u.[nombre], s.[expira_at]
+    `SELECT s.[id], s.[usuario_id], u.[email], u.[nombre], u.[rol], s.[expira_at]
        FROM [controlhorario].[sesiones] s
        JOIN [controlhorario].[usuarios] u ON u.[id] = s.[usuario_id]
       WHERE s.[id] = $1 AND s.[expira_at] > SYSUTCDATETIME() AND u.[activo] = 1`,
@@ -109,6 +111,7 @@ export async function buscarSesion(
     usuarioId: fila.usuario_id,
     email: fila.email,
     nombre: fila.nombre,
+    rol: fila.rol,
     expiraAt: new Date(fila.expira_at),
   };
 }
