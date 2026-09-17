@@ -70,7 +70,7 @@ Azure SQL; esos comentarios son históricos, no trabajo pendiente.
 
 ### Horas trabajadas
 
-La unidad base está implementada en el working tree/commit más reciente:
+La unidad base está implementada y publicada en el commit `1d69de3`:
 
 - agrupación semanal lunes-domingo mediante el motor `reporteSemanal`;
 - filtro por período global;
@@ -81,10 +81,12 @@ La unidad base está implementada en el working tree/commit más reciente:
 - exportación CSV con BOM y `;`, compatible con Excel en configuración regional es-AR;
 - pruebas del filtro, rango semanal y exportación.
 
-Antes de continuar, comprobar si esta unidad ya está commiteada y publicada. Si está sin
-commitear, ejecutar la comprobación completa, revisar visualmente `/horas`, crear un commit
-de comportamiento y publicar. El modo legacy “completar fichadas faltantes según turno” y
-la clasificación inline desde el detalle no forman parte de esta primera unidad.
+La verificación confirmó typecheck, build, 269 pruebas y que Vercel sirve el bundle nuevo.
+Al abrir `/horas` la sesión del navegador había vencido y el portal mostró el login; por eso
+queda pendiente una comprobación visual autenticada con datos reales. No usar credenciales
+en comandos ni pedirlas en chat para saltear ese paso. El modo legacy “completar fichadas
+faltantes según turno” y la clasificación inline desde el detalle no forman parte de esta
+primera unidad.
 
 ### Notificaciones (pendiente)
 
@@ -166,4 +168,3 @@ No depender de que Kudu compile: el paquete usado en producción es precompilado
 5. Verificar la pantalla exacta con datos reales, no sólo el placeholder o el HTML inicial.
 6. Mantener cada comportamiento con su prueba en un único commit reversible.
 7. Tras publicar, confirmar API/SPA y que `main...origin/main` quede limpio.
-
