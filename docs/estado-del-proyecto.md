@@ -57,7 +57,7 @@ semana que abrió el lunes anterior. Está cubierto en `src/ui/periodo/periodo.t
 ## Funcionalidad terminada
 
 - Login, logout, sesiones revocables, rate limit y cambio de la propia contraseña.
-- Roles `admin`/`operador` y, en la API, `encargado` (ver «El rol encargado»).
+- Roles `admin`, `encargado` y `operador` (ver «El rol encargado»).
 - Administración de usuarios: listar, crear, activar/desactivar y restablecer contraseña.
 - Carga y persistencia del historial QUICKPASS.
 - Configuración de parámetros, reglas por sector, motivos y exclusiones.
@@ -179,8 +179,7 @@ ese caso en `src/ui/faltas/agrupacion.test.ts`.
 
 ## El rol encargado
 
-Un encargado supervisa uno o más sectores y sólo ve esos. **La mitad de servidor está hecha;
-la de frontend no.**
+Un encargado supervisa uno o más sectores y sólo ve esos. Está terminado de punta a punta.
 
 El alcance no es un filtro de pantalla: viaja en la sesión (`Sesion.sectores`), lo resuelve
 `alcanceDeSectores(peticion)` en `src/api/autenticacion.ts` y llega al `WHERE` de cada
@@ -199,15 +198,33 @@ Su decisión se guarda como `motivo_source = 'encargado'`, que ya estaba previst
 `CK_ch_ausencias_source` y que el MERGE de sincronización ya protegía de ser pisado por una
 recarga.
 
-Falta el frontend: `src/ui/sesion/repositorioSesionHttp.ts` sólo acepta `admin` y `operador`,
-así que hoy un encargado se autentica contra la API y la SPA descarta la sesión.
+En el frontend, `src/ui/roles.ts` es la única definición del rol. Antes la unión estaba escrita
+cuatro veces, y la copia que importaba era el guardia de `repositorioSesionHttp.ts`: rechaza el
+cuerpo entero si no reconoce el rol, y el login lee un cuerpo rechazado como credenciales
+incorrectas. Un rol que se agregue ahí y se olvide acá no degrada la interfaz, deja afuera a
+una persona con la contraseña correcta y le dice que está mal. `sectores` se lee con
+indulgencia fuera del guardia, para que un campo ausente o malformado nunca cause eso.
+
+Qué ve cada rol lo decide el campo `roles` de cada sección en `src/ui/app/navegacion.ts`, del
+que salen tanto la barra lateral como los guardias de ruta; la ruta de aterrizaje se deriva de
+ahí, así que un encargado cae en `/ausencias` y no en `/carga`, que le respondería 403. La
+pantalla de Ausencias es la misma para todos: como el servidor ya entrega las filas recortadas,
+`construirVista` arma el selector de sector con lo que recibe y sólo lista los suyos.
+
+`operador` está oculto, no eliminado. El alta ofrece `ROLES_ASIGNABLES` —administrador y
+encargado— mientras que `ROLES` sigue completo, porque `rol` tiene `DEFAULT (N'operador')` en
+la base, el CLI `crearUsuario` se apoya en ese default y el adaptador local se loguea como uno.
+Borrar el miembro de `RolUsuario` dejaría esas cuentas afuera por el guardia de arriba;
+`src/ui/roles.test.ts` existe para que eso falle como prueba y no como login.
 
 ## Pruebas
 
-El baseline esperado es **369 pruebas en 26 archivos** (300 en 18 antes del rol encargado; las
-69 nuevas están en `src/api/`: alcance de sesión, constructores SQL con sector, el 403 de una
-justificación fuera de alcance, la creación transaccional con sectores y la lista de negación
-por rol). Además de `npm.cmd test`, ejecutar siempre los tres
+El baseline esperado es **405 pruebas en 30 archivos** (300 en 18 antes del rol encargado; 69
+en `src/api/` —alcance de sesión, constructores SQL con sector, el 403 de una justificación
+fuera de alcance, la creación transaccional con sectores y la lista de negación por rol— y 36
+en `src/ui/` —los guardias de rol ensanchados, el mapeo rol→secciones con su ruta de
+aterrizaje, la validación del alta y el invariante de que `operador` está oculto y no
+eliminado). Además de `npm.cmd test`, ejecutar siempre los tres
 typechecks y el build de Vite mediante `npm.cmd run typecheck` y `npm.cmd run build`.
 
 Vitest sólo recoge `src/**/*.test.ts` en entorno `node`: una prueba `.tsx` de componente no

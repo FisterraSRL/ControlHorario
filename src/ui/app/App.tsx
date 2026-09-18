@@ -17,8 +17,14 @@
  *                           changing the period does not re-run a repository read.
  *
  * Every route below points at a real screen; none of them is a placeholder any more.
+ *
+ * THE ROUTE TABLE IS GENERATED FROM `SECCIONES`, so the sidebar and the guards cannot
+ * disagree about who may open what: both read the same `roles` field. A route this role may
+ * not open redirects to that role's own landing route rather than to a constant `/carga`,
+ * which an encargado is answered 403 from.
  */
 
+import type { ReactElement } from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 
 import { AusenciasProvider } from '../ausencias/AusenciasProvider.js';
@@ -29,13 +35,26 @@ import { CargaContainer } from '../features/carga/CargaContainer.js';
 import { ConfiguracionContainer } from '../features/configuracion/ConfiguracionContainer.js';
 import { HorasContainer } from '../features/horas/HorasContainer.js';
 import { IndicadorContainer } from '../features/indicador/IndicadorContainer.js';
+import { MiCuentaContainer } from '../features/micuenta/MiCuentaContainer.js';
 import { NotificacionesContainer } from '../features/notificaciones/NotificacionesContainer.js';
 import { UsuariosContainer } from '../features/usuarios/UsuariosContainer.js';
 import { HistorialProvider } from '../historial/HistorialProvider.js';
 import { PeriodoProvider } from '../periodo/PeriodoProvider.js';
 import { SesionProvider, useSesion } from '../sesion/SesionProvider.js';
 import { AppLayout } from './AppLayout.js';
-import { RUTA_INICIAL } from './navegacion.js';
+import { permiteRol, rutaInicialDeRol, SECCIONES, type IdSeccion } from './navegacion.js';
+
+/** Which screen each section is. The only place a section id meets a component. */
+const PANTALLAS: Readonly<Record<IdSeccion, ReactElement>> = {
+  carga: <CargaContainer />,
+  notificaciones: <NotificacionesContainer />,
+  ausencias: <AusenciasContainer />,
+  indicador: <IndicadorContainer />,
+  horas: <HorasContainer />,
+  configuracion: <ConfiguracionContainer />,
+  usuarios: <UsuariosContainer />,
+  cuenta: <MiCuentaContainer />,
+};
 
 /**
  * The whole application, or the login screen.
@@ -52,6 +71,9 @@ function Autenticado() {
   if (cargando) return null;
   if (!sesion) return <AccesoContainer />;
 
+  const { rol } = sesion.operador;
+  const inicial = rutaInicialDeRol(rol);
+
   return (
     <ConfiguracionProvider>
       <AusenciasProvider>
@@ -59,18 +81,21 @@ function Autenticado() {
           <PeriodoProvider>
             <Routes>
               <Route element={<AppLayout />}>
-                <Route path="/carga" element={<CargaContainer />} />
-                <Route path="/notificaciones" element={<NotificacionesContainer />} />
-                <Route path="/ausencias" element={<AusenciasContainer />} />
-                <Route path="/indicador" element={<IndicadorContainer />} />
-                <Route path="/horas" element={<HorasContainer />} />
-                <Route path="/configuracion" element={<ConfiguracionContainer />} />
-                <Route
-                  path="/usuarios"
-                  element={sesion.operador.rol === 'admin' ? <UsuariosContainer /> : <Navigate to={RUTA_INICIAL} replace />}
-                />
-                {/* Anything else, including "/", lands on the upload screen. */}
-                <Route path="*" element={<Navigate to={RUTA_INICIAL} replace />} />
+                {SECCIONES.map((seccion) => (
+                  <Route
+                    key={seccion.id}
+                    path={seccion.path}
+                    element={
+                      permiteRol(seccion, rol) ? (
+                        PANTALLAS[seccion.id]
+                      ) : (
+                        <Navigate to={inicial} replace />
+                      )
+                    }
+                  />
+                ))}
+                {/* Anything else, including "/", lands on this role's first section. */}
+                <Route path="*" element={<Navigate to={inicial} replace />} />
               </Route>
             </Routes>
           </PeriodoProvider>

@@ -14,7 +14,12 @@
 import type { RepositorioSesion, Sesion } from './RepositorioSesion.js';
 
 const SESION_LOCAL: Sesion = {
-  operador: { email: 'local', nombre: 'Uso local sin servidor', rol: 'operador' },
+  // `operador` and no sectors: the offline path has no `usuarios_sectores` to scope against,
+  // and an encargado is precisely an account whose scope is enforced by a server that is not
+  // running here. Everything in this browser's storage is already visible to whoever opens
+  // devtools, so pretending to supervise a subset of it would be the same theatre the
+  // session banner exists to avoid.
+  operador: { email: 'local', nombre: 'Uso local sin servidor', rol: 'operador', sectores: [] },
   expiraAt: null,
   autenticada: false,
 };

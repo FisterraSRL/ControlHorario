@@ -25,7 +25,7 @@ import {
 import { pluralizar } from '../texto.js';
 import { AppShell } from './AppShell.js';
 import { CONTADORES_VACIOS, contarPendientes, registrosDelPeriodo } from './contadores.js';
-import { RUTA_INICIAL, SECCIONES, seccionDeRuta } from './navegacion.js';
+import { rutaInicialDeRol, seccionDeRuta, seccionesDeRol } from './navegacion.js';
 import type { ContadoresNav } from './contadores.js';
 import type { TipoContador } from './navegacion.js';
 
@@ -56,11 +56,20 @@ export function AppLayout() {
     return contarPendientes(registrosDelPeriodo(registros, rango), cfg);
   }, [registros, rango, cfg, cargando]);
 
-  const seccion = seccionDeRuta(pathname) ?? seccionDeRuta(RUTA_INICIAL);
+  // `null` only in the instant before the session resolves; `App` does not mount this
+  // layout without one.
+  const rol = sesion?.operador.rol ?? null;
 
+  const seccion =
+    seccionDeRuta(pathname) ?? (rol ? seccionDeRuta(rutaInicialDeRol(rol)) : undefined);
+
+  // The menu IS the role's section list. No exception per section, so a new section is
+  // gated by the `roles` field it declares in navegacion.ts and nowhere else. The badges
+  // keep counting whatever the historial holds: the server already narrowed those rows to
+  // the sectors this account supervises, so an encargado's badge is their own count.
   const items = useMemo<readonly ItemSidebar[]>(
     () =>
-      SECCIONES.filter((s) => s.id !== 'usuarios' || sesion?.operador.rol === 'admin').map((s) => {
+      (rol === null ? [] : seccionesDeRol(rol)).map((s) => {
         const n = s.contador ? valorContador(contadores, s.contador) : null;
         return {
           path: s.path,
@@ -72,7 +81,7 @@ export function AppLayout() {
             : {}),
         };
       }),
-    [contadores, sesion?.operador.rol],
+    [contadores, rol],
   );
 
   const modos = useMemo(

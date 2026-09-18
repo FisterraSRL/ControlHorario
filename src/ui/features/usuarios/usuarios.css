@@ -3,4 +3,14 @@
 .usuarios__rol { display: grid; gap: var(--app-space-1); color: var(--app-muted); font-size: var(--app-text-sm); }
 .usuarios__temporal, .usuarios__acciones { display: flex; flex-wrap: wrap; align-items: center; gap: var(--app-space-2); margin-bottom: var(--app-space-2); }
 .usuarios__temporal code { font-family: var(--app-font-mono); font-size: var(--app-text-body); user-select: all; }
+
+.usuarios__sectores-campo { margin: var(--app-space-4) 0 0; padding: var(--app-space-3); border: 1px solid var(--app-border); border-radius: var(--app-radius); }
+.usuarios__sectores-campo legend { padding: 0 var(--app-space-2); color: var(--app-muted); font-size: var(--app-text-sm); }
+.usuarios__sectores-lista { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: var(--app-space-2); }
+.usuarios__sectores { display: flex; flex-wrap: wrap; gap: var(--app-space-1); }
+.usuarios__sin-sectores { color: var(--app-muted); }
+
+.usuarios__problema { margin: var(--app-space-3) 0 0; color: var(--app-danger); font-size: var(--app-text-sm); }
+.usuarios__nota { margin: var(--app-space-3) 0 0; color: var(--app-muted); font-size: var(--app-text-sm); max-width: 78ch; }
+
 @media (max-width: 900px) { .usuarios__alta { grid-template-columns: 1fr; } }

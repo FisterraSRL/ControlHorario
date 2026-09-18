@@ -1,14 +1,20 @@
 import { conJson, esObjeto, pedir, pedirJson, ErrorApi } from '../http.js';
-import type { RepositorioUsuarios, RolUsuario, UsuarioAdministrado } from './RepositorioUsuarios.js';
+import { esRolUsuario, leerSectores } from '../roles.js';
+import type { RepositorioUsuarios, UsuarioAdministrado } from './RepositorioUsuarios.js';
 
-function esRol(v: unknown): v is RolUsuario { return v === 'admin' || v === 'operador'; }
+/**
+ * One row, or `null` when it is not one. A `null` is DROPPED from the list by `listar`
+ * below, which is why the role check is the shared `esRolUsuario`: a role this file did not
+ * recognise would not render as "unknown", it would make the account disappear from the
+ * only screen that can deactivate it.
+ */
 export function leerUsuarioAdministrado(v: unknown): UsuarioAdministrado | null {
   if (!esObjeto(v)) return null;
   const id = typeof v['id'] === 'string' ? v['id'] :
     typeof v['id'] === 'number' && Number.isSafeInteger(v['id']) ? String(v['id']) : null;
   return id !== null && /^[1-9][0-9]{0,18}$/.test(id) && typeof v['email'] === 'string' &&
-    typeof v['nombre'] === 'string' && esRol(v['rol']) && typeof v['activo'] === 'boolean' &&
-    typeof v['creadoAt'] === 'string' ? { id, email: v['email'], nombre: v['nombre'], rol: v['rol'], activo: v['activo'], creadoAt: v['creadoAt'] } : null;
+    typeof v['nombre'] === 'string' && esRolUsuario(v['rol']) && typeof v['activo'] === 'boolean' &&
+    typeof v['creadoAt'] === 'string' ? { id, email: v['email'], nombre: v['nombre'], rol: v['rol'], sectores: leerSectores(v['sectores']), activo: v['activo'], creadoAt: v['creadoAt'] } : null;
 }
 function contrasena(v: unknown): { contrasenaTemporal: string } {
   if (!esObjeto(v) || typeof v['contrasenaTemporal'] !== 'string') throw new ErrorApi('El servidor no devolvió la contraseña temporal.');

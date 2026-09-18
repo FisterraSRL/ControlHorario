@@ -22,8 +22,6 @@ export interface ConfiguracionScreenProps {
   readonly motivos: readonly Motivo[];
   readonly exclusiones: readonly FilaExclusion[];
   readonly excluibles: readonly OpcionPersona[];
-  readonly permiteCambiarContrasena: boolean;
-  readonly onCambiarContrasena: (actual: string, nueva: string) => Promise<void>;
   readonly onSector: (sector: string, fichadasRequeridas: number) => void;
   readonly onParametro: (campo: keyof ParametrosConfiguracion, valor: number) => void;
   readonly onMotivoWorked: (id: number, worked: boolean) => void;
@@ -42,8 +40,6 @@ export function ConfiguracionScreen({
   motivos,
   exclusiones,
   excluibles,
-  permiteCambiarContrasena,
-  onCambiarContrasena,
   onSector,
   onParametro,
   onMotivoWorked,
@@ -62,10 +58,9 @@ export function ConfiguracionScreen({
         </div>
       )}
 
-      {permiteCambiarContrasena && (
-        <SeccionContrasena onCambiar={onCambiarContrasena} />
-      )}
-
+      {/* «Mi contraseña» used to be here. It lives in features/micuenta now: it is not an
+          administrative setting, and every role needs it — including the ones that never
+          get to open this screen. */}
       <SeccionSectores cargando={cargando} sectores={sectores} onSector={onSector} />
       <SeccionParametros parametros={parametros} onParametro={onParametro} />
       <SeccionExclusiones
@@ -81,52 +76,6 @@ export function ConfiguracionScreen({
         onMotivoRetirar={onMotivoRetirar}
       />
     </>
-  );
-}
-
-function SeccionContrasena({
-  onCambiar,
-}: {
-  readonly onCambiar: (actual: string, nueva: string) => Promise<void>;
-}) {
-  const [actual, setActual] = useState('');
-  const [nueva, setNueva] = useState('');
-  const [confirmacion, setConfirmacion] = useState('');
-  const [guardando, setGuardando] = useState(false);
-  const [resultado, setResultado] = useState<{ tono: 'error' | 'ok'; mensaje: string } | null>(null);
-
-  const guardar = async (): Promise<void> => {
-    if (nueva.length < 12) {
-      setResultado({ tono: 'error', mensaje: 'La contraseña nueva debe tener al menos 12 caracteres.' });
-      return;
-    }
-    if (nueva !== confirmacion) {
-      setResultado({ tono: 'error', mensaje: 'La confirmación no coincide con la contraseña nueva.' });
-      return;
-    }
-    setGuardando(true);
-    setResultado(null);
-    try {
-      await onCambiar(actual, nueva);
-      setActual(''); setNueva(''); setConfirmacion('');
-      setResultado({ tono: 'ok', mensaje: 'Contraseña actualizada. Las demás sesiones de tu cuenta fueron cerradas.' });
-    } catch (e: unknown) {
-      setResultado({ tono: 'error', mensaje: e instanceof Error ? e.message : 'No se pudo cambiar la contraseña.' });
-    } finally {
-      setGuardando(false);
-    }
-  };
-
-  return (
-    <Card titulo="Mi contraseña" bajada="Cambiá la contraseña de tu propia cuenta. Debe tener al menos 12 caracteres.">
-      <div className="config__contrasena">
-        <Input etiqueta="Contraseña actual" mostrarEtiqueta type="password" autoComplete="current-password" valor={actual} onCambio={setActual} maxLength={200} />
-        <Input etiqueta="Contraseña nueva" mostrarEtiqueta type="password" autoComplete="new-password" valor={nueva} onCambio={setNueva} minLength={12} maxLength={200} />
-        <Input etiqueta="Repetir contraseña nueva" mostrarEtiqueta type="password" autoComplete="new-password" valor={confirmacion} onCambio={setConfirmacion} minLength={12} maxLength={200} />
-        <Button variante="primary" disabled={guardando || !actual || !nueva || !confirmacion} onClick={() => void guardar()}>{guardando ? 'Guardando…' : 'Cambiar contraseña'}</Button>
-      </div>
-      {resultado && <div className="config__aviso config__aviso--interno"><Alert tono={resultado.tono}>{resultado.mensaje}</Alert></div>}
-    </Card>
   );
 }
 

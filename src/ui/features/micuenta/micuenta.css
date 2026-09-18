@@ -1,0 +1,52 @@
+.cuenta__aviso {
+  margin-bottom: var(--app-space-4);
+}
+
+.cuenta__aviso--interno { margin-top: var(--app-space-4); margin-bottom: 0; }
+
+/* Same three-fields-and-a-button row the Configuración screen used to carry. */
+.cuenta__contrasena {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(180px, 1fr)) auto;
+  gap: var(--app-space-3);
+  align-items: end;
+}
+
+@media (max-width: 900px) {
+  .cuenta__contrasena { grid-template-columns: 1fr; }
+}
+
+.cuenta__datos {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: var(--app-space-4);
+  margin: 0;
+}
+
+.cuenta__dato dt {
+  color: var(--app-muted);
+  font-size: var(--app-text-sm);
+}
+
+.cuenta__dato dd {
+  margin: var(--app-space-1) 0 0;
+  overflow-wrap: anywhere;
+}
+
+.cuenta__mono {
+  font-family: var(--app-font-mono);
+  font-variant-numeric: var(--app-numeric);
+}
+
+.cuenta__sectores {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--app-space-2);
+}
+
+.cuenta__nota {
+  margin: var(--app-space-4) 0 0;
+  color: var(--app-muted);
+  font-size: var(--app-text-sm);
+  max-width: 78ch;
+}

@@ -23,4 +23,25 @@ describe('respuesta de administración de usuarios', () => {
     expect(leerUsuarioAdministrado({ ...BASE, id: '0' })).toBeNull();
     expect(leerUsuarioAdministrado({ ...BASE, id: '1 OR 1=1' })).toBeNull();
   });
+
+  /**
+   * `listar` descarta las filas que este parser devuelve nulas. Un rol desconocido no se
+   * vería como "rol raro": haría desaparecer la cuenta de la única pantalla que puede
+   * desactivarla.
+   */
+  it('acepta un encargado con sus sectores', () => {
+    const fila = leerUsuarioAdministrado({
+      ...BASE, id: '3', rol: 'encargado', sectores: ['Depósito', 'Producción'],
+    });
+    expect(fila?.rol).toBe('encargado');
+    expect(fila?.sectores).toEqual(['Depósito', 'Producción']);
+  });
+
+  it('deja los sectores vacíos cuando la fila no los trae', () => {
+    expect(leerUsuarioAdministrado({ ...BASE, id: '4' })?.sectores).toEqual([]);
+  });
+
+  it('rechaza un rol que no existe', () => {
+    expect(leerUsuarioAdministrado({ ...BASE, id: '5', rol: 'supervisor' })).toBeNull();
+  });
 });

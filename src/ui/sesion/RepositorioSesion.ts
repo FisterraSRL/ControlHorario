@@ -18,10 +18,22 @@
  * JavaScript. A token a script can read is a token an injected script can steal.
  */
 
+import type { RolUsuario } from '../roles.js';
+
 export interface Operador {
   readonly email: string;
   readonly nombre: string;
-  readonly rol: 'admin' | 'operador';
+  readonly rol: RolUsuario;
+  /**
+   * The sectors this account supervises. ALWAYS EMPTY for admin and operador, whose scope is
+   * the absence of one.
+   *
+   * IT IS NOT A PERMISSION THE SCREENS APPLY. `/api/fichadas`, `/api/ausencias` and the
+   * adjuntos reads already come back narrowed to these sectors in SQL — see
+   * src/api/sectores.ts. A second filter here would be theatre, and it would drift from the
+   * one that matters. It is carried so the app can SAY which sectors somebody supervises.
+   */
+  readonly sectores: readonly string[];
 }
 
 export interface Sesion {

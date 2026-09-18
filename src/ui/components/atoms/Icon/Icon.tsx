@@ -18,6 +18,7 @@ export type NombreIcono =
   | 'horas'
   | 'configuracion'
   | 'usuarios'
+  | 'cuenta'
   | 'anterior'
   | 'siguiente';
 
@@ -29,6 +30,9 @@ const TRAZOS: Readonly<Record<NombreIcono, readonly string[]>> = {
   horas: ['M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z', 'M12 7.5V12l3 2'],
   configuracion: ['M3 8h9', 'M17 8h4', 'M3 16h5', 'M13 16h8'],
   usuarios: ['M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2', 'M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8', 'M19 8v6', 'M16 11h6'],
+  // One person, where `usuarios` is several: the difference between your own account and
+  // everybody's is the whole difference between those two sections.
+  cuenta: ['M20 21v-2a5 5 0 0 0-5-5H9a5 5 0 0 0-5 5v2', 'M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8'],
   anterior: ['M15 5l-7 7 7 7'],
   siguiente: ['M9 5l7 7-7 7'],
 };
