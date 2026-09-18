@@ -36,7 +36,8 @@ import type { Readable } from 'node:stream';
 
 import { auditar, idDeDia } from './auditoria.js';
 import { TIPOS_ADJUNTO_PERMITIDOS } from './config.js';
-import { enTransaccion, type Pool } from './db.js';
+import { enTransaccion, type ConsultaSql, type Pool } from './db.js';
+import { filtroDeSector, valorDeAlcance, type AlcanceSectores } from './sectores.js';
 
 /** Exactly what this file writes: a v4 UUID, a dot, and a short lowercase extension. */
 const NOMBRE_ALMACENADO = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.[a-z0-9]{2,8}$/;
@@ -91,9 +92,51 @@ function aAdjunto(f: FilaAdjunto): Adjunto {
 }
 
 const CAMPOS = `
-  [id], [dni], CONVERT(char(10), [fecha], 23) AS [fecha], [nombre], [bytes],
-  [tipo_mime], [subido_por], [subido_at]
+  a.[id], a.[dni], CONVERT(char(10), a.[fecha], 23) AS [fecha], a.[nombre], a.[bytes],
+  a.[tipo_mime], a.[subido_por], a.[subido_at]
 `;
+
+/**
+ * The predicate that keeps an attachment inside a set of sectors.
+ *
+ * `adjuntos` has no sector either — see `sqlRegistroAusencias` — so it reaches one through
+ * the `fichadas` row its own foreign key already guarantees exists. `EXISTS` rather than a
+ * join because this is glued onto queries that also select `blob_path`, and a semi-join
+ * cannot change how many rows come back whatever else the statement does.
+ */
+function existeEnAlcance(parametro: number): string {
+  return (
+    `EXISTS (SELECT 1 FROM [controlhorario].[fichadas] f` +
+    ` WHERE f.[dni] = a.[dni] AND f.[fecha] = a.[fecha]` +
+    ` AND ${filtroDeSector("JSON_VALUE(f.[payload], '$.Sector')", parametro)})`
+  );
+}
+
+/** Every attachment on record, optionally narrowed to a set of sectors. */
+export function sqlListarAdjuntos(alcance: AlcanceSectores): ConsultaSql {
+  const orden = 'ORDER BY a.[dni], a.[fecha], a.[subido_at], a.[id]';
+  const desde = `SELECT ${CAMPOS} FROM [controlhorario].[adjuntos] a`;
+  if (alcance === null) return { texto: `${desde} ${orden}`, valores: [] };
+  return {
+    texto: `${desde} WHERE ${existeEnAlcance(1)} ${orden}`,
+    valores: [valorDeAlcance(alcance)],
+  };
+}
+
+/**
+ * One attachment by id, and only if it is inside the scope.
+ *
+ * An id outside the scope comes back as no rows, which the callers report as "no existe ese
+ * adjunto" — the same answer an id that never existed gets. That is deliberate: a 403 here
+ * and a 404 there would let a supervisor walk the id space and learn how many certificates
+ * the other sectors filed.
+ */
+export function sqlAdjuntoPorId(id: number, alcance: AlcanceSectores): ConsultaSql {
+  const desde =
+    `SELECT ${CAMPOS}, a.[blob_path] FROM [controlhorario].[adjuntos] a WHERE a.[id] = $1`;
+  if (alcance === null) return { texto: desde, valores: [id] };
+  return { texto: `${desde} AND ${existeEnAlcance(2)}`, valores: [id, valorDeAlcance(alcance)] };
+}
 
 /**
  * The extension a file of this content type is stored under.
@@ -167,18 +210,20 @@ export interface ArchivoAbierto {
 
 export interface RepositorioAdjuntosAzureSql {
   /**
-   * Every attachment on record, newest last.
+   * Every attachment the caller may see, newest last.
    *
    * The whole list rather than one day's, because the Ausencias table shows a count on
    * every row and asking per row would be one request per absence. It is also the reason
    * there is no `?dni=` filter anywhere in this API: a DNI in a URL is personal data in a
-   * log line, in a proxy's access log and in a browser's history. Filtering happens in the
-   * screen, over data the operator is already authorised to see in full.
+   * log line, in a proxy's access log and in a browser's history. Filtering by DAY happens in
+   * the screen, over data the operator is already authorised to see in full — which is
+   * exactly why filtering by SECTOR cannot, and takes the `alcance` below instead.
    */
-  listar(): Promise<readonly Adjunto[]>;
+  listar(alcance: AlcanceSectores): Promise<readonly Adjunto[]>;
   guardar(datos: DatosSubida, maxBytes: number, actor: string): Promise<Adjunto>;
-  abrir(id: number): Promise<ArchivoAbierto | null>;
-  eliminar(id: number, actor: string): Promise<boolean>;
+  /** Out of scope reads back as `null`, indistinguishable from an id that never existed. */
+  abrir(id: number, alcance: AlcanceSectores): Promise<ArchivoAbierto | null>;
+  eliminar(id: number, alcance: AlcanceSectores, actor: string): Promise<boolean>;
 }
 
 export function crearRepositorioAdjuntos(
@@ -186,11 +231,9 @@ export function crearRepositorioAdjuntos(
   directorio: string,
 ): RepositorioAdjuntosAzureSql {
   return {
-    async listar() {
-      const { rows } = await pool.query<FilaAdjunto>(
-        `SELECT ${CAMPOS} FROM [controlhorario].[adjuntos]
-          ORDER BY [dni], [fecha], [subido_at], [id]`,
-      );
+    async listar(alcance) {
+      const consulta = sqlListarAdjuntos(alcance);
+      const { rows } = await pool.query<FilaAdjunto>(consulta.texto, consulta.valores);
       return rows.map(aAdjunto);
     },
 
@@ -280,11 +323,9 @@ export function crearRepositorioAdjuntos(
       }
     },
 
-    async abrir(id) {
-      const { rows } = await pool.query<FilaAdjunto>(
-        `SELECT ${CAMPOS}, [blob_path] FROM [controlhorario].[adjuntos] WHERE [id] = $1`,
-        [id],
-      );
+    async abrir(id, alcance) {
+      const consulta = sqlAdjuntoPorId(id, alcance);
+      const { rows } = await pool.query<FilaAdjunto>(consulta.texto, consulta.valores);
       const fila = rows[0];
       if (!fila?.blob_path) return null;
       const ruta = rutaDeArchivo(directorio, fila.blob_path);
@@ -301,11 +342,9 @@ export function crearRepositorioAdjuntos(
       return { adjunto: aAdjunto(fila), ruta, bytes };
     },
 
-    async eliminar(id, actor) {
-      const objetivo = await pool.query<FilaAdjunto>(
-        `SELECT ${CAMPOS}, [blob_path] FROM [controlhorario].[adjuntos] WHERE [id] = $1`,
-        [id],
-      );
+    async eliminar(id, alcance, actor) {
+      const consulta = sqlAdjuntoPorId(id, alcance);
+      const objetivo = await pool.query<FilaAdjunto>(consulta.texto, consulta.valores);
       const fila = objetivo.rows[0];
       if (!fila?.blob_path) return false;
 

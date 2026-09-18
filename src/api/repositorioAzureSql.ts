@@ -4,7 +4,8 @@ import { parsearFechaDMY } from '../domain/fichadas/parseo.js';
 import type { FilaQuickpass } from '../domain/fichadas/tipos.js';
 import { claveDeFila } from '../ui/historial/RepositorioFichadas.js';
 import type { ClaveFichada, ResultadoGuardado } from '../ui/historial/RepositorioFichadas.js';
-import { enTransaccion, type Pool, type PoolClient } from './db.js';
+import { enTransaccion, type ConsultaSql, type Pool, type PoolClient } from './db.js';
+import { filtroDeSector, valorDeAlcance, type AlcanceSectores } from './sectores.js';
 
 const TAMANO_LOTE = 1_000;
 
@@ -93,8 +94,36 @@ async function escribirLote(
   };
 }
 
+/**
+ * The historial, optionally narrowed to a set of sectors.
+ *
+ * The ORDER BY is the same in both branches and it is part of the contract: the screens read
+ * the rows in upload order, and a scoped operator must see their days in the same sequence
+ * an unscoped one does. Exported so the filter can be asserted without a database.
+ */
+export function sqlListarFichadas(alcance: AlcanceSectores): ConsultaSql {
+  const orden = 'ORDER BY [carga_id], [dni], [fecha]';
+  if (alcance === null) {
+    return {
+      texto: `SELECT [payload] FROM [controlhorario].[fichadas] ${orden}`,
+      valores: [],
+    };
+  }
+  return {
+    texto:
+      `SELECT [payload] FROM [controlhorario].[fichadas]` +
+      ` WHERE ${filtroDeSector("JSON_VALUE([payload], '$.Sector')", 1)} ${orden}`,
+    valores: [valorDeAlcance(alcance)],
+  };
+}
+
 export interface RepositorioFichadasAzureSql {
-  listar(): Promise<readonly FilaQuickpass[]>;
+  /**
+   * `alcance` is required and not optional on purpose: a call site that forgets it would
+   * hand an encargado the whole company, and a parameter with a default is a parameter
+   * somebody forgets. `null` is how a caller says "everything", out loud.
+   */
+  listar(alcance: AlcanceSectores): Promise<readonly FilaQuickpass[]>;
   upsert(filas: readonly FilaQuickpass[], carga: DatosCarga): Promise<ResultadoGuardado>;
   vaciar(actor: string): Promise<number>;
   alcanzable(): Promise<boolean>;
@@ -102,9 +131,11 @@ export interface RepositorioFichadasAzureSql {
 
 export function crearRepositorioAzureSql(pool: Pool): RepositorioFichadasAzureSql {
   return {
-    async listar() {
+    async listar(alcance) {
+      const consulta = sqlListarFichadas(alcance);
       const { rows } = await pool.query<{ payload: FilaQuickpass }>(
-        'SELECT [payload] FROM [controlhorario].[fichadas] ORDER BY [carga_id], [dni], [fecha]',
+        consulta.texto,
+        consulta.valores,
       );
       return rows.map((r) => r.payload);
     },

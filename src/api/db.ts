@@ -21,6 +21,18 @@ export interface ResultadoConsulta<T> {
   readonly rowCount: number;
 }
 
+/**
+ * A statement and the values it binds, as one value.
+ *
+ * It exists so a query whose WHERE clause depends on the caller — the sector-scoped reads of
+ * `sectores.ts` — can be built by a pure function and asserted in a test, instead of being
+ * assembled inline where only a live database could show what came out.
+ */
+export interface ConsultaSql {
+  readonly texto: string;
+  readonly valores: readonly unknown[];
+}
+
 export interface Consultable {
   query<T = Record<string, unknown>>(
     texto: string,

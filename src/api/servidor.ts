@@ -193,7 +193,7 @@ export async function construirServidor(
     configuracion,
     iniciadoEn: Date.now(),
   });
-  registrarRutasAusencias(app, { repositorio: ausencias });
+  registrarRutasAusencias(app, { repositorio: ausencias, pool });
   registrarRutasConfiguracion(app, { repositorio: configuracion });
   registrarRutasAdjuntos(app, { config, pool, repositorio: adjuntos });
   registrarRutasUsuarios(app, pool);

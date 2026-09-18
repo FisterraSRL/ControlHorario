@@ -7,6 +7,8 @@ const raiz = process.cwd();
 const archivos = [
   'db/migrations/001_initial.sql',
   'db/migrations/002_acceso_y_decisiones.sql',
+  'db/migrations/003_administracion_usuarios.sql',
+  'db/migrations/004_encargados.sql',
   'db/bootstrap/000_esquema_y_rol.sql',
 ];
 

@@ -17,11 +17,16 @@
  * from the server's copy rather than from its own optimistic guess. Two operators editing the
  * tolerancia at the same time is not a race anybody will notice on a three-person tool, but
  * a screen that shows a value the server rejected is a screen that lies.
+ *
+ * THE READ IS OPEN TO EVERY SESSION AND EVERY WRITE IS RRHH ONLY. An encargado needs the
+ * motivos to classify a day and the parameters to read the engine's verdict, so `GET` has no
+ * guard; the rules themselves are company-wide — a tolerancia is not a thing one sector gets
+ * to set — so every write carries `SOLO_RRHH`.
  */
 
 import type { FastifyInstance } from 'fastify';
 
-import { operadorDe } from './autenticacion.js';
+import { operadorDe, SOLO_RRHH } from './autenticacion.js';
 import {
   ESQUEMA_CUERPO_BAJA_EXCLUSION,
   ESQUEMA_CUERPO_EXCLUSION,
@@ -68,7 +73,7 @@ export function registrarRutasConfiguracion(
 
   app.patch<{ Body: Partial<ParametrosConfiguracion> }>(
     '/api/configuracion/parametros',
-    { schema: { body: ESQUEMA_CUERPO_PARAMETROS } },
+    { schema: { body: ESQUEMA_CUERPO_PARAMETROS }, onRequest: SOLO_RRHH },
     async (peticion, respuesta) => {
       const operador = operadorDe(peticion);
       try {
@@ -84,7 +89,7 @@ export function registrarRutasConfiguracion(
 
   app.put<{ Body: { sector: string; fichadasRequeridas: number } }>(
     '/api/configuracion/sectores',
-    { schema: { body: ESQUEMA_CUERPO_SECTOR_REGLA } },
+    { schema: { body: ESQUEMA_CUERPO_SECTOR_REGLA }, onRequest: SOLO_RRHH },
     async (peticion, respuesta) => {
       const operador = operadorDe(peticion);
       try {
@@ -104,7 +109,7 @@ export function registrarRutasConfiguracion(
 
   app.post<{ Body: { label: string; worked: boolean } }>(
     '/api/configuracion/motivos',
-    { schema: { body: ESQUEMA_CUERPO_MOTIVO_NUEVO } },
+    { schema: { body: ESQUEMA_CUERPO_MOTIVO_NUEVO }, onRequest: SOLO_RRHH },
     async (peticion, respuesta) => {
       const operador = operadorDe(peticion);
       try {
@@ -124,7 +129,7 @@ export function registrarRutasConfiguracion(
 
   app.patch<{ Params: ParamsId; Body: { worked: boolean } }>(
     '/api/configuracion/motivos/:id',
-    { schema: { body: ESQUEMA_CUERPO_MOTIVO_EDITADO } },
+    { schema: { body: ESQUEMA_CUERPO_MOTIVO_EDITADO }, onRequest: SOLO_RRHH },
     async (peticion, respuesta) => {
       const operador = operadorDe(peticion);
       const id = idValido(peticion.params.id);
@@ -148,6 +153,7 @@ export function registrarRutasConfiguracion(
    */
   app.delete<{ Params: ParamsId }>(
     '/api/configuracion/motivos/:id',
+    { onRequest: SOLO_RRHH },
     async (peticion, respuesta) => {
       const operador = operadorDe(peticion);
       const id = idValido(peticion.params.id);
@@ -166,7 +172,7 @@ export function registrarRutasConfiguracion(
 
   app.post<{ Body: { dni: string; motivoTexto?: string } }>(
     '/api/configuracion/exclusiones',
-    { schema: { body: ESQUEMA_CUERPO_EXCLUSION } },
+    { schema: { body: ESQUEMA_CUERPO_EXCLUSION }, onRequest: SOLO_RRHH },
     async (peticion, respuesta) => {
       const operador = operadorDe(peticion);
       try {
@@ -186,7 +192,7 @@ export function registrarRutasConfiguracion(
 
   app.delete<{ Body: { dni: string } }>(
     '/api/configuracion/exclusiones',
-    { schema: { body: ESQUEMA_CUERPO_BAJA_EXCLUSION } },
+    { schema: { body: ESQUEMA_CUERPO_BAJA_EXCLUSION }, onRequest: SOLO_RRHH },
     async (peticion, respuesta) => {
       const operador = operadorDe(peticion);
       try {

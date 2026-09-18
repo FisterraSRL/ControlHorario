@@ -17,6 +17,11 @@
  * `syncAusenciasHistorial()` and `pruneStaleAusencias()` on every load. See
  * `repositorioAusencias.ts` for why that cannot be a view.
  *
+ * WHO MAY DO WHICH. The read is sector-scoped: an encargado gets the rows of their own
+ * sectors and RRHH gets everything. The two writes are RRHH only — the evidence is the
+ * company's spreadsheet, and a supervisor of one sector uploading or wiping it would be
+ * writing over every other sector's days as well.
+ *
  * NO RESPONSE SCHEMA ON `GET /api/fichadas`. Fastify serialises through the response schema
  * and strips anything the schema does not mention — which would quietly delete every
  * QUICKPASS column this app does not read on the way out, from the one payload whose entire
@@ -26,7 +31,7 @@
 import type { FastifyInstance } from 'fastify';
 
 import type { FilaQuickpass } from '../domain/fichadas/tipos.js';
-import { operadorDe } from './autenticacion.js';
+import { alcanceDeSectores, operadorDe, SOLO_RRHH } from './autenticacion.js';
 import type { ConfiguracionApi } from './config.js';
 import { errorDbParaLog } from './errores.js';
 import { contarMigracionesAplicadas } from './migraciones.js';
@@ -107,9 +112,16 @@ export async function registrarRutas(
     return respuesta.code(alcanzable ? 200 : 503).send(cuerpo);
   });
 
+  /**
+   * THE EVIDENCE, NARROWED TO WHAT THE CALLER MAY SEE.
+   *
+   * This is the response that carries every DNI in the company, so the scope has to be
+   * applied here and not by the screen that renders it. `alcanceDeSectores` answers `null`
+   * for RRHH, which is the query that ran before this existed, byte for byte.
+   */
   app.get('/api/fichadas', async (peticion, respuesta) => {
     try {
-      const filas = await repositorio.listar();
+      const filas = await repositorio.listar(alcanceDeSectores(peticion));
       return await respuesta.send({ filas });
     } catch (e: unknown) {
       responderErrorDb(peticion, respuesta, e);
@@ -119,7 +131,7 @@ export async function registrarRutas(
 
   app.post<{ Body: CuerpoUpsert }>(
     '/api/fichadas',
-    { schema: { body: ESQUEMA_CUERPO_UPSERT } },
+    { schema: { body: ESQUEMA_CUERPO_UPSERT }, onRequest: SOLO_RRHH },
     async (peticion, respuesta) => {
       const operador = operadorDe(peticion);
       try {
@@ -156,7 +168,10 @@ export async function registrarRutas(
          */
         try {
           const cfg = await configuracion.paraElMotor();
-          const filas = await repositorio.listar();
+          // Unscoped on purpose, and this is the one call that must be: the registry is
+          // re-derived for the WHOLE company, and a sector-shaped view of the evidence would
+          // prune every registry row outside it as if the day had stopped being an absence.
+          const filas = await repositorio.listar(null);
           const sincronizacion = await ausencias.sincronizar(filas, cfg, operador.email);
           peticion.log.info({ evento: 'ausencias_sincronizadas', ...sincronizacion }, 'registro de ausencias al día');
         } catch (e: unknown) {
@@ -171,7 +186,7 @@ export async function registrarRutas(
     },
   );
 
-  app.delete('/api/fichadas', async (peticion, respuesta) => {
+  app.delete('/api/fichadas', { onRequest: SOLO_RRHH }, async (peticion, respuesta) => {
     const operador = operadorDe(peticion);
     try {
       const borradas = await repositorio.vaciar(operador.email);

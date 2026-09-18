@@ -19,9 +19,9 @@
  * TWO RULES THE SYNC MUST NOT BREAK, both ported verbatim from the legacy comments:
  *
  *   1. A motivo a human chose is never overwritten by a re-upload. The legacy file said
- *      `manual`; this one also protects `encargado`, because by the time slice 3 exists a
- *      manager's answer is a human decision too and the schema is explicit that those are
- *      preserved rather than discarded (001, `discrepancias`).
+ *      `manual`; this one also protects `encargado`, because a sector supervisor's answer is
+ *      a human decision too and the schema is explicit that those are preserved rather than
+ *      discarded (001, `discrepancias`). Both values are written by `asignarMotivo` below.
  *
  *   2. Pruning is conservative. A registry entry is only removed when it is no longer an
  *      absence AND nobody classified it AND nothing is attached to it. Anything a person
@@ -32,7 +32,8 @@ import { construirRegistroDia } from '../domain/fichadas/dia.js';
 import { parsearFechaDMY } from '../domain/fichadas/parseo.js';
 import type { ConfiguracionFichadas, FilaQuickpass } from '../domain/fichadas/tipos.js';
 import { auditar, idDeDia } from './auditoria.js';
-import { enTransaccion, type Pool, type PoolClient } from './db.js';
+import { enTransaccion, type ConsultaSql, type Pool, type PoolClient } from './db.js';
+import { filtroDeSector, valorDeAlcance, type AlcanceSectores } from './sectores.js';
 
 /** One row of the registry, as the API hands it to the screen. */
 export interface AusenciaRegistrada {
@@ -58,7 +59,7 @@ export interface ResultadoSincronizacion {
   readonly podadas: number;
 }
 
-const SQL_REGISTRO = `
+const SQL_REGISTRO_CAMPOS = `
   SELECT a.[dni],
          CONVERT(char(10), a.[fecha], 23) AS [fecha],
          a.[motivo_id],
@@ -69,8 +70,30 @@ const SQL_REGISTRO = `
             FROM [controlhorario].[adjuntos] ad
            WHERE ad.[dni] = a.[dni] AND ad.[fecha] = a.[fecha]) AS [adjuntos]
     FROM [controlhorario].[ausencias] a
-   ORDER BY a.[dni], a.[fecha]
 `;
+
+/**
+ * The registry, optionally narrowed to a set of sectors.
+ *
+ * `ausencias` HAS NO SECTOR OF ITS OWN, and it should not: the sector is a QUICKPASS cell and
+ * copying it here would be a second copy of a fact that a re-upload can change. So the scoped
+ * query reaches it through `fichadas`, joined on (dni, fecha) — which is exactly the pair
+ * `FK_ch_ausencias_fichadas` already guarantees exists, so the join can neither drop a row
+ * nor duplicate one.
+ */
+export function sqlRegistroAusencias(alcance: AlcanceSectores): ConsultaSql {
+  const orden = 'ORDER BY a.[dni], a.[fecha]';
+  if (alcance === null) {
+    return { texto: `${SQL_REGISTRO_CAMPOS} ${orden}`, valores: [] };
+  }
+  return {
+    texto:
+      `${SQL_REGISTRO_CAMPOS}` +
+      ` JOIN [controlhorario].[fichadas] f ON f.[dni] = a.[dni] AND f.[fecha] = a.[fecha]` +
+      ` WHERE ${filtroDeSector("JSON_VALUE(f.[payload], '$.Sector')", 1)} ${orden}`,
+    valores: [valorDeAlcance(alcance)],
+  };
+}
 
 interface FilaRegistro {
   dni: string;
@@ -206,20 +229,37 @@ async function sincronizarVigentes(
   return rows[0] ?? { creadas: 0, refrescadas: 0, podadas: 0 };
 }
 
+/**
+ * Who decided, as the registry records it.
+ *
+ * `partes` is not here: that value is written by the sync from the QUICKPASS note and is the
+ * one thing a human decision is allowed to overwrite. These two are the human ones, and rule
+ * 1 above protects both from a later re-upload.
+ */
+export type OrigenDecision = 'manual' | 'encargado';
+
 export interface RepositorioAusenciasAzureSql {
-  listar(): Promise<readonly AusenciaRegistrada[]>;
+  /** `alcance` is required, never defaulted. See `listar` in repositorioAzureSql.ts. */
+  listar(alcance: AlcanceSectores): Promise<readonly AusenciaRegistrada[]>;
   /**
-   * Sets or clears the motivo of one day, always as `manual`.
+   * Sets or clears the motivo of one day, attributed to whoever decided it.
    *
-   * Always `manual`, exactly like the legacy `setMotivo`: an operator who picks a motivo on
-   * this screen is RRHH deciding, and a later re-upload must not silently override it. That
-   * is the same fact rule 1 above enforces, written from the other side.
+   * `manual` is RRHH deciding, exactly like the legacy `setMotivo`; `encargado` is a sector
+   * supervisor deciding about a day of their own sector. The distinction is worth persisting
+   * rather than inferring from `resuelto_por`, because an account's role can change and the
+   * row has to keep saying what it meant when it was written. A later re-upload overwrites
+   * neither — that is the same fact rule 1 above enforces, written from the other side.
+   *
+   * `resuelto_por` and `resuelto_at` are set for both. `CK_ch_ausencias_manual_atribuible`
+   * only demands attribution for `manual`, but a decision nobody signed is not better
+   * because a CHECK tolerates it.
    */
   asignarMotivo(
     dni: string,
     fechaIso: string,
     motivoId: number | null,
     actor: string,
+    origen: OrigenDecision,
   ): Promise<AusenciaRegistrada | null>;
   /** Re-derives the registry from the evidence. Called after every upload. */
   sincronizar(
@@ -231,12 +271,13 @@ export interface RepositorioAusenciasAzureSql {
 
 export function crearRepositorioAusencias(pool: Pool): RepositorioAusenciasAzureSql {
   return {
-    async listar() {
-      const { rows } = await pool.query<FilaRegistro>(SQL_REGISTRO);
+    async listar(alcance) {
+      const consulta = sqlRegistroAusencias(alcance);
+      const { rows } = await pool.query<FilaRegistro>(consulta.texto, consulta.valores);
       return rows.map(aRegistro);
     },
 
-    async asignarMotivo(dni, fechaIso, motivoId, actor) {
+    async asignarMotivo(dni, fechaIso, motivoId, actor, origen) {
       return enTransaccion(pool, async (cliente) => {
         const { rows: previas } = await cliente.query<{ motivo_id: number | null }>(
           `SELECT [motivo_id] FROM [controlhorario].[ausencias]
@@ -252,20 +293,20 @@ export function crearRepositorioAusencias(pool: Pool): RepositorioAusenciasAzure
               ON destino.[dni] = origen.[dni] AND destino.[fecha] = origen.[fecha]
            WHEN MATCHED THEN UPDATE SET
              [motivo_id] = origen.[motivo_id],
-             [motivo_source] = CASE WHEN origen.[motivo_id] IS NULL THEN NULL ELSE N'manual' END,
+             [motivo_source] = CASE WHEN origen.[motivo_id] IS NULL THEN NULL ELSE $5 END,
              [resuelto_por] = origen.[actor],
              [resuelto_at] = SYSUTCDATETIME()
            WHEN NOT MATCHED THEN INSERT
              ([dni], [fecha], [motivo_id], [motivo_source], [resuelto_por], [resuelto_at])
              VALUES (
                origen.[dni], origen.[fecha], origen.[motivo_id],
-               CASE WHEN origen.[motivo_id] IS NULL THEN NULL ELSE N'manual' END,
+               CASE WHEN origen.[motivo_id] IS NULL THEN NULL ELSE $5 END,
                origen.[actor], SYSUTCDATETIME()
              )
            OUTPUT inserted.[dni], CONVERT(char(10), inserted.[fecha], 23) AS [fecha],
                   inserted.[motivo_id], inserted.[motivo_source], inserted.[resuelto_por],
                   inserted.[resuelto_at], CONVERT(int, 0) AS [adjuntos];`,
-          [dni, fechaIso, motivoId, actor],
+          [dni, fechaIso, motivoId, actor, origen],
         );
         const fila = rows[0];
         if (!fila) return null;
@@ -277,7 +318,13 @@ export function crearRepositorioAusencias(pool: Pool): RepositorioAusenciasAzure
           entidadId: idDeDia(dni, fechaIso),
           // Ids only. Never the label, never the person's name: a motivo label is
           // "Enfermedad", and `auditoria` is read by more people than `ausencias` is.
-          datos: { motivoId, motivoAnterior: anterior },
+          //
+          // `origen` is what makes a sector supervisor's decision distinguishable in the
+          // trail. It is a provenance code and not a second name for the actor, so it stays
+          // a field of `datos` rather than becoming a second `AccionAuditada`: the action is
+          // still "a motivo was assigned", and an auditor who wants every decision of every
+          // encargado asks for that action and filters this field.
+          datos: { motivoId, motivoAnterior: anterior, origen },
         });
 
         const { rows: conteo } = await cliente.query<{ n: number }>(

@@ -27,7 +27,7 @@
  *                         behind the hook and answers 401.
  */
 
-import type { FastifyInstance, FastifyRequest } from 'fastify';
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 // Imported for its type augmentation as much as for the plugin: `request.cookies`,
 // `reply.setCookie` and `reply.clearCookie` below only exist because @fastify/cookie
 // declares them onto Fastify's own interfaces. `servidor.ts` is where it is registered.
@@ -39,7 +39,16 @@ import { hashearContrasena, hashDeSenuelo, verificarContrasena } from './contras
 import { enTransaccion, type Pool } from './db.js';
 import { crearLimitadorLogin, type LimitadorLogin } from './limitador.js';
 import { ESQUEMA_CUERPO_CAMBIO_CONTRASENA, ESQUEMA_CUERPO_LOGIN } from './esquemas.js';
-import { borrarSesion, buscarSesion, crearSesion, renovarSesion, type Sesion } from './sesiones.js';
+import type { AlcanceSectores } from './sectores.js';
+import {
+  borrarSesion,
+  buscarSesion,
+  crearSesion,
+  renovarSesion,
+  sectoresDeUsuario,
+  type RolSesion,
+  type Sesion,
+} from './sesiones.js';
 
 /**
  * The only method+path pairs that answer without a session. Exact match, both parts.
@@ -85,6 +94,65 @@ export function operadorDe(peticion: FastifyRequest): Sesion {
   }
   return sesion;
 }
+
+/**
+ * WHAT THIS REQUEST IS ALLOWED TO SEE, AND THE ONLY PLACE A ROLE BECOMES A RESTRICTION.
+ *
+ * `null` means no restriction and belongs to RRHH — admin and operador, who see the whole
+ * company. An array means "only these sectors", and an EMPTY array still means that: an
+ * encargado with no sectors assigned is restricted to nothing, never promoted to
+ * unrestricted. That distinction is the whole reason this returns `null` instead of an empty
+ * array for RRHH; `[] || todo` is the bug this shape makes impossible to write.
+ *
+ * Every scoped query goes through here. See `sectores.ts` for what the array becomes in SQL.
+ */
+export function alcanceDeSectores(peticion: FastifyRequest): AlcanceSectores {
+  const sesion = operadorDe(peticion);
+  return sesion.rol === 'encargado' ? sesion.sectores : null;
+}
+
+/**
+ * An `onRequest` hook that answers 403 unless the caller holds one of these roles.
+ *
+ * A factory rather than four copies of `if (sesion.rol !== 'admin') return prohibido(...)`:
+ * an inline check is a line somebody forgets on the fifth route, and forgetting it here is
+ * not a cosmetic bug — it is an encargado wiping the historial of a company they supervise
+ * one sector of. As a route option the guard is part of the route's declaration instead of
+ * the first statement of its body.
+ *
+ * `onRequest` AND NOT `preHandler`, for the reason the whole-instance guard above uses it:
+ * `preHandler` runs after the body is parsed and validated, so a 30 MB upload from an
+ * account that may not upload would be read off the socket and rejected afterwards. A
+ * route-level `onRequest` runs after every instance-level one, so `peticion.sesion` is
+ * already there.
+ */
+export function soloRoles(
+  roles: readonly RolSesion[],
+  cuerpo: { readonly error: string; readonly mensaje: string },
+): (peticion: FastifyRequest, respuesta: FastifyReply) => Promise<void> {
+  return async (peticion, respuesta) => {
+    if (roles.includes(operadorDe(peticion).rol)) return;
+    // Role and status only. Who it was and what they were reaching for stay out of the log.
+    peticion.log.warn({ evento: 'rol_sin_permiso' }, 'petición rechazada por rol');
+    await respuesta.code(403).send(cuerpo);
+  };
+}
+
+/** The user administration panel. */
+export const SOLO_ADMIN = soloRoles(['admin'], {
+  error: 'solo_administradores',
+  mensaje: 'Esta sección es sólo para administradores.',
+});
+
+/**
+ * Everything an encargado may read but not change: uploading and wiping the historial, and
+ * every configuración write. An encargado justifies days and attaches certificates; the
+ * evidence and the rules that read it belong to RRHH.
+ */
+export const SOLO_RRHH = soloRoles(['admin', 'operador'], {
+  error: 'solo_rrhh',
+  mensaje: 'Tu cuenta no puede modificar esta información.',
+});
 
 interface CuerpoLogin {
   readonly email: string;
@@ -259,7 +327,7 @@ export async function registrarAcceso(
         id: number;
         email: string;
         nombre: string;
-        rol: 'admin' | 'operador';
+        rol: RolSesion;
         hash_contrasena: string;
       }>(
         `SELECT [id], [email], [nombre], [rol], [hash_contrasena]
@@ -292,6 +360,11 @@ export async function registrarAcceso(
       }
 
       limitador.exito(email);
+      // The scope travels in the login answer so the SPA can render the right navigation
+      // straight away. It is a convenience for the screen and never an authorisation: every
+      // scoped query re-reads the sectors from `usuarios_sectores` on its own request.
+      const sectores =
+        usuario.rol === 'encargado' ? await sectoresDeUsuario(pool, usuario.id) : [];
       const { token, expiraAt } = await crearSesion(pool, usuario.id, config.sesion.horas);
       await auditar(pool, {
         actor: usuario.email,
@@ -307,7 +380,7 @@ export async function registrarAcceso(
         expires: expiraAt,
       });
       return respuesta.send({
-        usuario: { email: usuario.email, nombre: usuario.nombre, rol: usuario.rol },
+        usuario: { email: usuario.email, nombre: usuario.nombre, rol: usuario.rol, sectores },
         expiraAt: expiraAt.toISOString(),
       });
     },
@@ -317,7 +390,12 @@ export async function registrarAcceso(
   app.get('/api/sesion', async (peticion, respuesta) => {
     const sesion = operadorDe(peticion);
     return respuesta.send({
-      usuario: { email: sesion.email, nombre: sesion.nombre, rol: sesion.rol },
+      usuario: {
+        email: sesion.email,
+        nombre: sesion.nombre,
+        rol: sesion.rol,
+        sectores: sesion.sectores,
+      },
       expiraAt: sesion.expiraAt.toISOString(),
     });
   });

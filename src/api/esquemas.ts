@@ -80,6 +80,18 @@ export const ESQUEMA_CUERPO_CAMBIO_CONTRASENA = {
   },
 } as const;
 
+/**
+ * A new account.
+ *
+ * `sectores` is optional HERE and mandatory for an `encargado`. The dependency between two
+ * properties is expressible in JSON Schema and deliberately not expressed: the answer AJV
+ * would produce for a violated `if/then` is `body must match "then" schema`, which tells the
+ * administrator nothing about what they did. `rutasUsuarios.ts` checks the pairing itself and
+ * answers with a sentence. What the schema does is bound the input, which is its job.
+ *
+ * `maxItems` is generous on purpose — an encargado of eight sectors is unusual but real —
+ * and exists so a request cannot ask for one INSERT per kilobyte of body.
+ */
 export const ESQUEMA_CUERPO_USUARIO_NUEVO = {
   type: 'object',
   required: ['email', 'nombre', 'rol'],
@@ -87,7 +99,12 @@ export const ESQUEMA_CUERPO_USUARIO_NUEVO = {
   properties: {
     email: { type: 'string', minLength: 3, maxLength: 320 },
     nombre: { type: 'string', minLength: 1, maxLength: 200 },
-    rol: { type: 'string', enum: ['admin', 'operador'] },
+    rol: { type: 'string', enum: ['admin', 'operador', 'encargado'] },
+    sectores: {
+      type: 'array',
+      maxItems: 100,
+      items: { type: 'string', minLength: 1, maxLength: 200 },
+    },
   },
 } as const;
 

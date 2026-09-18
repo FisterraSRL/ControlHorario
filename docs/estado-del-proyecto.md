@@ -57,7 +57,7 @@ semana que abrió el lunes anterior. Está cubierto en `src/ui/periodo/periodo.t
 ## Funcionalidad terminada
 
 - Login, logout, sesiones revocables, rate limit y cambio de la propia contraseña.
-- Roles `admin`/`operador`.
+- Roles `admin`/`operador` y, en la API, `encargado` (ver «El rol encargado»).
 - Administración de usuarios: listar, crear, activar/desactivar y restablecer contraseña.
 - Carga y persistencia del historial QUICKPASS.
 - Configuración de parámetros, reglas por sector, motivos y exclusiones.
@@ -177,12 +177,37 @@ fila de ceros; un registro que tiene faltas se procesa siempre, sin filtro nuevo
 pantallas no pueden discrepar sobre cuántas faltas tiene alguien. Hay una prueba dedicada a
 ese caso en `src/ui/faltas/agrupacion.test.ts`.
 
+## El rol encargado
+
+Un encargado supervisa uno o más sectores y sólo ve esos. **La mitad de servidor está hecha;
+la de frontend no.**
+
+El alcance no es un filtro de pantalla: viaja en la sesión (`Sesion.sectores`), lo resuelve
+`alcanceDeSectores(peticion)` en `src/api/autenticacion.ts` y llega al `WHERE` de cada
+consulta a través de `src/api/sectores.ts`. `null` significa «sin restricción» y es de RRHH;
+un arreglo vacío significa «nada», nunca «todo». El sector vive dentro del JSON QUICKPASS
+(`JSON_VALUE([payload], '$.Sector')`), así que `ausencias` y `adjuntos` lo alcanzan uniéndose
+a `fichadas` por `(dni, fecha)`.
+
+Un encargado es de sólo lectura salvo tres cosas: `PUT /api/ausencias/motivo` sobre un día de
+sus sectores, los adjuntos de esos mismos días y su propia contraseña. Todo lo demás —
+`POST`/`DELETE /api/fichadas`, las escrituras de configuración y `/api/admin/*` — responde
+403 mediante los guardias `SOLO_RRHH` y `SOLO_ADMIN`, que son hooks `onRequest` para que un
+cuerpo de 30 MB no se lea antes de rechazarlo.
+
+Su decisión se guarda como `motivo_source = 'encargado'`, que ya estaba previsto en
+`CK_ch_ausencias_source` y que el MERGE de sincronización ya protegía de ser pisado por una
+recarga.
+
+Falta el frontend: `src/ui/sesion/repositorioSesionHttp.ts` sólo acepta `admin` y `operador`,
+así que hoy un encargado se autentica contra la API y la SPA descarta la sesión.
+
 ## Pruebas
 
-El baseline esperado es **300 pruebas en 18 archivos** (266 antes de Horas, 269 con Horas, 280
-con `src/ui/faltas/agrupacion.test.ts`, 289 con Indicador —5 de `incluirSinFaltas` en esa
-misma suite y 4 en `src/ui/features/indicador/indicador.test.ts`— y 11 más en
-`src/ui/periodo/periodo.test.ts`). Además de `npm.cmd test`, ejecutar siempre los tres
+El baseline esperado es **369 pruebas en 26 archivos** (300 en 18 antes del rol encargado; las
+69 nuevas están en `src/api/`: alcance de sesión, constructores SQL con sector, el 403 de una
+justificación fuera de alcance, la creación transaccional con sectores y la lista de negación
+por rol). Además de `npm.cmd test`, ejecutar siempre los tres
 typechecks y el build de Vite mediante `npm.cmd run typecheck` y `npm.cmd run build`.
 
 Vitest sólo recoge `src/**/*.test.ts` en entorno `node`: una prueba `.tsx` de componente no
@@ -199,6 +224,12 @@ Esas suites pertenecen al adaptador PostgreSQL/PGlite retirado. No presentarlas 
 vigentes. Azure SQL se valida con las migraciones reales (`db:verify`) y smoke checks de
 producción. Una prueba que transpila no sustituye al typecheck.
 
+Lo que sí se puede probar sin base es lo que es una decisión y no un dialecto: qué `WHERE` se
+arma, qué parámetro lleva el alcance, si la ruta rechazó antes de escribir y si dos sentencias
+compartieron una transacción. Para eso está `src/api/pruebas/dobles.ts` —un `Pool` que
+registra en lugar de ejecutar y una instancia Fastify con la sesión ya puesta—, que no depende
+de PGlite y no revive el arnés retirado.
+
 ## Migraciones y base compartida
 
 Aplicadas:
@@ -206,6 +237,14 @@ Aplicadas:
 1. `001_initial.sql`
 2. `002_acceso_y_decisiones.sql`
 3. `003_administracion_usuarios.sql`
+
+Escrita y **todavía no aplicada**:
+
+4. `004_encargados.sql` — reemplaza `CK_ch_usuarios_rol` para admitir `encargado` y crea
+   `[controlhorario].[usuarios_sectores]`. Hasta aplicarla, `db:inspect` falla a propósito:
+   `verificarEsquema.ts` ya espera cuatro migraciones y la tabla nueva. La API tampoco puede
+   autenticar a un encargado antes de aplicarla, porque la consulta de sectores leería una
+   tabla inexistente.
 
 Nunca abrir el firewall de Azure SQL ampliamente. Crear una regla temporal para la IP
 exacta, ejecutar `db:verify` antes de `db:migrate` y eliminar la regla en un bloque `finally`.

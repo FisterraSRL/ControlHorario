@@ -24,12 +24,27 @@ import type { Pool, PoolClient } from './db.js';
 /** 256 bits, base64url. Long enough that guessing is not a threat model. */
 const BYTES_TOKEN = 32;
 
+/**
+ * The three kinds of account.
+ *
+ * `admin` and `operador` are RRHH and see the whole company; `encargado` supervises one or
+ * more sectors and sees only those. Declared here rather than inline so the API, the role
+ * CHECK of migration 004 and the request validator cannot drift apart.
+ */
+export type RolSesion = 'admin' | 'operador' | 'encargado';
+
 export interface Sesion {
   readonly id: string;
   readonly usuarioId: number;
   readonly email: string;
   readonly nombre: string;
-  readonly rol: 'admin' | 'operador';
+  readonly rol: RolSesion;
+  /**
+   * The sectors this account supervises. ALWAYS EMPTY for admin and operador: their scope is
+   * the absence of one, and `alcanceDeSectores` in autenticacion.ts is the only place that
+   * turns a role into a restriction.
+   */
+  readonly sectores: readonly string[];
   readonly expiraAt: Date;
 }
 
@@ -80,11 +95,34 @@ export async function crearSesion(
 }
 
 /**
+ * The sectors one account supervises, in a stable order.
+ *
+ * Read fresh on every lookup rather than frozen into the session row: revoking a sector has
+ * to take effect on the next request, exactly the way deactivating an account already does.
+ */
+export async function sectoresDeUsuario(
+  cliente: Pool | PoolClient,
+  usuarioId: number,
+): Promise<readonly string[]> {
+  const { rows } = await cliente.query<{ sector: string }>(
+    `SELECT [sector] FROM [controlhorario].[usuarios_sectores]
+      WHERE [usuario_id] = $1 ORDER BY [sector]`,
+    [usuarioId],
+  );
+  return rows.map((r) => r.sector);
+}
+
+/**
  * The session behind a cookie, or `null`.
  *
  * Expired rows and deactivated operators both come back as `null` from the same query, so
  * there is no branch above this that could forget one of them. Deactivating an account
  * therefore logs it out of every browser on the next request, without touching `sesiones`.
+ *
+ * The second query runs only for an `encargado`. RRHH has no scope to load, so the role that
+ * covers every request today pays nothing for a table it never reads — and an encargado
+ * whose sectors were all revoked comes back with an empty array, which every scoped query
+ * reads as "nothing", never as "everything".
  */
 export async function buscarSesion(
   cliente: Pool | PoolClient,
@@ -95,7 +133,7 @@ export async function buscarSesion(
     usuario_id: number;
     email: string;
     nombre: string;
-    rol: 'admin' | 'operador';
+    rol: RolSesion;
     expira_at: Date;
   }>(
     `SELECT s.[id], s.[usuario_id], u.[email], u.[nombre], u.[rol], s.[expira_at]
@@ -112,6 +150,7 @@ export async function buscarSesion(
     email: fila.email,
     nombre: fila.nombre,
     rol: fila.rol,
+    sectores: fila.rol === 'encargado' ? await sectoresDeUsuario(cliente, fila.usuario_id) : [],
     expiraAt: new Date(fila.expira_at),
   };
 }

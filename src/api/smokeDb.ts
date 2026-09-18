@@ -40,12 +40,12 @@ async function main(): Promise<void> {
     const guardado = await historial.upsert([fila], { archivo: ARCHIVO, subidoPor: ACTOR });
     if (guardado.nuevas !== 1) throw new Error('La carga sintética no insertó una fichada.');
 
-    const filas = await historial.listar();
+    const filas = await historial.listar(null);
     const cfg = await configuracion.paraElMotor();
     const sincronizacion = await ausencias.sincronizar(filas, cfg, ACTOR);
     if (sincronizacion.creadas !== 1) throw new Error('La ausencia sintética no fue derivada.');
 
-    const asignada = await ausencias.asignarMotivo(DNI, FECHA_ISO, 4, ACTOR);
+    const asignada = await ausencias.asignarMotivo(DNI, FECHA_ISO, 4, ACTOR, 'manual');
     if (asignada?.motivoId !== 4 || asignada.motivoSource !== 'manual') {
       throw new Error('La decisión manual no quedó atribuida correctamente.');
     }

@@ -20,6 +20,12 @@
  *
  * The filename in the header is the operator's original name — percent-encoded through
  * `filename*`, which is the only place it is ever emitted, and it never touches a path.
+ *
+ * ALL FOUR ROUTES ARE SECTOR-SCOPED. An encargado may file and read certificates for the
+ * days of their own sectors and for nothing else. The upload answers 403 for a day outside
+ * them, because the caller named that day themselves; the two `:id` routes answer 404,
+ * because a 403 there would let somebody count the certificates of the sectors they cannot
+ * see by walking the id space.
  */
 
 import { createReadStream } from 'node:fs';
@@ -27,13 +33,14 @@ import { createReadStream } from 'node:fs';
 import type { FastifyInstance } from 'fastify';
 
 import { parsearFechaDMY } from '../domain/fichadas/parseo.js';
-import { operadorDe } from './autenticacion.js';
+import { alcanceDeSectores, operadorDe } from './autenticacion.js';
 import { auditar, idDeDia } from './auditoria.js';
 import type { ConfiguracionApi } from './config.js';
 import { LIMITES_CAMPO_ADJUNTO } from './esquemas.js';
 import type { Pool } from './db.js';
 import { ErrorAdjunto, type RepositorioAdjuntosAzureSql } from './repositorioAdjuntos.js';
 import { noEncontrado, responderErrorDb } from './respuestas.js';
+import { permiteElDia } from './sectores.js';
 
 export interface DependenciasAdjuntos {
   readonly config: ConfiguracionApi;
@@ -73,7 +80,7 @@ export function registrarRutasAdjuntos(
 
   app.get('/api/adjuntos', async (peticion, respuesta) => {
     try {
-      const adjuntos = await repositorio.listar();
+      const adjuntos = await repositorio.listar(alcanceDeSectores(peticion));
       return await respuesta.send({ adjuntos });
     } catch (e: unknown) {
       responderErrorDb(peticion, respuesta, e);
@@ -126,12 +133,27 @@ export function registrarRutasAdjuntos(
         });
       }
 
+      const fechaIso = fecha.toISOString().slice(0, 10);
+      /**
+       * Filing a certificate against somebody else's sector is a write, and it is checked
+       * the same way `PUT /api/ausencias/motivo` is: the sector of that exact day is read
+       * from `fichadas`, never taken from the form. The bytes are already streamed at this
+       * point but nothing has been written to disk yet — `repositorio.guardar` is below.
+       */
+      if (!(await permiteElDia(pool, alcanceDeSectores(peticion), dni, fechaIso))) {
+        peticion.log.warn({ evento: 'dia_fuera_de_alcance' }, 'adjunto rechazado');
+        return respuesta.code(403).send({
+          error: 'fuera_de_alcance',
+          mensaje: 'Ese día no pertenece a ninguno de tus sectores.',
+        });
+      }
+
       const nombre = (parte.filename || 'adjunto').slice(0, LIMITES_CAMPO_ADJUNTO.maxNombre);
 
       const adjunto = await repositorio.guardar(
         {
           dni,
-          fecha: fecha.toISOString().slice(0, 10),
+          fecha: fechaIso,
           nombre,
           tipoMime: parte.mimetype,
           flujo: parte.file,
@@ -162,7 +184,7 @@ export function registrarRutasAdjuntos(
     if (id === null) return noEncontrado(respuesta, 'No existe ese adjunto.');
 
     try {
-      const abierto = await repositorio.abrir(id);
+      const abierto = await repositorio.abrir(id, alcanceDeSectores(peticion));
       if (!abierto) return noEncontrado(respuesta, 'No existe ese adjunto.');
 
       // Reading a medical certificate is itself a thing worth being able to prove later.
@@ -196,7 +218,7 @@ export function registrarRutasAdjuntos(
     if (id === null) return noEncontrado(respuesta, 'No existe ese adjunto.');
 
     try {
-      const eliminado = await repositorio.eliminar(id, operador.email);
+      const eliminado = await repositorio.eliminar(id, alcanceDeSectores(peticion), operador.email);
       if (!eliminado) return noEncontrado(respuesta, 'No existe ese adjunto.');
       peticion.log.info({ evento: 'adjunto_eliminado' }, 'adjunto eliminado');
       return await respuesta.code(204).send();
