@@ -1,6 +1,14 @@
+/*
+ * `align-self` because both places that use the lockup are flex columns, and a flex item
+ * stretches across the cross axis by default: with only a height set, the SVG became as wide
+ * as the sidebar and the drawing sat in the middle of it. The width then comes from the
+ * viewBox ratio alone.
+ */
 .brand-lockup {
   display: block;
   height: 26px;
   width: auto;
+  max-width: 100%;
+  align-self: flex-start;
   color: var(--app-ink);
 }

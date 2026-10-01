@@ -314,6 +314,24 @@ día. Por eso:
 - La pantalla de Configuración recarga el registro de ausencias tras crear o retirar un
   motivo. El adaptador local deriva con los motivos de la configuración local.
 
+## Marca
+
+`BrandLockup` (`src/ui/components/atoms/BrandLockup/`) es el único logo de la app: lo usan
+el menú lateral y el login. Copia la geometría del archivo de marca, **salvo el viewBox**.
+
+El archivo vendorizado `src/ui/tokens/brand/fisterra-lockup-horizontal.svg` declara
+`viewBox="0 0 420 100"`, pero en Montserrat a 68 la palabra FISTERRA mide 348 unidades desde
+x=140 y termina en 488: un SVG recorta a su viewBox, así que se pierden la A final y media R.
+**El archivo oficial tiene el mismo defecto** donde sea que se use como imagen. Se corrige en
+el origen (`Assets - Fisterra`) y se vuelve a vendorizar; no se edita acá, porque tiene que
+seguir idéntico byte a byte.
+
+El componente agranda la caja hasta 496 y fija el ancho de la palabra con `textLength`, para
+que una fuente de reemplazo más ancha se ajuste en vez de desbordar. Además usa
+`preserveAspectRatio="xMinYMid meet"` y `align-self: flex-start`: los dos contenedores son
+columnas flex, y un ítem flex se estira a lo ancho, que es como el logo del menú terminó
+flotando 50px a la derecha del resto. En el login va centrado arriba del panel.
+
 ## Pruebas
 
 El baseline esperado es **475 pruebas en 34 archivos**. El motivo tomado de la nota sumó 21

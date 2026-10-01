@@ -20,7 +20,10 @@
   padding: var(--app-space-6) var(--app-space-5);
 }
 
+/* The login card is a single column with the form under it: the brand heads it, centred. */
 .acceso__marca {
+  display: flex;
+  justify-content: center;
   color: var(--app-ink);
 }
 
