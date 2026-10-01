@@ -18,6 +18,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import type { Adjunto } from '../../adjuntos/RepositorioAdjuntos.js';
 import { useAusencias } from '../../ausencias/AusenciasProvider.js';
+import { avisoMotivo } from '../../ausencias/opcionesMotivo.js';
 import { MAX_DIAS_POR_LOTE, type ClaveRegistro } from '../../ausencias/RepositorioAusencias.js';
 import { useConfiguracion } from '../../configuracion/ConfiguracionProvider.js';
 import { useHistorial } from '../../historial/HistorialProvider.js';
@@ -184,9 +185,7 @@ export function AusenciasContainer() {
         // The provider reports rather than throws, and it puts its own failure on screen.
         // Confirming a change that did not happen is worse than not confirming one.
         const guardado = await asignarMotivo(dni, fechaStr, motivoId);
-        if (guardado) {
-          setAviso(motivoId === null ? 'Se quitó la clasificación.' : 'Motivo asignado.');
-        }
+        if (guardado) setAviso(avisoMotivo(motivoId));
       })();
     },
     [asignarMotivo],

@@ -66,6 +66,8 @@ semana que abrió el lunes anterior. Está cubierto en `src/ui/periodo/periodo.t
 - Generador de notificaciones Word puro en `src/notificaciones`, con fixtures golden.
 - Pantalla Notificaciones: agrupación por persona y descarga del Word, individual y masiva.
 - Pantalla Indicador: faltas por clase y totales del período, sobre la misma agrupación.
+- Horas trabajadas: detalle por día con las fichadas, «Desplegar todas» y clasificación del
+  motivo de cada ausencia desde el detalle (ver «Horas trabajadas»).
 - Frontend y API desplegados; tres migraciones aplicadas.
 
 Ninguna pantalla es ya un placeholder. `src/ui/app/PlaceholderScreen.tsx` quedó sin
@@ -105,8 +107,25 @@ La verificación confirmó typecheck, build, 269 pruebas y que Vercel sirve el b
 Al abrir `/horas` la sesión del navegador había vencido y el portal mostró el login; por eso
 queda pendiente una comprobación visual autenticada con datos reales. No usar credenciales
 en comandos ni pedirlas en chat para saltear ese paso. El modo legacy “completar fichadas
-faltantes según turno” y la clasificación inline desde el detalle no forman parte de esta
-primera unidad.
+faltantes según turno” no forma parte de esta unidad.
+
+Después se sumó al detalle:
+
+- **Desplegar todas / Contraer todas** sobre la tabla. El contenedor guarda un conjunto crudo
+  de claves `${dni}|${inicioSemana}`, pero la pantalla sólo ve `abiertasVisibles` (ese conjunto
+  intersectado con las semanas del período) y cada alternancia parte de ese derivado: un
+  cambio de período no necesita ningún efecto para limpiar claves viejas.
+- **Fichadas de cada día**: `RegistroDia.movimientos` en hora de reloj (`fmtReloj`) con las
+  horas trabajadas; un franco con fichadas también las muestra; una ausencia dice «Sin
+  fichadas» con la nota QUICKPASS. La línea la arma `lineaFichadas` en `horas.ts`.
+- **Motivo de cada ausencia** con el mismo desplegable que Ausencias y la misma única
+  escritura, `useAusencias().asignarMotivo`. No hay recálculo local: HistorialProvider vuelve
+  a derivar los días desde el registro y la semana se actualiza sola. Un motivo inferido de
+  la nota QUICKPASS (`partes`) aparece seleccionado; elegir un valor lo vuelve decisión humana.
+  Las opciones y el aviso de confirmación viven en `src/ui/ausencias/opcionesMotivo.ts`, que
+  ambas pantallas comparten.
+
+La exportación CSV no cambió.
 
 ### Notificaciones
 
@@ -262,7 +281,9 @@ lectores de pantalla). Las pantallas que ya lo usaban no cambian.
 
 ## Pruebas
 
-El baseline esperado es **444 pruebas en 32 archivos**. La clasificación en lote sumó 39 sobre
+El baseline esperado es **454 pruebas en 33 archivos**. El detalle de Horas trabajadas sumó 10
+sobre las 444 en 32: desplegar/contraer contra las semanas visibles, la línea de fichadas y las
+opciones compartidas del motivo. La clasificación en lote sumó 39 sobre
 las 405 en 30 que había: la ruta en lote, su constructor SQL y su auditoría, el alcance de varios
 días, la selección efectiva y el adaptador local. Antes de eso, el rol encargado había llevado
 de 300 en 18 a 405 (69

@@ -10,6 +10,7 @@ import { Alert } from '../../components/molecules/Alert/Alert.js';
 import { Card } from '../../components/molecules/Card/Card.js';
 import { FilaVacia, Table } from '../../components/molecules/Table/Table.js';
 import { pluralizar } from '../../texto.js';
+import { opcionesMotivo } from '../../ausencias/opcionesMotivo.js';
 import type { ClaveRegistro } from '../../ausencias/RepositorioAusencias.js';
 import {
   etiquetaFecha,
@@ -94,10 +95,7 @@ export function AusenciasScreen({
   error,
   aviso,
 }: AusenciasScreenProps) {
-  const opcionesMotivo = [
-    { valor: '', label: 'Sin clasificar' },
-    ...motivos.map((m) => ({ valor: String(m.id), label: m.label })),
-  ];
+  const opciones = opcionesMotivo(motivos);
 
   let sectorAnterior: string | null = null;
 
@@ -161,7 +159,7 @@ export function AusenciasScreen({
             etiqueta="Motivo para las ausencias seleccionadas"
             tamano="sm"
             valor={motivoLote}
-            opciones={opcionesMotivo}
+            opciones={opciones}
             onCambio={onMotivoLote}
           />
           <Button tamano="sm" variante="primary" onClick={onAplicarLote} disabled={!loteAplicable}>
@@ -269,7 +267,7 @@ export function AusenciasScreen({
                         etiqueta={`Motivo de ${fila.usuario || fila.dni} el ${etiquetaFecha(fila)}`}
                         tamano="sm"
                         valor={fila.motivoId === null ? '' : String(fila.motivoId)}
-                        opciones={opcionesMotivo}
+                        opciones={opciones}
                         onCambio={(valor) =>
                           onMotivo(fila.dni, fila.fechaStr, valor === '' ? null : Number(valor))
                         }
