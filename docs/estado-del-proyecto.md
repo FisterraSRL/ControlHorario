@@ -580,14 +580,40 @@ puede mantener el bundle viejo: recargarla antes de diagnosticar un fallo.
 
 ### Backend
 
-1. Ejecutar `npm.cmd run build:api`.
-2. Crear un ZIP precompilado con `dist`, `dist-api`, `db/migrations`, el `package.json`
-   runtime y sus dependencias de producción.
-3. Desplegarlo con `az webapp deploy --resource-group fisterrasrl_group --name
-   controlhorario-fisterra --type zip --clean true --restart true`.
-4. Esperar `RuntimeSuccessful` y consultar `/health`.
+1. Borrar `dist-api` y ejecutar `npm.cmd run build:api` (tsc no borra los archivos de un
+   módulo eliminado) y `npm.cmd run build`.
+2. Armar la carpeta runtime con `dist`, `dist-api`, `db/migrations`, `package.json`,
+   `package-lock.json` y las `node_modules` de producción **para Linux**: `@node-rs/argon2`
+   necesita `@node-rs/argon2-linux-x64-gnu` con su `.node` adentro. Verificar el `.tgz` contra
+   el `integrity` de `package-lock.json` antes de instalarlo.
+3. Comprimir con `fflate` (rutas con `/`). El `tar.exe` de Windows se cae armando este ZIP y
+   deja un archivo parcial; Compress-Archive escribe `\` y Linux no lo extrae bien.
+4. Reabrir el ZIP y comprobar raíces, migraciones, el binario de argon2 y que `dist-api`
+   coincida con el build.
+5. Desplegarlo con `az webapp deploy --resource-group fisterrasrl_group --name
+   controlhorario-fisterra --type zip --clean true --restart true --src-path <zip>`. Hace
+   falta una cuenta con permisos sobre el App Service; la administradora de la base no los
+   tiene.
+6. Confirmar con `/health` y con el log del contenedor, no con la salida de la CLI.
 
-No depender de que Kudu compile: el paquete usado en producción es precompilado.
+**La app no compila en Azure.** Hasta el 2026-10-01 tenía `SCM_DO_BUILD_DURING_DEPLOYMENT=true`
+y `ENABLE_ORYX_BUILD=true`: Oryx corría `npm install` y después `npm run build`, que con un
+paquete precompilado falla con `tsc: not found`. Los despliegues de septiembre funcionaban sólo
+porque ese `npm install` reinstalaba el binario de argon2 que el ZIP no traía. Desde el
+2026-10-01 ambas están en `false` y el paquete es lo que corre. Kudu igual empaqueta
+`node_modules` en `node_modules.tar.gz` con un `oryx-manifest.toml` al desplegar (el
+«NodeProjectOptimizer»), y el contenedor lo extrae al arrancar: es normal, no es Oryx compilando.
+
+**La CLI puede informar un fallo que no ocurrió.** Si el contenedor se cayó poco antes del
+despliegue, `az webapp deploy` arrastra ese error y termina con «Site failed to start within 10
+mins» aunque el sitio nuevo esté arriba. Lo que vale es la línea «Site is running with
+deployment version: <id>» del log docker y el `/health`.
+
+**Cambiar la configuración y desplegar en dos pasos corta el servicio.** Cambiar un app setting
+reinicia la app con el paquete que tiene: el 2026-10-01 la versión vieja arrancó sin la
+compilación de la que dependía, se cayó, y el servicio estuvo unos 2,5 minutos abajo hasta que
+el paquete nuevo arrancó. Si hay que cambiar la configuración de compilación, desplegar
+inmediatamente después.
 
 ## Checklist de reanudación
 
