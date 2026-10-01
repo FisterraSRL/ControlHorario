@@ -1,0 +1,164 @@
+/* The month grid.
+
+   Selection is carried by SHAPE as well as colour, so it survives a monochrome screen and
+   a colour-blind reader: the two ends are filled circles, the days between sit on a
+   continuous band, and today has a ring. The band is painted on the CELL, not the button,
+   so it runs unbroken from one end to the other; the end cells paint only their inner half
+   of it, which is what turns a circle into a cap. */
+
+.calendario {
+  display: grid;
+  gap: var(--app-space-2);
+  width: 100%;
+}
+
+.calendario__cabecera {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--app-space-2);
+}
+
+.calendario__titulo {
+  font-size: var(--app-text-body);
+  font-weight: var(--fs-weight-semibold);
+}
+
+.calendario__nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius);
+  background: var(--app-surface);
+  color: var(--app-ink);
+  cursor: pointer;
+  transition: background var(--app-transition);
+}
+
+.calendario__nav:hover {
+  background: var(--app-surface-2);
+}
+
+.calendario__pista {
+  margin: 0;
+  font-size: var(--app-text-sm);
+  color: var(--app-muted);
+}
+
+.calendario__grilla {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.calendario__columna {
+  padding: var(--app-space-1) 0;
+  font-size: var(--app-text-xs);
+  font-weight: var(--fs-weight-semibold);
+  color: var(--app-muted);
+  text-align: center;
+}
+
+.calendario__sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+.calendario__celda {
+  padding: 1px 0;
+  text-align: center;
+}
+
+.calendario__celda--medio {
+  background: var(--app-accent-soft);
+}
+
+.calendario__celda--inicio {
+  background: linear-gradient(to right, transparent 50%, var(--app-accent-soft) 50%);
+}
+
+.calendario__celda--fin {
+  background: linear-gradient(to left, transparent 50%, var(--app-accent-soft) 50%);
+}
+
+.calendario__dia {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  /* 36px keeps a comfortable touch target and still fits seven across in 288px. */
+  width: 36px;
+  max-width: 100%;
+  aspect-ratio: 1;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--app-ink);
+  font: inherit;
+  font-size: var(--app-text-sm);
+  font-variant-numeric: var(--app-numeric);
+  cursor: pointer;
+  transition: background var(--app-transition);
+}
+
+.calendario__dia:hover:not(.calendario__dia--extremo) {
+  background: var(--app-surface-3);
+}
+
+.calendario__dia--fuera {
+  color: var(--app-muted);
+}
+
+.calendario__dia--hoy {
+  font-weight: var(--fs-weight-semibold);
+  box-shadow: inset 0 0 0 1.5px var(--app-border-strong);
+}
+
+.calendario__dia--extremo {
+  background: var(--app-accent);
+  color: var(--app-ink-on-accent);
+  font-weight: var(--fs-weight-semibold);
+}
+
+/* Today as an end keeps its ring, drawn inside in the text colour so it shows on the fill. */
+.calendario__dia--extremo.calendario__dia--hoy {
+  box-shadow: inset 0 0 0 2px var(--app-ink-on-accent);
+}
+
+.calendario__pie {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.calendario__hoy {
+  border: none;
+  background: transparent;
+  color: var(--app-accent);
+  font: inherit;
+  font-size: var(--app-text-sm);
+  font-weight: var(--fs-weight-semibold);
+  padding: var(--app-space-1) var(--app-space-2);
+  border-radius: var(--app-radius-sm);
+  cursor: pointer;
+}
+
+.calendario__hoy:hover {
+  background: var(--app-surface-2);
+}
+
+/* Last on purpose. The global focus ring, kept round — the base rule would square the circle
+   off to --app-radius-sm — and placed after the today rules so a focused today shows the
+   focus ring rather than losing it under its own. */
+.calendario__dia:focus-visible {
+  border-radius: 50%;
+  box-shadow: var(--app-focus-ring);
+}

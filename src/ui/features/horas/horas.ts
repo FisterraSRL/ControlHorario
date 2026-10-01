@@ -1,5 +1,5 @@
 import { domingoDe, fmtFechaAR, fmtMinutos, fmtReloj, reporteSemanal, type ConfiguracionFichadas, type RegistroDia, type SemanaEmpleado } from '../../../domain/fichadas/index.js';
-import { dentroDelPeriodo, type RangoPeriodo } from '../../periodo/periodo.js';
+import { dentroDelPeriodo, semanasParciales, type Periodo, type RangoPeriodo } from '../../periodo/periodo.js';
 
 export function construirReporteHoras(registros: readonly RegistroDia[], configuracion: ConfiguracionFichadas, rango: RangoPeriodo): readonly SemanaEmpleado[] {
   return reporteSemanal(registros.filter((r) => dentroDelPeriodo(r.fecha, rango)), configuracion);
@@ -76,4 +76,19 @@ export function lineaFichadas(dia: RegistroDia): string | null {
   if (dia.tipoDia === 'libre') return null;
   const nota = dia.partesRaw.trim();
   return nota ? `Sin fichadas · Nota QUICKPASS: ${nota}` : 'Sin fichadas';
+}
+
+/**
+ * The notice for a period whose window cuts a Monday–Sunday week short — a hand-picked range,
+ * but also a month or a single day. The calculation is NOT adjusted: `reporteSemanal`
+ * compares every week against the full weekly turno, and a pro-rated turno would be a payroll
+ * decision, not a display one. This only says so.
+ */
+export function avisoSemanasParciales(periodo: Periodo): string | null {
+  const parciales = semanasParciales(periodo);
+  if (!parciales) return null;
+  const consecuencia = 'su «Diferencia» se compara contra el turno semanal completo.';
+  if (parciales.unica) return `El período no cubre la semana entera de lunes a domingo: ${consecuencia}`;
+  if (parciales.primera && parciales.ultima) return `La primera y la última semana del período están incompletas: ${consecuencia}`;
+  return `La ${parciales.primera ? 'primera' : 'última'} semana del período está incompleta: ${consecuencia}`;
 }

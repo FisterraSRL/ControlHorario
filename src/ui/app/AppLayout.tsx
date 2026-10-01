@@ -18,9 +18,10 @@ import { useSesion } from '../sesion/SesionProvider.js';
 import { usePeriodo } from '../periodo/PeriodoProvider.js';
 import {
   MODOS_PERIODO,
-  etiquetaAncla,
+  etiquetaPeriodo,
   etiquetaRango,
-  type ModoPeriodo,
+  hoyUTC,
+  type ModoPreset,
 } from '../periodo/periodo.js';
 import { pluralizar } from '../texto.js';
 import { AppShell } from './AppShell.js';
@@ -43,7 +44,7 @@ function valorContador(contadores: ContadoresNav, tipo: TipoContador): number {
 
 export function AppLayout() {
   const { pathname } = useLocation();
-  const { periodo, rango, cambiarModo, desplazar } = usePeriodo();
+  const { periodo, rango, cambiarModo, desplazar, fijarRango } = usePeriodo();
   const { registros, cargando } = useHistorial();
   const { sesion, repositorios, cerrar } = useSesion();
   // The engine config WITHOUT the decisions: `registros` already carries each day's motivo,
@@ -93,15 +94,21 @@ export function AppLayout() {
     <AppShell
       sidebar={<Sidebar items={items} rutaActiva={seccion?.path ?? pathname} />}
       topbar={
-        <Topbar<ModoPeriodo>
+        <Topbar<ModoPreset>
           titulo={seccion?.titulo ?? 'Control de Fichadas'}
           mostrarPeriodo={seccion?.muestraPeriodo ?? false}
           modos={modos}
-          modoActivo={periodo.modo}
+          // A hand-picked range is not a preset, so no segment is on while it is in force.
+          modoActivo={periodo.modo === 'rango' ? null : periodo.modo}
           onModo={cambiarModo}
           onDesplazar={desplazar}
-          etiquetaAncla={etiquetaAncla(periodo.ancla)}
-          etiquetaRango={etiquetaRango(rango)}
+          etiquetaAncla={etiquetaPeriodo(periodo)}
+          // The button already spells both ends of a range; the second label would repeat it.
+          etiquetaRango={periodo.modo === 'rango' ? null : etiquetaRango(rango)}
+          rango={rango}
+          // Read on every render rather than memoised: the app can stay open past midnight.
+          hoy={hoyUTC()}
+          onRango={fijarRango}
           operador={sesion?.operador.nombre ?? null}
           sinServidor={!repositorios.conServidor}
           onSalir={() => {

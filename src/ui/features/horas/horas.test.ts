@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { RegistroDia, SemanaEmpleado } from '../../../domain/fichadas/index.js';
-import { abiertasVisibles, alternarSemana, claveSemana, construirReporteHoras, csvDeHoras, desplegarTodas, lineaFichadas, rangoSemana, todasAbiertas } from './horas.js';
+import { crearPeriodo, crearRango } from '../../periodo/periodo.js';
+import { abiertasVisibles, alternarSemana, avisoSemanasParciales, claveSemana, construirReporteHoras, csvDeHoras, desplegarTodas, lineaFichadas, rangoSemana, todasAbiertas } from './horas.js';
 
 function dia(fecha: Date, horasBrutas = 480): RegistroDia {
   return { sector:'Administración', usuario:'Persona', dni:'20-00000000-0', legajo:'1', fecha, fechaStr:'14/09/2026', inicioSemana:'2026-09-14', cantidadMovimientos:2, movimientos:[480,960], turnoRaw:'08:00 - 16:00', esDiaLibre:false, esFlexible:false, inicioTurno:480, fichadasRequeridas:2, horasTurno:480, horasBrutas, cantidadTarde:0, partesRaw:'', descansoReal:0, faltas:[], tipoDia:'trabajo', motivoId:null, motivoSource:null, excluido:false };
@@ -59,5 +60,30 @@ describe('fichadas del día en el detalle', () => {
     const franco: RegistroDia = { ...base, movimientos:[], tipoDia:'libre', esDiaLibre:true };
     expect(lineaFichadas(franco)).toBeNull();
     expect(lineaFichadas({ ...franco, movimientos:[600], horasBrutas:0 })).toBe('10:00 · 0:00 trabajadas');
+  });
+});
+
+describe('aviso de semanas incompletas en el período', () => {
+  // September 2026: the 1st is a Tuesday, the 14th a Monday, the 20th and 27th Sundays.
+  const d = (n: number) => new Date(Date.UTC(2026, 8, n));
+
+  it('no avisa con una semana ni con un rango de lunes a domingo', () => {
+    expect(avisoSemanasParciales(crearPeriodo('semana', d(17)))).toBeNull();
+    expect(avisoSemanasParciales(crearRango(d(14), d(27)))).toBeNull();
+  });
+
+  it('nombra la semana que queda corta y por qué la diferencia engaña', () => {
+    expect(avisoSemanasParciales(crearRango(d(16), d(27)))).toMatch(/^La primera semana del período está incompleta: .*turno semanal completo/);
+    expect(avisoSemanasParciales(crearRango(d(14), d(24)))).toMatch(/^La última semana del período está incompleta/);
+    expect(avisoSemanasParciales(crearRango(d(16), d(24)))).toMatch(/^La primera y la última semana del período están incompletas/);
+  });
+
+  it('avisa también con el botón Mes, que corta semanas igual que un rango', () => {
+    expect(avisoSemanasParciales(crearPeriodo('mes', d(17)))).toMatch(/^La primera y la última semana del período están incompletas/);
+  });
+
+  it('un período dentro de una sola semana no habla de dos semanas', () => {
+    expect(avisoSemanasParciales(crearRango(d(15), d(17)))).toMatch(/^El período no cubre la semana entera/);
+    expect(avisoSemanasParciales(crearPeriodo('dia', d(17)))).toMatch(/^El período no cubre la semana entera/);
   });
 });

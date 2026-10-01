@@ -17,7 +17,7 @@ import { avisoMotivo } from '../../ausencias/opcionesMotivo.js';
 import { useConfiguracion } from '../../configuracion/ConfiguracionProvider.js';
 import { useHistorial } from '../../historial/HistorialProvider.js';
 import { usePeriodo } from '../../periodo/PeriodoProvider.js';
-import { abiertasVisibles, alternarSemana, construirReporteHoras, csvDeHoras, desplegarTodas, todasAbiertas } from './horas.js';
+import { abiertasVisibles, alternarSemana, avisoSemanasParciales, construirReporteHoras, csvDeHoras, desplegarTodas, todasAbiertas } from './horas.js';
 import { HorasScreen } from './HorasScreen.js';
 
 function descargarCsv(contenido: string): void {
@@ -32,7 +32,7 @@ function descargarCsv(contenido: string): void {
 export function HorasContainer() {
   const { registros, cargando } = useHistorial();
   const { paraElMotor } = useConfiguracion();
-  const { rango } = usePeriodo();
+  const { periodo, rango } = usePeriodo();
   const { asignarMotivo, error } = useAusencias();
   const [abiertas, setAbiertas] = useState<ReadonlySet<string>>(() => new Set());
   const [aviso, setAviso] = useState<string | null>(null);
@@ -53,6 +53,6 @@ export function HorasContainer() {
     abiertas={visibles} todasAbiertas={todasAbiertas(visibles, semanas)}
     onAlternar={(clave) => setAbiertas(alternarSemana(visibles, clave))}
     onAlternarTodas={(abrir) => setAbiertas(desplegarTodas(semanas, abrir))}
-    onMotivo={cambiarMotivo} error={error} aviso={aviso}
+    onMotivo={cambiarMotivo} error={error} aviso={aviso} semanasParciales={avisoSemanasParciales(periodo)}
     onExportar={() => descargarCsv(csvDeHoras(semanas))} />;
 }

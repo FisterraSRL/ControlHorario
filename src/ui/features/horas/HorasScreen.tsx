@@ -19,14 +19,17 @@ interface Props {
   readonly abiertas: ReadonlySet<string>; readonly todasAbiertas: boolean;
   readonly onAlternar: (clave: string) => void; readonly onAlternarTodas: (abrir: boolean) => void;
   readonly onMotivo: OnMotivo; readonly error: string | null; readonly aviso: string | null; readonly onExportar: () => void;
+  /** Why a hand-picked range's edge weeks read short; `null` when they are whole. */
+  readonly semanasParciales: string | null;
 }
 
-export function HorasScreen({ semanas, motivos, cargando, abiertas, todasAbiertas, onAlternar, onAlternarTodas, onMotivo, error, aviso, onExportar }: Props) {
+export function HorasScreen({ semanas, motivos, cargando, abiertas, todasAbiertas, onAlternar, onAlternarTodas, onMotivo, error, aviso, onExportar, semanasParciales }: Props) {
   const pendientes = semanas.reduce((n, s) => n + s.diasAusenciaSinClasificar, 0); let sectorAnterior = '';
   const opciones = opcionesMotivo(motivos);
   return <>
     {error && <div className="horas__aviso"><Alert tono="error" titulo="Algo no se pudo hacer">{error}</Alert></div>}
     {aviso && <div className="horas__aviso"><Alert tono="ok">{aviso}</Alert></div>}
+    {semanasParciales && <div className="horas__aviso"><Alert tono="info" titulo="Semanas incompletas">{semanasParciales}</Alert></div>}
     {pendientes > 0 && <div className="horas__aviso"><Alert tono="aviso" titulo={`${pluralizar(pendientes, 'día pendiente', 'días pendientes')} de clasificación`}>Clasificalos desplegando la semana o desde la pestaña Ausencias para incorporar las horas justificadas al cálculo.</Alert></div>}
     <Card titulo="Horas trabajadas (semanal, lunes a domingo)" bajada="Comparación entre horas de turno, horas trabajadas, descansos y ausencias justificadas." acciones={<>
       <Button variante="ghost" onClick={() => onAlternarTodas(!todasAbiertas)} disabled={semanas.length === 0}>{todasAbiertas ? 'Contraer todas' : 'Desplegar todas'}</Button>

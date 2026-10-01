@@ -24,6 +24,12 @@
   flex-wrap: wrap;
 }
 
+.topbar__navegacion {
+  display: flex;
+  align-items: center;
+  gap: var(--app-space-2);
+}
+
 .topbar__paso {
   display: flex;
   align-items: center;
@@ -42,12 +48,57 @@
   background: var(--app-surface-2);
 }
 
+/* The anchor label is the calendar's trigger. It keeps the look of the plain label it was —
+   centred, semibold, borderless — and gains a calendar glyph and a hover wash, so it reads
+   as text you can press rather than as one more boxed button next to the arrows. */
+.topbar__selector {
+  display: flex;
+}
+
 .topbar__ancla {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--app-space-1);
   min-width: 11ch;
-  text-align: center;
+  height: 30px;
+  padding: 0 var(--app-space-2);
+  border: 1px solid transparent;
+  border-radius: var(--app-radius);
+  background: transparent;
+  color: var(--app-ink);
+  font: inherit;
   font-size: var(--app-text-sm);
   font-weight: var(--fs-weight-semibold);
   font-variant-numeric: var(--app-numeric);
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background var(--app-transition),
+    border-color var(--app-transition);
+}
+
+.topbar__ancla .icon {
+  width: 16px;
+  height: 16px;
+  color: var(--app-muted);
+}
+
+.topbar__ancla:hover,
+.topbar__ancla[aria-expanded='true'] {
+  background: var(--app-surface-2);
+  border-color: var(--app-border);
+}
+
+/* Fixed and positioned from the trigger by the component (see `ubicar` in Topbar.tsx). */
+.topbar__popover {
+  position: fixed;
+  z-index: 20;
+  padding: var(--app-space-3);
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-lg);
+  box-shadow: var(--app-shadow-lg);
 }
 
 .topbar__rango {

@@ -20,7 +20,8 @@ export type NombreIcono =
   | 'usuarios'
   | 'cuenta'
   | 'anterior'
-  | 'siguiente';
+  | 'siguiente'
+  | 'calendario';
 
 const TRAZOS: Readonly<Record<NombreIcono, readonly string[]>> = {
   carga: ['M12 16V4', 'M7 9l5-5 5 5', 'M4 20h16'],
@@ -35,6 +36,7 @@ const TRAZOS: Readonly<Record<NombreIcono, readonly string[]>> = {
   cuenta: ['M20 21v-2a5 5 0 0 0-5-5H9a5 5 0 0 0-5 5v2', 'M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8'],
   anterior: ['M15 5l-7 7 7 7'],
   siguiente: ['M9 5l7 7-7 7'],
+  calendario: ['M4.5 6h15v14h-15z', 'M4.5 10.5h15', 'M8.5 3.5v4', 'M15.5 3.5v4'],
 };
 
 const CIRCULOS: Partial<Record<NombreIcono, readonly (readonly [number, number])[]>> = {

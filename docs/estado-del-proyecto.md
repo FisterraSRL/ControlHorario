@@ -54,6 +54,39 @@ también, porque `etiquetaRango` ya deletrea ambos extremos. El caso que rompe u
 implementación ingenua es el domingo, que en `getUTCDay()` es `0` y no `7`: pertenece a la
 semana que abrió el lunes anterior. Está cubierto en `src/ui/periodo/periodo.test.ts`.
 
+#### Rango elegido en el calendario
+
+La etiqueta del ancla es un botón que abre un mini-calendario
+(`src/ui/components/molecules/Calendario/`, sin dependencias). El primer click fija la fecha
+desde, la pista pasa a «Elegí la fecha hasta» y el puntero o el foco de teclado previsualizan la
+banda; el segundo click fija la fecha hasta y cierra. Si el segundo día es anterior se invierten,
+y el mismo día dos veces es un rango de un día. Esc y un click afuera cierran sin cambiar nada.
+
+- **Modelo.** `Periodo` es una unión discriminada: `PeriodoPreset { modo, ancla }` para
+  `dia`/`semana`/`mes`/`anio` y `PeriodoRango { modo: 'rango', desde, hasta }`. Todo `switch`
+  sobre `modo` tiene que decidir qué hace con un rango; `rangoDelPeriodo` lo devuelve tal cual,
+  así que las pantallas y los contadores del menú no cambiaron. `crearRango` es la única forma
+  de construirlo: normaliza a medianoche UTC e invierte si hace falta.
+- **Flechas.** Un rango se desplaza en bloques de su propio largo (10/09 – 16/09 → 17/09 – 23/09),
+  sin repetir días.
+- **Cambio de modo.** Desde un rango, elegir un preset lo ancla en la fecha `desde`.
+- **Header.** Con un rango no hay segmento activo (`SegmentedControl` acepta `valor: null`) y
+  el botón muestra `dd/mm/aaaa – dd/mm/aaaa`; la segunda etiqueta de rango se oculta porque
+  repetiría lo mismo.
+- **Teclado.** Un único punto de tabulación en la grilla; flechas por día y semana,
+  Inicio/Fin al lunes/domingo, RePág/AvPág por mes y con Shift por año, Enter/Espacio eligen.
+  El foco vuelve al botón al cerrar con Esc o al elegir. La selección se expone como
+  `aria-selected` en la celda y con forma (extremos rellenos, banda, anillo en hoy).
+- **UTC.** La grilla se arma con `Date.UTC` y `getUTC*`. `grillaMes.test.ts` corre bajo
+  `America/Argentina/Buenos_Aires` y compara cadenas ISO completas: un día construido en hora
+  local (03:00Z en UTC-3) falla ahí aunque la máquina esté en UTC.
+- **Horas trabajadas.** Un período que no empieza en lunes o no termina en domingo muestra un
+  aviso informativo: la primera/última semana queda incompleta y su «Diferencia» se compara
+  contra el turno semanal completo, porque `reporteSemanal` usa un turno semanal fijo. El cálculo
+  no cambió. `semanasParciales` lee la ventana y no el modo: el preset Mes corta semanas igual
+  que un rango elegido a mano (octubre de 2026 empieza un jueves), y lo mismo Día. Sólo Semana,
+  o un rango de lunes a domingo, no avisa.
+
 ## Funcionalidad terminada
 
 - Login, logout, sesiones revocables, rate limit y cambio de la propia contraseña.
@@ -70,6 +103,8 @@ semana que abrió el lunes anterior. Está cubierto en `src/ui/periodo/periodo.t
 - Pantalla Indicador: faltas por clase y totales del período, sobre la misma agrupación.
 - Horas trabajadas: detalle por día con las fichadas, «Desplegar todas» y clasificación del
   motivo de cada ausencia desde el detalle (ver «Horas trabajadas»).
+- Mini-calendario en el header para elegir un rango Desde/Hasta en dos clicks (ver «Rango
+  elegido en el calendario»).
 - Frontend y API desplegados; tres migraciones aplicadas.
 
 Ninguna pantalla es ya un placeholder. `src/ui/app/PlaceholderScreen.tsx` quedó sin
@@ -334,7 +369,13 @@ flotando 50px a la derecha del resto. En el login va centrado arriba del panel.
 
 ## Pruebas
 
-El baseline esperado es **475 pruebas en 34 archivos**. El motivo tomado de la nota sumó 21
+El baseline esperado es **514 pruebas en 35 archivos**. El rango elegido en el calendario sumó
+39 sobre las 475 en 34: 21 en el archivo nuevo
+`src/ui/components/molecules/Calendario/grillaMes.test.ts` (grilla de lunes a domingo, la
+trampa UTC bajo UTC-3, los dos clicks, la banda, el teclado y los textos), 14 en
+`periodo.test.ts` (construcción e inversión del rango, desplazamiento por su largo, cambio de
+modo, etiqueta, semanas parciales —también para Mes y Día— y `hoyUTC` a las 22:30 en UTC-3) y 4
+en `horas.test.ts` (el aviso de semanas incompletas, incluido el del botón Mes). El motivo tomado de la nota sumó 21
 sobre las 454 en 33: la pasada por etiqueta (prioridad de los patrones fijos, acentos y
 mayúsculas, palabra completa, la etiqueta más larga, motivo retirado, sin lista), su efecto en
 `construirRegistroDia` (origen `partes`, la decisión humana gana, el id 8 sigue levantando

@@ -7,15 +7,20 @@ export interface OpcionSegmento<T extends string> {
 
 export interface SegmentedControlProps<T extends string> {
   readonly opciones: readonly OpcionSegmento<T>[];
-  readonly valor: T;
+  /**
+   * `null` selects nothing: the value in force is not one of the options (the período's
+   * hand-picked range is not a preset). Pressing any option still selects it.
+   */
+  readonly valor: T | null;
   readonly onCambio: (valor: T) => void;
   /** Names the group for screen readers, e.g. "Modo de período". */
   readonly etiqueta: string;
 }
 
 /**
- * Presentational. A radio group, not a row of buttons: exactly one option is always
- * selected, and arrow keys should move between them the way a radio group does.
+ * Presentational. A radio group, not a row of buttons: at most one option is selected —
+ * exactly one unless `valor` is `null` — and arrow keys should move between them the way a
+ * radio group does.
  */
 export function SegmentedControl<T extends string>({
   opciones,
