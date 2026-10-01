@@ -98,7 +98,9 @@ export function construirRegistroDia(
       motivoId = guardada.motivoId;
       motivoSource = guardada.motivoSource ?? 'manual';
     } else {
-      const desdePartes = clasificarPartes(partesRaw);
+      // Fixed note patterns first, then the labels of the active motivos. Either way it is
+      // machine-derived, so it stays 'partes': a re-upload may refresh it, a person overrides it.
+      const desdePartes = clasificarPartes(partesRaw, cfg.motivos);
       if (desdePartes) {
         motivoId = desdePartes;
         motivoSource = 'partes';

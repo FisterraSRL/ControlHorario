@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { appConSesion, sesionDePrueba } from './pruebas/dobles.js';
 import type { RepositorioConfiguracionAzureSql } from './repositorioConfiguracion.js';
 import { registrarRutasConfiguracion } from './rutasConfiguracion.js';
+import type { DependenciasSincronizacion } from './sincronizacionAusencias.js';
 import type { Sesion } from './sesiones.js';
 
 /** Every write throws: a route that reaches the repository has already failed this test. */
@@ -51,15 +52,70 @@ const ESCRITURAS = [
   { method: 'DELETE' as const, url: '/api/configuracion/exclusiones', payload: { dni: '11000001' } },
 ];
 
+/** The registry re-derivation, recording each step into the same trail as the writes. */
+function sincronizacionRegistradora(
+  tocado: string[],
+  falla = false,
+): Pick<DependenciasSincronizacion, 'fichadas' | 'ausencias'> {
+  return {
+    fichadas: {
+      listar: (alcance) => {
+        tocado.push(`listar:${alcance === null ? 'todo' : 'recortado'}`);
+        return Promise.resolve([]);
+      },
+    },
+    ausencias: {
+      sincronizar: (_filas, cfg, actor) => {
+        tocado.push(`sincronizar:${actor}:${(cfg.motivos ?? []).map((m) => m.id).join(',')}`);
+        if (falla) return Promise.reject(new Error('se cayó la conexión'));
+        return Promise.resolve({ vigentes: 0, creadas: 0, refrescadas: 0, podadas: 0 });
+      },
+    },
+  };
+}
+
+/** A repository whose motivo writes succeed, recording the order of every call. */
+function repositorioDeMotivos(tocado: string[], retirado = true): RepositorioConfiguracionAzureSql {
+  return {
+    ...repositorioIntocable(tocado),
+    paraElMotor: () => {
+      tocado.push('paraElMotor');
+      return Promise.resolve({ motivos: [{ id: 10, label: 'Trámite médico', worked: true }] });
+    },
+    crearMotivo: (label, worked) => {
+      tocado.push('crearMotivo');
+      return Promise.resolve({ id: 10, label, worked });
+    },
+    editarMotivo: (id, worked) => {
+      tocado.push('editarMotivo');
+      return Promise.resolve({ id, label: 'Trámite médico', worked });
+    },
+    retirarMotivo: () => {
+      tocado.push('retirarMotivo');
+      return Promise.resolve(retirado);
+    },
+  };
+}
+
 let app: FastifyInstance | null = null;
 
-async function levantar(sesion: Sesion): Promise<{
+async function levantar(
+  sesion: Sesion,
+  opciones: {
+    readonly repositorio?: (tocado: string[]) => RepositorioConfiguracionAzureSql;
+    readonly fallaSincronizacion?: boolean;
+  } = {},
+): Promise<{
   readonly app: FastifyInstance;
   readonly tocado: string[];
 }> {
   const tocado: string[] = [];
+  const repositorio = (opciones.repositorio ?? repositorioIntocable)(tocado);
   app = await appConSesion(sesion, (instancia) => {
-    registrarRutasConfiguracion(instancia, { repositorio: repositorioIntocable(tocado) });
+    registrarRutasConfiguracion(instancia, {
+      repositorio,
+      ...sincronizacionRegistradora(tocado, opciones.fallaSincronizacion),
+    });
   });
   return { app, tocado };
 }
@@ -111,5 +167,79 @@ describe('Configuración con una sesión de RRHH', () => {
 
     expect(respuesta.statusCode).not.toBe(403);
     expect(tocado).toEqual(['guardarParametros']);
+  });
+});
+
+describe('Crear o retirar un motivo vuelve a derivar el registro de ausencias', () => {
+  const RESINCRONIZACION = ['paraElMotor', 'listar:todo', 'sincronizar:rrhh@ejemplo.test:10'];
+
+  it('crear un motivo sincroniza después de escribirlo y antes de responder', async () => {
+    const { app: servidor, tocado } = await levantar(sesionDePrueba({ rol: 'admin' }), {
+      repositorio: repositorioDeMotivos,
+    });
+
+    const respuesta = await servidor.inject({
+      method: 'POST',
+      url: '/api/configuracion/motivos',
+      payload: { label: 'Trámite médico', worked: true },
+    });
+
+    expect(respuesta.statusCode).toBe(201);
+    // The sync reads the configuration AFTER the write, so the new motivo is in its list.
+    expect(tocado).toEqual(['crearMotivo', ...RESINCRONIZACION]);
+  });
+
+  it('retirar un motivo sincroniza para que su etiqueta deje de aplicarse', async () => {
+    const { app: servidor, tocado } = await levantar(sesionDePrueba({ rol: 'admin' }), {
+      repositorio: repositorioDeMotivos,
+    });
+
+    const respuesta = await servidor.inject({ method: 'DELETE', url: '/api/configuracion/motivos/10' });
+
+    expect(respuesta.statusCode).toBe(204);
+    expect(tocado).toEqual(['retirarMotivo', ...RESINCRONIZACION]);
+  });
+
+  it('un motivo que no existía no sincroniza nada', async () => {
+    const { app: servidor, tocado } = await levantar(sesionDePrueba({ rol: 'admin' }), {
+      repositorio: (t) => repositorioDeMotivos(t, false),
+    });
+
+    const respuesta = await servidor.inject({ method: 'DELETE', url: '/api/configuracion/motivos/99' });
+
+    expect(respuesta.statusCode).toBe(404);
+    expect(tocado).toEqual(['retirarMotivo']);
+  });
+
+  it('cambiar si un motivo cuenta como trabajado no sincroniza: ningún id cambia', async () => {
+    const { app: servidor, tocado } = await levantar(sesionDePrueba({ rol: 'admin' }), {
+      repositorio: repositorioDeMotivos,
+    });
+
+    const respuesta = await servidor.inject({
+      method: 'PATCH',
+      url: '/api/configuracion/motivos/10',
+      payload: { worked: false },
+    });
+
+    expect(respuesta.statusCode).toBe(200);
+    expect(tocado).toEqual(['editarMotivo']);
+  });
+
+  it('si la sincronización falla, el motivo creado sigue siendo un 201', async () => {
+    const { app: servidor, tocado } = await levantar(sesionDePrueba({ rol: 'admin' }), {
+      repositorio: repositorioDeMotivos,
+      fallaSincronizacion: true,
+    });
+
+    const respuesta = await servidor.inject({
+      method: 'POST',
+      url: '/api/configuracion/motivos',
+      payload: { label: 'Trámite médico', worked: true },
+    });
+
+    expect(respuesta.statusCode).toBe(201);
+    expect(respuesta.json()).toMatchObject({ motivo: { id: 10 } });
+    expect(tocado).toEqual(['crearMotivo', ...RESINCRONIZACION]);
   });
 });

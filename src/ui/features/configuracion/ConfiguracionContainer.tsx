@@ -4,8 +4,9 @@
  * and hands plain rows to the screen.
  */
 
-import { useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 
+import { useAusencias } from '../../ausencias/AusenciasProvider.js';
 import { useConfiguracion } from '../../configuracion/ConfiguracionProvider.js';
 import type { ParametrosConfiguracion } from '../../configuracion/RepositorioConfiguracion.js';
 import { useHistorial } from '../../historial/HistorialProvider.js';
@@ -31,6 +32,21 @@ export function ConfiguracionContainer() {
     agregarExclusion,
     quitarExclusion,
   } = useConfiguracion();
+
+  const { recargar: recargarAusencias } = useAusencias();
+
+  /**
+   * Creating or retiring a motivo re-derives the absence registry on the server, because the
+   * QUICKPASS note is matched against the labels of the active motivos. Reloading it here is
+   * what keeps Ausencias (the persisted registry) and Horas (the engine, which already sees
+   * the new list) showing the same motivo for the same day.
+   */
+  const recargarSiCambio = useCallback(
+    async (cambio: boolean) => {
+      if (cambio) await recargarAusencias();
+    },
+    [recargarAusencias],
+  );
 
   const personas = useMemo(() => personasDelHistorial(registros), [registros]);
 
@@ -68,10 +84,10 @@ export function ConfiguracionContainer() {
         void editarMotivo(id, worked);
       }}
       onMotivoNuevo={(label, worked) => {
-        void crearMotivo(label, worked);
+        void crearMotivo(label, worked).then(recargarSiCambio);
       }}
       onMotivoRetirar={(id) => {
-        void retirarMotivo(id);
+        void retirarMotivo(id).then(recargarSiCambio);
       }}
       onExcluir={(dni) => {
         void agregarExclusion(dni, null);

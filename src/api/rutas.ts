@@ -33,7 +33,6 @@ import type { FastifyInstance } from 'fastify';
 import type { FilaQuickpass } from '../domain/fichadas/tipos.js';
 import { alcanceDeSectores, operadorDe, SOLO_RRHH } from './autenticacion.js';
 import type { ConfiguracionApi } from './config.js';
-import { errorDbParaLog } from './errores.js';
 import { contarMigracionesAplicadas } from './migraciones.js';
 import { ESQUEMA_CUERPO_UPSERT } from './esquemas.js';
 import { ESQUEMA, type Pool } from './db.js';
@@ -41,6 +40,7 @@ import type { RepositorioAusenciasAzureSql } from './repositorioAusencias.js';
 import type { RepositorioConfiguracionAzureSql } from './repositorioConfiguracion.js';
 import type { RepositorioFichadasAzureSql } from './repositorioAzureSql.js';
 import { responderErrorDb } from './respuestas.js';
+import { resincronizarAusencias } from './sincronizacionAusencias.js';
 
 /**
  * `cargas.archivo` is NOT NULL and it should hold the name of the spreadsheet. The port
@@ -164,19 +164,14 @@ export async function registrarRutas(
          *
          * A failure here is NOT a failed upload. The evidence is committed and the operator
          * must not be told otherwise; the registry is derived and the next upload rebuilds
-         * it. So it is logged and the 200 stands.
+         * it. So `resincronizarAusencias` logs it and the 200 stands. The same pass runs when
+         * a motivo is created or retired; see `sincronizacionAusencias.ts`.
          */
-        try {
-          const cfg = await configuracion.paraElMotor();
-          // Unscoped on purpose, and this is the one call that must be: the registry is
-          // re-derived for the WHOLE company, and a sector-shaped view of the evidence would
-          // prune every registry row outside it as if the day had stopped being an absence.
-          const filas = await repositorio.listar(null);
-          const sincronizacion = await ausencias.sincronizar(filas, cfg, operador.email);
-          peticion.log.info({ evento: 'ausencias_sincronizadas', ...sincronizacion }, 'registro de ausencias al día');
-        } catch (e: unknown) {
-          peticion.log.error(errorDbParaLog(e), 'no se pudo sincronizar el registro de ausencias');
-        }
+        await resincronizarAusencias(
+          { fichadas: repositorio, ausencias, configuracion },
+          operador.email,
+          peticion.log,
+        );
 
         return await respuesta.send(resultado);
       } catch (e: unknown) {

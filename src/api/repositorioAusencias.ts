@@ -134,6 +134,10 @@ function aRegistro(f: FilaRegistro): AusenciaRegistrada {
  * back the motivo already on record — which is the right answer for a screen and the wrong
  * one here, because this function's whole job is to produce what the EVIDENCE says so that
  * the SQL below can decide whether the evidence may overwrite the record.
+ *
+ * `cfg.motivos` IS passed in, and must be the active list (`paraElMotor` reads it that way):
+ * the note is also matched against motivo labels, and the screen runs the engine with that
+ * same list, so both sides agree on which motivo the note names.
  */
 interface DiaVigente {
   readonly dni: string;

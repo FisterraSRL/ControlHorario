@@ -25,7 +25,11 @@
  */
 
 import { construirRegistroDia } from '../../domain/fichadas/index.js';
-import type { OrigenMotivo } from '../../domain/fichadas/index.js';
+import type {
+  ConfiguracionFichadas,
+  Motivo,
+  OrigenMotivo,
+} from '../../domain/fichadas/index.js';
 import { ErrorRepositorio, type RepositorioFichadas } from '../historial/RepositorioFichadas.js';
 import {
   claveRegistro,
@@ -56,9 +60,15 @@ function almacenDisponible(): Storage | null {
   }
 }
 
+/**
+ * `motivosActivos` is where the engine reads the motivos whose labels it matches the
+ * QUICKPASS note against — the offline configuration, the same list the screen runs the
+ * engine with. Without it the note is classified by the fixed patterns only.
+ */
 export function crearRepositorioAusenciasLocal(
   fichadas: RepositorioFichadas,
   storage: Storage | null = almacenDisponible(),
+  motivosActivos?: () => Promise<readonly Motivo[]>,
 ): RepositorioAusencias {
   let memoria: MapaDecisiones = {};
 
@@ -100,13 +110,15 @@ export function crearRepositorioAusenciasLocal(
     async listar() {
       const decisiones = leer();
       const filas = await fichadas.listar();
+      const motivos = motivosActivos ? await motivosActivos() : undefined;
+      const cfg: ConfiguracionFichadas = motivos ? { motivos } : {};
       const salida: AusenciaRegistrada[] = [];
       const vistas = new Set<string>();
 
       for (const fila of filas) {
-        // No cfg: `tipoDia` and the motivo the QUICKPASS note implies depend on neither the
-        // sector rules nor the thresholds. See `construirRegistroDia`.
-        const registro = construirRegistroDia(fila);
+        // Only the motivos: `tipoDia` and the motivo the QUICKPASS note implies depend on
+        // neither the sector rules nor the thresholds. See `construirRegistroDia`.
+        const registro = construirRegistroDia(fila, cfg);
         if (registro.tipoDia !== 'ausencia' || !registro.dni) continue;
         const fechaIso = fechaIsoDesdeAR(registro.fechaStr);
         // A day with no readable date is a day Postgres could not store either; the two

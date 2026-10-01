@@ -104,3 +104,36 @@ describe('clasificación en lote sin servidor', () => {
     expect(storage.getItem('controlhorario.ausencias.v1')).toBeNull();
   });
 });
+
+describe('registro sin servidor y motivos creados en Configuración', () => {
+  const fichadas = {
+    listar: () =>
+      Promise.resolve([
+        {
+          DNI: '1',
+          Fecha: '05/01/2026',
+          Turno: '08:00 - 17:00',
+          Movimientos: '',
+          Partes: 'Trámite médico',
+        },
+      ]),
+  } as unknown as RepositorioFichadas;
+
+  it('toma de la nota el motivo activo que nombra, igual que el servidor', async () => {
+    const repo = crearRepositorioAusenciasLocal(fichadas, almacen(), () =>
+      Promise.resolve([{ id: 10, label: 'Tramite medico', worked: true }]),
+    );
+
+    const [fila] = await repo.listar();
+
+    expect([fila?.motivoId, fila?.motivoSource]).toEqual([10, 'partes']);
+  });
+
+  it('sin la lista de motivos sólo reconoce los patrones fijos', async () => {
+    const repo = crearRepositorioAusenciasLocal(fichadas, almacen());
+
+    const [fila] = await repo.listar();
+
+    expect([fila?.motivoId, fila?.motivoSource]).toEqual([null, null]);
+  });
+});

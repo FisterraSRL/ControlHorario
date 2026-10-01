@@ -80,7 +80,11 @@ export interface ConfiguracionFichadas {
   readonly reglasSector?: Readonly<Record<string, number>>;
   /** DNIs excluded from disciplinary notifications. Their hours still count. */
   readonly dniExcluidos?: readonly string[];
-  /** Closed list of motivos. Defaults to `MOTIVOS_POR_DEFECTO`. */
+  /**
+   * The ACTIVE motivos. The weekly report defaults it to `MOTIVOS_POR_DEFECTO`; the note
+   * classifier matches its labels when no fixed pattern does (`clasificarPartes`) and, when
+   * it is absent, runs the fixed patterns only.
+   */
   readonly motivos?: readonly Motivo[];
   /** Absences already resolved by a human, keyed `${dni}|${fechaStr}`. */
   readonly ausencias?: Readonly<Record<string, AusenciaRegistrada>>;

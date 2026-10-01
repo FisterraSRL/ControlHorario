@@ -66,14 +66,21 @@ export function crearRepositorios(): Repositorios {
       'comparten con nadie y se pierden si se borran los datos del sitio.',
   );
   const fichadas = crearRepositorioLocal();
+  const configuracion = crearRepositorioConfiguracionLocal();
   return {
     conServidor: false,
     sesion: crearRepositorioSesionLocal(),
     fichadas,
     // The offline registry is derived from the historial on every read, so it needs the
-    // historial adapter rather than a store of its own. See its header.
-    ausencias: crearRepositorioAusenciasLocal(fichadas),
-    configuracion: crearRepositorioConfiguracionLocal(),
+    // historial adapter rather than a store of its own. See its header. It also needs the
+    // active motivos, whose labels the QUICKPASS note is matched against, exactly as the
+    // server's sync and the screen's engine do.
+    ausencias: crearRepositorioAusenciasLocal(
+      fichadas,
+      undefined,
+      async () => (await configuracion.leer()).motivos,
+    ),
+    configuracion,
     adjuntos: crearRepositorioAdjuntosLocal(),
     usuarios: null,
   };

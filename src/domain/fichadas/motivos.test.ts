@@ -8,6 +8,7 @@ import {
   clasificarPartes,
   indiceMotivosTrabajados,
 } from './motivos.js';
+import type { Motivo } from './tipos.js';
 
 describe('clasificarPartes', () => {
   const casos: ReadonlyArray<readonly [string, string, number | null]> = [
@@ -45,6 +46,66 @@ describe('clasificarPartes', () => {
     const iAutorizado = PARTES_MAP.findIndex(([, id]) => id === 6);
     expect(iRecupera).toBeGreaterThanOrEqual(0);
     expect(iRecupera).toBeLessThan(iAutorizado);
+  });
+});
+
+describe('clasificarPartes — by motivo label', () => {
+  const creados: readonly Motivo[] = [
+    ...MOTIVOS_POR_DEFECTO,
+    { id: 10, label: 'Licencia', worked: true },
+    { id: 11, label: 'Licencia por examen', worked: true },
+    { id: 12, label: 'Paro', worked: false },
+    { id: 13, label: 'Trámite médico', worked: true },
+  ];
+
+  it('recognises a motivo created in Configuración when the note names it', () => {
+    expect(clasificarPartes('Paro de transporte', creados)).toBe(12);
+  });
+
+  it('ignores case and accents on both sides', () => {
+    expect(clasificarPartes('TRAMITE MEDICO en el hospital', creados)).toBe(13);
+    expect(clasificarPartes('trámite   médico', creados)).toBe(13);
+  });
+
+  it('matches whole words only: label "Paro" does not match "Parodi"', () => {
+    expect(clasificarPartes('Habló con Parodi', creados)).toBeNull();
+    expect(clasificarPartes('Paro.', creados)).toBe(12);
+  });
+
+  it('lets the longest label named win, because it is the most specific', () => {
+    expect(clasificarPartes('Licencia por examen final', creados)).toBe(11);
+    expect(clasificarPartes('Licencia', creados)).toBe(10);
+  });
+
+  it('breaks a tie between equally long labels by the lowest id, whatever the list order', () => {
+    const empatados: readonly Motivo[] = [
+      { id: 21, label: 'Mudanza', worked: true },
+      { id: 20, label: 'Casamie', worked: true },
+    ];
+    expect(clasificarPartes('Mudanza y Casamie', empatados)).toBe(20);
+  });
+
+  it('keeps every fixed pattern ahead of any label', () => {
+    // "Feriado" is the fixed pattern for id 5; a created label in the same note never wins.
+    const conFeriado: readonly Motivo[] = [{ id: 30, label: 'Feriado puente', worked: false }];
+    expect(clasificarPartes('Feriado puente', conFeriado)).toBe(5);
+    // And the payroll rule between the fixed patterns still holds with labels present.
+    expect(clasificarPartes('Recupera Horas - Autorizado', creados)).toBe(ID_RECUPERA_HORAS);
+  });
+
+  it('never matches a retired motivo: only the list it is given counts', () => {
+    // The list is the ACTIVE motivos; a retired one is simply not in it.
+    const activos = creados.filter((m) => m.id !== 12);
+    expect(clasificarPartes('Paro de transporte', activos)).toBeNull();
+  });
+
+  it('ignores a label that normalises to nothing', () => {
+    expect(clasificarPartes('cualquier nota', [{ id: 40, label: '  ', worked: true }])).toBeNull();
+  });
+
+  it('without motivos behaves exactly as before: fixed patterns only', () => {
+    expect(clasificarPartes('Paro de transporte')).toBeNull();
+    expect(clasificarPartes('Vacaciones')).toBe(7);
   });
 });
 

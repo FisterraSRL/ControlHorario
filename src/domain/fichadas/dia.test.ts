@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { claveAusencia, construirRegistroDia } from './dia.js';
-import { ID_OLVIDO_FICHAR, ID_RECUPERA_HORAS } from './motivos.js';
+import { ID_OLVIDO_FICHAR, ID_RECUPERA_HORAS, MOTIVOS_POR_DEFECTO } from './motivos.js';
 import type { ConfiguracionFichadas, FilaQuickpass, TipoFalta } from './tipos.js';
 
 /** A plausible full-day row. Every test overrides only the cells it is about. */
@@ -92,6 +92,27 @@ describe('construirRegistroDia — ausencia', () => {
     expect(r.motivoSource).toBe('partes');
   });
 
+  it('takes a motivo created in Configuración from its label in the note, as partes', () => {
+    const cfg: ConfiguracionFichadas = {
+      motivos: [...MOTIVOS_POR_DEFECTO, { id: 10, label: 'Trámite médico', worked: true }],
+    };
+    const r = construirRegistroDia(fila({ Movimientos: '', Partes: 'tramite medico' }), cfg);
+    expect(r.tipoDia).toBe('ausencia');
+    expect(r.motivoId).toBe(10);
+    expect(r.motivoSource).toBe('partes');
+    expect(r.faltas).toEqual([]);
+  });
+
+  it('lets a human decision win over a label match', () => {
+    const cfg: ConfiguracionFichadas = {
+      motivos: [...MOTIVOS_POR_DEFECTO, { id: 10, label: 'Trámite médico', worked: true }],
+      ausencias: { [claveAusencia('30111222', '05/02/2025')]: { motivoId: 1 } },
+    };
+    const r = construirRegistroDia(fila({ Movimientos: '', Partes: 'Trámite médico' }), cfg);
+    expect(r.motivoId).toBe(1);
+    expect(r.motivoSource).toBe('manual');
+  });
+
   it('keys the stored absence by the raw Fecha cell, not by a reformatted date', () => {
     const cfg: ConfiguracionFichadas = {
       ausencias: { ['30111222|2025-02-05']: { motivoId: 3 } },
@@ -129,6 +150,24 @@ describe('construirRegistroDia — "Olvidó fichar" es el único motivo dual', (
     const r = construirRegistroDia(fila({ Movimientos: '' }), cfg);
     expect(tipos(r.faltas)).toEqual(['incompleta']);
     expect(r.faltas[0]?.detalle).toBe('0 de 4 fichadas — parte QUICKPASS: ');
+  });
+
+  it('still raises the fault with the motivos configured, whichever pass named it', () => {
+    const conDefectos: ConfiguracionFichadas = { motivos: MOTIVOS_POR_DEFECTO };
+    const porPatron = construirRegistroDia(
+      fila({ Movimientos: '', Partes: 'Olvidó fichar (x1)' }),
+      conDefectos,
+    );
+    expect(porPatron.motivoId).toBe(ID_OLVIDO_FICHAR);
+    expect(tipos(porPatron.faltas)).toEqual(['incompleta']);
+
+    // The fault hangs off the motivo id, not off the pattern: id 8 named by its label raises it too.
+    const porEtiqueta = construirRegistroDia(fila({ Movimientos: '', Partes: 'sin marca' }), {
+      motivos: [{ id: ID_OLVIDO_FICHAR, label: 'Sin marca', worked: true }],
+    });
+    expect(porEtiqueta.motivoId).toBe(ID_OLVIDO_FICHAR);
+    expect(porEtiqueta.motivoSource).toBe('partes');
+    expect(tipos(porEtiqueta.faltas)).toEqual(['incompleta']);
   });
 
   it('with partial punches: the day is trabajo and the note is appended to the detail', () => {

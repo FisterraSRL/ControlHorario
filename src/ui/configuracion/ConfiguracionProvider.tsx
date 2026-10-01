@@ -31,9 +31,15 @@ interface ContextoConfiguracion {
   readonly error: string | null;
   guardarParametros(cambios: Partial<ParametrosConfiguracion>): Promise<void>;
   guardarReglaSector(sector: string, fichadasRequeridas: number): Promise<void>;
-  crearMotivo(label: string, worked: boolean): Promise<void>;
+  /**
+   * `true` when the motivo was created. Reported rather than thrown, like
+   * `useAusencias().asignarMotivo`: the caller only needs to know whether to reload the
+   * absence registry, which the server re-derives against the new list of motivos.
+   */
+  crearMotivo(label: string, worked: boolean): Promise<boolean>;
   editarMotivo(id: number, worked: boolean): Promise<void>;
-  retirarMotivo(id: number): Promise<void>;
+  /** `true` when the motivo was retired. Same contract, same reason as `crearMotivo`. */
+  retirarMotivo(id: number): Promise<boolean>;
   agregarExclusion(dni: string, motivoTexto: string | null): Promise<void>;
   quitarExclusion(dni: string): Promise<void>;
 }
@@ -132,13 +138,15 @@ export function ConfiguracionProvider({ children }: { readonly children: ReactNo
   );
 
   const crearMotivo = useCallback(
-    async (label: string, worked: boolean) => {
+    async (label: string, worked: boolean): Promise<boolean> => {
       setError(null);
       try {
         const motivo = await repo.crearMotivo(label, worked);
         aplicar((previa) => ({ ...previa, motivos: [...previa.motivos, motivo] }));
+        return true;
       } catch (e: unknown) {
         manejar(e);
+        return false;
       }
     },
     [repo, aplicar, manejar],
@@ -161,7 +169,7 @@ export function ConfiguracionProvider({ children }: { readonly children: ReactNo
   );
 
   const retirarMotivo = useCallback(
-    async (id: number) => {
+    async (id: number): Promise<boolean> => {
       setError(null);
       try {
         await repo.retirarMotivo(id);
@@ -169,8 +177,10 @@ export function ConfiguracionProvider({ children }: { readonly children: ReactNo
           ...previa,
           motivos: previa.motivos.filter((m: Motivo) => m.id !== id),
         }));
+        return true;
       } catch (e: unknown) {
         manejar(e);
+        return false;
       }
     },
     [repo, aplicar, manejar],

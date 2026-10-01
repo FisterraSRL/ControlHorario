@@ -61,6 +61,8 @@ semana que abrió el lunes anterior. Está cubierto en `src/ui/periodo/periodo.t
 - Administración de usuarios: listar, crear, activar/desactivar y restablecer contraseña.
 - Carga y persistencia del historial QUICKPASS.
 - Configuración de parámetros, reglas por sector, motivos y exclusiones.
+- Motivo inferido de la nota QUICKPASS, también por la etiqueta de un motivo creado en
+  Configuración (ver «Motivo tomado de la nota QUICKPASS»).
 - Registro/clasificación de ausencias y adjuntos, de a un día o en lote (ver «Clasificación en
   lote»).
 - Generador de notificaciones Word puro en `src/notificaciones`, con fixtures golden.
@@ -279,9 +281,48 @@ clasificar) o si supera los 500 días.
 `Checkbox` ganó dos props opcionales: `indeterminado` y `etiquetaOculta` (etiqueta sólo para
 lectores de pantalla). Las pantallas que ya lo usaban no cambian.
 
+## Motivo tomado de la nota QUICKPASS
+
+Cuando nadie fichó, `clasificarPartes` (`src/domain/fichadas/motivos.ts`) infiere el motivo de
+la nota QUICKPASS en dos pasadas, y el orden es la regla:
+
+1. Los patrones fijos de `PARTES_MAP`, el primero que coincide gana. Codifican decisiones de
+   liquidación («Recupera Horas» antes que «autorizado») y ninguna etiqueta puede pisarlos.
+2. Sólo si ninguno coincidió, las etiquetas de los motivos **activos**: la nota tiene que
+   contener la etiqueta como palabra o frase completa, sin distinguir mayúsculas ni acentos
+   («Paro» no coincide con «Parodi»). Si nombra varias, gana la etiqueta más larga (la más
+   específica); a igual largo, el id menor. La etiqueta nunca se compila como RegExp.
+
+Sin lista de motivos el comportamiento es exactamente el anterior. El resultado sigue siendo
+`motivo_source = 'partes'`: es deducido, una carga posterior puede refrescarlo y cualquier
+decisión humana lo pisa. Sin cambio de esquema.
+
+**Servidor y pantalla tienen que coincidir.** Ausencias lee el registro persistido y Horas
+corre el motor; si derivaran con listas distintas mostrarían motivos distintos para el mismo
+día. Por eso:
+
+- `paraElMotor()` del servidor y `GET /api/configuracion` devuelven sólo los motivos con
+  `activo = 1`, y ambos lados derivan con esa lista. Un motivo retirado nunca se aplica por
+  etiqueta. (Un motivo de fábrica retirado sí sigue saliendo de su patrón fijo, como antes.)
+- La sincronización del registro es una sola función, `resincronizarAusencias`
+  (`src/api/sincronizacionAusencias.ts`). Corre después de cada carga y también después de
+  `POST /api/configuracion/motivos` y `DELETE /api/configuracion/motivos/:id`, antes de
+  responder: un día cargado antes de que existiera el motivo queda clasificado, y uno que
+  tomó una etiqueta retirada deja de llevarla. El MERGE sólo toca filas `NULL`/`partes`;
+  `manual` y `encargado` no cambian. Si falla, se registra (sólo conteos y el error saneado)
+  y la escritura del motivo igual responde con éxito. Cambiar `worked` no la dispara.
+- La pantalla de Configuración recarga el registro de ausencias tras crear o retirar un
+  motivo. El adaptador local deriva con los motivos de la configuración local.
+
 ## Pruebas
 
-El baseline esperado es **454 pruebas en 33 archivos**. El detalle de Horas trabajadas sumó 10
+El baseline esperado es **475 pruebas en 34 archivos**. El motivo tomado de la nota sumó 21
+sobre las 454 en 33: la pasada por etiqueta (prioridad de los patrones fijos, acentos y
+mayúsculas, palabra completa, la etiqueta más larga, motivo retirado, sin lista), su efecto en
+`construirRegistroDia` (origen `partes`, la decisión humana gana, el id 8 sigue levantando
+`incompleta`), la sincronización del servidor con los motivos activos en el archivo nuevo
+`src/api/sincronizacionAusencias.test.ts`, la re-sincronización al crear/retirar un motivo y
+el adaptador local. El detalle de Horas trabajadas sumó 10
 sobre las 444 en 32: desplegar/contraer contra las semanas visibles, la línea de fichadas y las
 opciones compartidas del motivo. La clasificación en lote sumó 39 sobre
 las 405 en 30 que había: la ruta en lote, su constructor SQL y su auditoría, el alcance de varios

@@ -22,6 +22,13 @@
  * motivos to classify a day and the parameters to read the engine's verdict, so `GET` has no
  * guard; the rules themselves are company-wide — a tolerancia is not a thing one sector gets
  * to set — so every write carries `SOLO_RRHH`.
+ *
+ * CREATING OR RETIRING A MOTIVO RE-DERIVES THE ABSENCE REGISTRY. The QUICKPASS note is
+ * matched against the labels of the active motivos, so the list is an input of the registry;
+ * both routes run the upload's own pass (`resincronizarAusencias`) after their write commits
+ * and before answering, so the screen's reload already sees it. Only rows the note decided
+ * ('partes' or unclassified) can change. Toggling `worked` changes no motivo id and does not
+ * re-run it.
  */
 
 import type { FastifyInstance } from 'fastify';
@@ -40,9 +47,16 @@ import type {
   RepositorioConfiguracionAzureSql,
 } from './repositorioConfiguracion.js';
 import { noEncontrado, responderErrorDb } from './respuestas.js';
+import {
+  resincronizarAusencias,
+  type DependenciasSincronizacion,
+} from './sincronizacionAusencias.js';
 
 export interface DependenciasConfiguracion {
   readonly repositorio: RepositorioConfiguracionAzureSql;
+  /** What the registry re-derivation reads and writes; see the header. */
+  readonly fichadas: DependenciasSincronizacion['fichadas'];
+  readonly ausencias: DependenciasSincronizacion['ausencias'];
 }
 
 interface ParamsId {
@@ -61,6 +75,11 @@ export function registrarRutasConfiguracion(
   deps: DependenciasConfiguracion,
 ): void {
   const { repositorio } = deps;
+  const sincronizacion: DependenciasSincronizacion = {
+    fichadas: deps.fichadas,
+    ausencias: deps.ausencias,
+    configuracion: repositorio,
+  };
 
   app.get('/api/configuracion', async (peticion, respuesta) => {
     try {
@@ -119,6 +138,8 @@ export function registrarRutasConfiguracion(
           operador.email,
         );
         peticion.log.info({ evento: 'motivo_creado' }, 'motivo agregado');
+        // A day uploaded before this motivo existed may name it in its note.
+        await resincronizarAusencias(sincronizacion, operador.email, peticion.log);
         return await respuesta.code(201).send({ motivo });
       } catch (e: unknown) {
         responderErrorDb(peticion, respuesta, e);
@@ -162,6 +183,8 @@ export function registrarRutasConfiguracion(
         const retirado = await repositorio.retirarMotivo(id, operador.email);
         if (!retirado) return noEncontrado(respuesta, 'No existe ese motivo, o ya estaba retirado.');
         peticion.log.info({ evento: 'motivo_retirado' }, 'motivo retirado');
+        // A 'partes' row classified from this label must stop carrying it.
+        await resincronizarAusencias(sincronizacion, operador.email, peticion.log);
         return await respuesta.code(204).send();
       } catch (e: unknown) {
         responderErrorDb(peticion, respuesta, e);
