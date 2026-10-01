@@ -5,7 +5,9 @@ import {
   dentroDelAlcance,
   filtroDeSector,
   permiteElDia,
+  permiteLosDias,
   sectorDelDia,
+  sqlSectoresDeLosDias,
   valorDeAlcance,
 } from './sectores.js';
 
@@ -95,5 +97,69 @@ describe('autorización de escritura sobre un día', () => {
   it('rechaza un día que no existe en fichadas', async () => {
     const pool = crearPoolFalso(() => ({ rows: [] }));
     await expect(permiteElDia(pool, ['Cocina'], '11000001', '2026-01-05')).resolves.toBe(false);
+  });
+});
+
+describe('autorización de escritura sobre varios días', () => {
+  const DIAS = [
+    { dni: '11000001', fechaIso: '2026-01-05' },
+    { dni: '11000002', fechaIso: '2026-01-06' },
+  ];
+
+  /** Answers the lookup as the LEFT JOIN would: one row per day asked about. */
+  const poolCon = (sectores: Record<string, string | null>) =>
+    crearPoolFalso((_texto, valores) => ({
+      rows: (JSON.parse(String(valores[0])) as { dni: string; fechaIso: string }[]).map((d) => ({
+        dni: d.dni,
+        fecha: d.fechaIso,
+        sector: sectores[`${d.dni}|${d.fechaIso}`] ?? null,
+      })),
+    }));
+
+  it('resuelve el sector de todos los días con una sola consulta', () => {
+    const consulta = sqlSectoresDeLosDias(DIAS);
+    expect(consulta.texto).toContain('OPENJSON($1)');
+    expect(consulta.texto).toContain("JSON_VALUE(f.[payload], '$.Sector')");
+    // LEFT, so a day with no fichada comes back with a NULL sector instead of vanishing.
+    expect(consulta.texto).toContain('LEFT JOIN [controlhorario].[fichadas] f');
+    expect(consulta.valores).toEqual([JSON.stringify(DIAS)]);
+  });
+
+  it('sin restricción no consulta la base', async () => {
+    const pool = crearPoolFalso();
+    await expect(permiteLosDias(pool, null, DIAS)).resolves.toBe(true);
+    expect(pool.llamadas).toHaveLength(0);
+  });
+
+  it('acepta cuando todos los días son de sus sectores', async () => {
+    const pool = poolCon({ '11000001|2026-01-05': 'Cocina', '11000002|2026-01-06': 'Reparto' });
+    await expect(permiteLosDias(pool, ['Cocina', 'Reparto'], DIAS)).resolves.toBe(true);
+    expect(pool.llamadas).toHaveLength(1);
+  });
+
+  it('un solo día de otro sector rechaza todos', async () => {
+    const pool = poolCon({ '11000001|2026-01-05': 'Cocina', '11000002|2026-01-06': 'Reparto' });
+    await expect(permiteLosDias(pool, ['Cocina'], DIAS)).resolves.toBe(false);
+  });
+
+  it('un día sin fichada o sin la celda Sector rechaza todos', async () => {
+    await expect(
+      permiteLosDias(poolCon({ '11000001|2026-01-05': 'Cocina' }), ['Cocina'], DIAS),
+    ).resolves.toBe(false);
+    await expect(
+      permiteLosDias(
+        poolCon({ '11000001|2026-01-05': 'Cocina', '11000002|2026-01-06': '' }),
+        ['Cocina'],
+        DIAS,
+      ),
+    ).resolves.toBe(false);
+  });
+
+  it('un día que la respuesta no menciona tampoco pasa', async () => {
+    // Fail closed even if the lookup ever came back short.
+    const pool = crearPoolFalso(() => ({
+      rows: [{ dni: '11000001', fecha: '2026-01-05', sector: 'Cocina' }],
+    }));
+    await expect(permiteLosDias(pool, ['Cocina'], DIAS)).resolves.toBe(false);
   });
 });

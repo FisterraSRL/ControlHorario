@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
 import { crearPoolFalso } from './pruebas/dobles.js';
-import { crearRepositorioAusencias, sqlRegistroAusencias } from './repositorioAusencias.js';
+import {
+  crearRepositorioAusencias,
+  sqlAsignarMotivos,
+  sqlRegistroAusencias,
+} from './repositorioAusencias.js';
 
 const FILA_REGISTRO = {
   dni: '11000001',
@@ -116,5 +120,135 @@ describe('atribución de una decisión sobre un día', () => {
     expect(auditoria?.valores[4]).toBe(
       JSON.stringify({ motivoId: 4, motivoAnterior: null, origen: 'encargado' }),
     );
+  });
+});
+
+describe('clasificación de varios días en una sola decisión', () => {
+  const DIAS = [
+    { dni: '11000001', fechaIso: '2026-01-05' },
+    { dni: '11000002', fechaIso: '2026-01-06' },
+  ];
+
+  /** What the batch statement hands back: the rows written, with the motivo before. */
+  const filasEscritas = (motivoId: number | null, anteriores: (number | null)[]) =>
+    DIAS.map((d, i) => ({
+      ...FILA_REGISTRO,
+      dni: d.dni,
+      dni_pedido: d.dni,
+      fecha: d.fechaIso,
+      motivo_id: motivoId,
+      motivo_source: motivoId === null ? null : 'encargado',
+      motivo_anterior: anteriores[i] ?? null,
+    }));
+
+  it('los días viajan en un único parámetro JSON y conservan las reglas del MERGE de un día', () => {
+    const consulta = sqlAsignarMotivos(DIAS, 4, 'jefa@ejemplo.test', 'encargado');
+
+    expect(consulta.valores).toEqual([
+      JSON.stringify(DIAS),
+      4,
+      'jefa@ejemplo.test',
+      'encargado',
+    ]);
+    expect(consulta.texto).toContain('OPENJSON($1)');
+    expect(consulta.texto).toContain('MERGE [controlhorario].[ausencias] WITH (HOLDLOCK)');
+    // The same clauses as the single-day statement: source cleared with the motivo, and the
+    // decision signed on both branches.
+    expect(consulta.texto).toContain('CASE WHEN origen.[motivo_id] IS NULL THEN NULL ELSE $4 END');
+    expect(consulta.texto).toContain('[resuelto_por] = origen.[actor]');
+    expect(consulta.texto).toContain('[resuelto_at] = SYSUTCDATETIME()');
+    // The motivo before the write, read atomically with it, for the audit.
+    expect(consulta.texto).toContain('deleted.[motivo_id]');
+    // Parameterised, not one statement per role.
+    expect(consulta.texto).not.toContain("N'manual'");
+    expect(consulta.texto).not.toContain("N'encargado'");
+  });
+
+  it('escribe y audita dentro de una sola transacción', async () => {
+    const pool = crearPoolFalso((texto) =>
+      texto.includes('MERGE') ? { rows: filasEscritas(4, [null, 2]) } : undefined,
+    );
+    const repositorio = crearRepositorioAusencias(pool);
+
+    const ausencias = await repositorio.asignarMotivos(DIAS, 4, 'jefa@ejemplo.test', 'encargado');
+
+    expect(pool.llamadas).toHaveLength(2);
+    expect(pool.llamadas.every((l) => l.enTransaccion)).toBe(true);
+    expect(pool.cierres).toEqual(['commit']);
+    expect(ausencias.map((a) => [a.dni, a.fecha, a.motivoId])).toEqual([
+      ['11000001', '2026-01-05', 4],
+      ['11000002', '2026-01-06', 4],
+    ]);
+  });
+
+  it('deja una fila de auditoría por día, idéntica a la que deja la ruta de un día', async () => {
+    const pool = crearPoolFalso((texto) =>
+      texto.includes('MERGE') ? { rows: filasEscritas(4, [null, 2]) } : undefined,
+    );
+    await crearRepositorioAusencias(pool).asignarMotivos(
+      DIAS,
+      4,
+      'jefa@ejemplo.test',
+      'encargado',
+    );
+    const auditoria = pool.llamadas.find((l) => l.texto.includes('[controlhorario].[auditoria]'));
+    const filas = JSON.parse(String(auditoria?.valores[0])) as Record<string, unknown>[];
+
+    // The row the single path writes for the first day, recorded the same way.
+    const unoSolo = crearPoolFalso((texto) =>
+      texto.includes('MERGE') ? { rows: [FILA_REGISTRO] } : undefined,
+    );
+    await crearRepositorioAusencias(unoSolo).asignarMotivo(
+      '11000001',
+      '2026-01-05',
+      4,
+      'jefa@ejemplo.test',
+      'encargado',
+    );
+    const individual = unoSolo.llamadas.find((l) =>
+      l.texto.includes('[controlhorario].[auditoria]'),
+    );
+
+    expect(filas).toHaveLength(2);
+    expect(Object.values(filas[0] ?? {})).toEqual(individual?.valores);
+    expect(filas[1]).toEqual({
+      actor: 'jefa@ejemplo.test',
+      accion: 'motivo_asignado',
+      entidad: 'ausencias',
+      entidadId: '11000002|2026-01-06',
+      datos: JSON.stringify({ motivoId: 4, motivoAnterior: 2, origen: 'encargado' }),
+    });
+  });
+
+  it('quitar la clasificación en lote se audita como motivo_quitado', async () => {
+    const pool = crearPoolFalso((texto) =>
+      texto.includes('MERGE') ? { rows: filasEscritas(null, [4, 4]) } : undefined,
+    );
+    await crearRepositorioAusencias(pool).asignarMotivos(DIAS, null, 'rrhh@ejemplo.test', 'manual');
+
+    const auditoria = pool.llamadas.find((l) => l.texto.includes('[controlhorario].[auditoria]'));
+    const filas = JSON.parse(String(auditoria?.valores[0])) as { accion: string }[];
+    expect(filas.map((f) => f.accion)).toEqual(['motivo_quitado', 'motivo_quitado']);
+  });
+
+  it('si el MERGE falla no audita nada y deshace la transacción', async () => {
+    // An unknown motivo or a day with no fichada is an FK violation inside the statement.
+    const pool = crearPoolFalso((texto) =>
+      texto.includes('MERGE') ? Object.assign(new Error('FK'), { number: 547 }) : undefined,
+    );
+
+    await expect(
+      crearRepositorioAusencias(pool).asignarMotivos(DIAS, 99, 'rrhh@ejemplo.test', 'manual'),
+    ).rejects.toThrow('FK');
+    expect(pool.textos().some((t) => t.includes('[controlhorario].[auditoria]'))).toBe(false);
+    expect(pool.cierres).toEqual(['rollback']);
+  });
+
+  it('un lote vacío no abre transacción', async () => {
+    const pool = crearPoolFalso();
+    await expect(
+      crearRepositorioAusencias(pool).asignarMotivos([], 4, 'rrhh@ejemplo.test', 'manual'),
+    ).resolves.toEqual([]);
+    expect(pool.llamadas).toHaveLength(0);
   });
 });

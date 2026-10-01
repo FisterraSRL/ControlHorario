@@ -144,6 +144,49 @@ export const ESQUEMA_CUERPO_MOTIVO_DIA = {
   },
 } as const;
 
+/**
+ * How many days one batch classification may name. A month of absences for a large sector
+ * fits; a request with more is a client bug or something worse, and is refused before any
+ * date is parsed. The screen holds the same number (`MAX_DIAS_POR_LOTE` in
+ * `src/ui/ausencias/RepositorioAusencias.ts`) so it never builds a request this refuses.
+ */
+export const MAX_DIAS_POR_LOTE = 500;
+
+/**
+ * Setting or clearing the motivo of many days at once.
+ *
+ * A NEW schema rather than a wider `ESQUEMA_CUERPO_MOTIVO_DIA`: that one is closed on
+ * purpose, and a body that could be either shape would be a body nobody can reason about.
+ * Each day is closed the same way, and `motivoId` means exactly what it means for one day —
+ * `null` is the clear, and required so that omitting it is an error and not a silent clear.
+ *
+ * Duplicates are not refused here: a screen that sends the same day twice has asked for one
+ * thing, not for an error. The route deduplicates by (dni, fecha) after parsing, which is the
+ * identity the registry has.
+ */
+export const ESQUEMA_CUERPO_MOTIVOS_DIAS = {
+  type: 'object',
+  required: ['dias', 'motivoId'],
+  additionalProperties: false,
+  properties: {
+    dias: {
+      type: 'array',
+      minItems: 1,
+      maxItems: MAX_DIAS_POR_LOTE,
+      items: {
+        type: 'object',
+        required: ['dni', 'fecha'],
+        additionalProperties: false,
+        properties: {
+          dni: DNI,
+          fecha: FECHA_AR,
+        },
+      },
+    },
+    motivoId: { type: ['integer', 'null'], minimum: 1 },
+  },
+} as const;
+
 /** One global parameter of `configuracion`. */
 export const ESQUEMA_CUERPO_PARAMETROS = {
   type: 'object',

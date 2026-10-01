@@ -7,12 +7,18 @@
  * THE ATTACHMENT LIST IS HELD HERE and not in a provider: it is the only screen that reads
  * it, and a provider would mean the whole app re-rendering every time somebody attaches a
  * certificate.
+ *
+ * SO IS THE BATCH SELECTION, as a raw set of registry keys. What the screen shows and what
+ * "Aplicar" writes is never that raw set but `seleccionEfectiva` — the raw set intersected
+ * with the rows on screen — so a filter, a period change, or the batch itself removing rows
+ * from the work queue can never leave a hidden row ticked for the next write.
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import type { Adjunto } from '../../adjuntos/RepositorioAdjuntos.js';
 import { useAusencias } from '../../ausencias/AusenciasProvider.js';
+import { MAX_DIAS_POR_LOTE, type ClaveRegistro } from '../../ausencias/RepositorioAusencias.js';
 import { useConfiguracion } from '../../configuracion/ConfiguracionProvider.js';
 import { useHistorial } from '../../historial/HistorialProvider.js';
 import { ErrorNoAutenticado } from '../../http.js';
@@ -21,7 +27,16 @@ import { useSesion } from '../../sesion/SesionProvider.js';
 import { MOTIVOS_POR_DEFECTO } from '../../../domain/fichadas/index.js';
 import { pluralizar } from '../../texto.js';
 import { AusenciasScreen } from './AusenciasScreen.js';
-import { construirVista, FILTRO_INICIAL, type FiltroAusencias } from './ausencias.js';
+import {
+  alternarVisibles,
+  construirVista,
+  diasSeleccionados,
+  estadoSeleccionGeneral,
+  FILTRO_INICIAL,
+  loteSinCambios,
+  seleccionEfectiva,
+  type FiltroAusencias,
+} from './ausencias.js';
 
 /**
  * Hands the browser a file it already has in memory.
@@ -57,6 +72,7 @@ export function AusenciasContainer() {
     cargando: cargandoAusencias,
     error: errorAusencias,
     asignarMotivo,
+    asignarMotivos,
   } = useAusencias();
 
   const repoAdjuntos = repositorios.adjuntos;
@@ -67,6 +83,12 @@ export function AusenciasContainer() {
   const [claveOcupada, setClaveOcupada] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
+  const [seleccionadas, setSeleccionadas] = useState<ReadonlySet<ClaveRegistro>>(
+    () => new Set(),
+  );
+  /** The batch bar's motivo, as the `<Select>` value: `''` is "Sin clasificar". */
+  const [motivoLote, setMotivoLote] = useState('');
+  const [aplicando, setAplicando] = useState(false);
 
   /** A 401 anywhere is the session ending, not a message for this screen. */
   const manejar = useCallback(
@@ -97,6 +119,53 @@ export function AusenciasContainer() {
     () => construirVista({ ausencias, registros, adjuntos, rango, filtro }),
     [ausencias, registros, adjuntos, rango, filtro],
   );
+
+  const efectiva = useMemo(
+    () => seleccionEfectiva(seleccionadas, vista.filas),
+    [seleccionadas, vista.filas],
+  );
+  const motivoIdLote = motivoLote === '' ? null : Number(motivoLote);
+
+  const alternarSeleccion = useCallback((clave: ClaveRegistro) => {
+    setSeleccionadas((previas) => {
+      const siguiente = new Set(previas);
+      if (siguiente.has(clave)) siguiente.delete(clave);
+      else siguiente.add(clave);
+      return siguiente;
+    });
+  }, []);
+
+  const alternarSeleccionVisibles = useCallback(
+    (marcar: boolean) =>
+      setSeleccionadas((previas) => alternarVisibles(previas, vista.filas, marcar)),
+    [vista.filas],
+  );
+
+  const limpiarSeleccion = useCallback(() => setSeleccionadas(new Set()), []);
+
+  const aplicarLote = useCallback(() => {
+    // Read from the derived selection, never from the raw set: see the header.
+    const dias = diasSeleccionados(efectiva, vista.filas);
+    if (dias.length === 0 || dias.length > MAX_DIAS_POR_LOTE) return;
+    setError(null);
+    setAviso(null);
+    setAplicando(true);
+    void (async () => {
+      try {
+        const guardado = await asignarMotivos(dias, motivoIdLote);
+        if (!guardado) return; // The provider already put the reason on screen; keep the ticks.
+        setSeleccionadas(new Set());
+        const cuantas = pluralizar(dias.length, 'ausencia', 'ausencias');
+        setAviso(
+          motivoIdLote === null
+            ? `Se quitó la clasificación de ${cuantas}.`
+            : `Motivo asignado a ${cuantas}.`,
+        );
+      } finally {
+        setAplicando(false);
+      }
+    })();
+  }, [efectiva, vista.filas, motivoIdLote, asignarMotivos]);
 
   const alternar = useCallback((clave: string) => {
     setAbiertas((previas) => {
@@ -204,6 +273,20 @@ export function AusenciasContainer() {
       onSubir={subir}
       onDescargar={descargar}
       onEliminar={eliminar}
+      seleccion={efectiva}
+      estadoSeleccion={estadoSeleccionGeneral(efectiva, vista.filas)}
+      onSeleccionar={alternarSeleccion}
+      onSeleccionarVisibles={alternarSeleccionVisibles}
+      onLimpiarSeleccion={limpiarSeleccion}
+      motivoLote={motivoLote}
+      onMotivoLote={setMotivoLote}
+      onAplicarLote={aplicarLote}
+      loteAplicable={
+        !aplicando &&
+        efectiva.size <= MAX_DIAS_POR_LOTE &&
+        !loteSinCambios(efectiva, vista.filas, motivoIdLote)
+      }
+      maxLote={MAX_DIAS_POR_LOTE}
       cargando={cargandoAusencias || cargandoHistorial}
       error={error ?? errorAusencias}
       aviso={aviso}

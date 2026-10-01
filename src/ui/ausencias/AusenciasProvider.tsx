@@ -22,8 +22,10 @@ import { useSesion } from '../sesion/SesionProvider.js';
 import {
   claveRegistro,
   fechaARDesdeIso,
+  reemplazarAusencias,
   type AusenciaRegistrada,
   type ClaveRegistro,
+  type DiaAClasificar,
 } from './RepositorioAusencias.js';
 
 interface ContextoAusencias {
@@ -45,6 +47,12 @@ interface ContextoAusencias {
    * explaining that it had not been.
    */
   asignarMotivo(dni: string, fechaStr: string, motivoId: number | null): Promise<boolean>;
+  /**
+   * The same, for many days in one decision. `true` only when every day was written — the
+   * server applies the batch whole or not at all — and it reports rather than throws for the
+   * same reason `asignarMotivo` does.
+   */
+  asignarMotivos(dias: readonly DiaAClasificar[], motivoId: number | null): Promise<boolean>;
 }
 
 const AusenciasContext = createContext<ContextoAusencias | null>(null);
@@ -107,6 +115,26 @@ export function AusenciasProvider({ children }: { readonly children: ReactNode }
     [repo, expirar],
   );
 
+  const asignarMotivos = useCallback(
+    async (dias: readonly DiaAClasificar[], motivoId: number | null): Promise<boolean> => {
+      setError(null);
+      try {
+        const actualizadas = await repo.asignarMotivos(dias, motivoId);
+        // One update for the whole batch: every day record downstream is re-derived once.
+        setAusencias((previas) => reemplazarAusencias(previas, actualizadas));
+        return true;
+      } catch (e: unknown) {
+        if (e instanceof ErrorNoAutenticado) {
+          expirar();
+          return false;
+        }
+        setError(e instanceof Error ? e.message : 'No se pudieron guardar los motivos.');
+        return false;
+      }
+    },
+    [repo, expirar],
+  );
+
   const porClave = useMemo(() => {
     const mapa = new Map<ClaveRegistro, AusenciaRegistrada>();
     for (const a of ausencias) mapa.set(claveRegistro(a.dni, a.fecha), a);
@@ -139,8 +167,18 @@ export function AusenciasProvider({ children }: { readonly children: ReactNode }
       error,
       recargar: cargar,
       asignarMotivo,
+      asignarMotivos,
     }),
-    [ausencias, porClave, indiceParaElMotor, cargando, error, cargar, asignarMotivo],
+    [
+      ausencias,
+      porClave,
+      indiceParaElMotor,
+      cargando,
+      error,
+      cargar,
+      asignarMotivo,
+      asignarMotivos,
+    ],
   );
 
   return <AusenciasContext.Provider value={valor}>{children}</AusenciasContext.Provider>;

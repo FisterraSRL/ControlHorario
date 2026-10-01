@@ -82,6 +82,44 @@ export async function auditar(
   );
 }
 
+/**
+ * Several audit rows in ONE statement, each byte-for-byte what `auditar` would have written.
+ *
+ * For a batch decision — one motivo applied to many days — the trail must still read as one
+ * row per day, because that is what an auditor filters on; only the number of round trips
+ * changes. `datos` is serialised here with the same `JSON.stringify` as above and travels as
+ * an already-serialised string inside the JSON parameter, so OPENJSON hands the exact text
+ * back and nothing about the row can tell it apart from a single write except its timestamp.
+ */
+export async function auditarVarios(
+  cliente: Pool | PoolClient,
+  entradas: readonly EntradaAuditoria[],
+): Promise<void> {
+  if (entradas.length === 0) return;
+  const filas = entradas.map((entrada) => ({
+    actor: entrada.actor,
+    accion: entrada.accion,
+    entidad: entrada.entidad,
+    entidadId: entrada.entidadId ?? null,
+    datos:
+      entrada.datos === undefined || entrada.datos === null
+        ? null
+        : JSON.stringify(entrada.datos),
+  }));
+  await cliente.query(
+    `INSERT INTO [controlhorario].[auditoria] ([actor], [accion], [entidad], [entidad_id], [datos])
+     SELECT [actor], [accion], [entidad], [entidad_id], [datos]
+       FROM OPENJSON($1) WITH (
+         [actor]      nvarchar(320) '$.actor',
+         [accion]     nvarchar(100) '$.accion',
+         [entidad]    nvarchar(100) '$.entidad',
+         [entidad_id] nvarchar(200) '$.entidadId',
+         [datos]      nvarchar(max) '$.datos'
+       )`,
+    [JSON.stringify(filas)],
+  );
+}
+
 /** `DNI|YYYY-MM-DD`, the key of a decision about one person on one day. */
 export function idDeDia(dni: string, fechaIso: string): string {
   return `${dni}|${fechaIso}`;

@@ -38,5 +38,28 @@ export function crearRepositorioAusenciasHttp(base: string): RepositorioAusencia
       }
       return cuerpo['ausencia'];
     },
+
+    async asignarMotivos(dias, motivoId) {
+      const cuerpo = await pedirJson(
+        `${raiz}/motivos`,
+        conJson('PUT', {
+          dias: dias.map((d) => ({ dni: d.dni, fecha: d.fechaStr })),
+          motivoId,
+        }),
+      );
+      // All or nothing, on the way back too: a row the guard drops would be a day the screen
+      // keeps showing with its old motivo while the server already holds the new one.
+      if (
+        !esObjeto(cuerpo) ||
+        !Array.isArray(cuerpo['ausencias']) ||
+        !cuerpo['ausencias'].every(esAusencia)
+      ) {
+        throw new Error(
+          'Los motivos se enviaron pero el servidor no informó cómo quedaron los días. ' +
+            'Recargá la página antes de volver a intentarlo.',
+        );
+      }
+      return cuerpo['ausencias'];
+    },
   };
 }

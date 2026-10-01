@@ -10,11 +10,18 @@ import { Alert } from '../../components/molecules/Alert/Alert.js';
 import { Card } from '../../components/molecules/Card/Card.js';
 import { FilaVacia, Table } from '../../components/molecules/Table/Table.js';
 import { pluralizar } from '../../texto.js';
-import { etiquetaFecha, type FiltroAusencias, type VistaAusencias } from './ausencias.js';
+import type { ClaveRegistro } from '../../ausencias/RepositorioAusencias.js';
+import {
+  etiquetaFecha,
+  type EstadoSeleccionGeneral,
+  type FiltroAusencias,
+  type VistaAusencias,
+} from './ausencias.js';
 import { PanelAdjuntos } from './PanelAdjuntos.js';
 import './ausencias.css';
 
-const COLUMNAS = 8;
+/** Selection, expand, Persona, DNI, Fecha, Turno, Nota, Motivo, Adjuntos. */
+const COLUMNAS = 9;
 
 export interface AusenciasScreenProps {
   readonly vista: VistaAusencias;
@@ -31,6 +38,20 @@ export interface AusenciasScreenProps {
   readonly onSubir: (clave: string, dni: string, fechaStr: string, archivos: readonly File[]) => void;
   readonly onDescargar: (adjunto: Adjunto) => void;
   readonly onEliminar: (clave: string, adjunto: Adjunto) => void;
+  /** The EFFECTIVE selection: ticked and visible. Never the container's raw set. */
+  readonly seleccion: ReadonlySet<ClaveRegistro>;
+  readonly estadoSeleccion: EstadoSeleccionGeneral;
+  readonly onSeleccionar: (clave: ClaveRegistro) => void;
+  /** Ticks or unticks every row currently in the table. */
+  readonly onSeleccionarVisibles: (marcar: boolean) => void;
+  readonly onLimpiarSeleccion: () => void;
+  /** The batch bar's `<Select>` value; `''` is "Sin clasificar". */
+  readonly motivoLote: string;
+  readonly onMotivoLote: (valor: string) => void;
+  readonly onAplicarLote: () => void;
+  /** False while a batch is in flight, over the limit, or when it would change nothing. */
+  readonly loteAplicable: boolean;
+  readonly maxLote: number;
   readonly cargando: boolean;
   readonly error: string | null;
   readonly aviso: string | null;
@@ -59,6 +80,16 @@ export function AusenciasScreen({
   onSubir,
   onDescargar,
   onEliminar,
+  seleccion,
+  estadoSeleccion,
+  onSeleccionar,
+  onSeleccionarVisibles,
+  onLimpiarSeleccion,
+  motivoLote,
+  onMotivoLote,
+  onAplicarLote,
+  loteAplicable,
+  maxLote,
   cargando,
   error,
   aviso,
@@ -121,9 +152,47 @@ export function AusenciasScreen({
         </div>
       )}
 
+      {seleccion.size > 0 && (
+        <div className="ausencias__lote" role="region" aria-label="Clasificación en lote">
+          <span className="ausencias__lote-cuenta">
+            {pluralizar(seleccion.size, 'seleccionada', 'seleccionadas')}
+          </span>
+          <Select
+            etiqueta="Motivo para las ausencias seleccionadas"
+            tamano="sm"
+            valor={motivoLote}
+            opciones={opcionesMotivo}
+            onCambio={onMotivoLote}
+          />
+          <Button tamano="sm" variante="primary" onClick={onAplicarLote} disabled={!loteAplicable}>
+            Aplicar
+          </Button>
+          <Button tamano="sm" variante="ghost" onClick={onLimpiarSeleccion}>
+            Limpiar selección
+          </Button>
+          {seleccion.size > maxLote && (
+            <span className="ausencias__lote-nota">
+              Podés clasificar hasta {maxLote} ausencias por vez. Filtrá por sector o persona,
+              o destildá algunas.
+            </span>
+          )}
+        </div>
+      )}
+
       <Table etiqueta="Ausencias del período">
         <thead>
           <tr>
+            <th>
+              <Checkbox
+                marcado={estadoSeleccion === 'todas'}
+                indeterminado={estadoSeleccion === 'algunas'}
+                onCambio={onSeleccionarVisibles}
+                disabled={cargando || vista.filas.length === 0}
+                etiquetaOculta
+              >
+                Seleccionar todas las ausencias visibles
+              </Checkbox>
+            </th>
             <th>
               <span className="ausencias__sr">Adjuntos</span>
             </th>
@@ -165,6 +234,15 @@ export function AusenciasScreen({
                   )}
 
                   <tr className={pendiente ? 'tabla__fila--pendiente' : undefined}>
+                    <td>
+                      <Checkbox
+                        marcado={seleccion.has(fila.clave)}
+                        onCambio={() => onSeleccionar(fila.clave)}
+                        etiquetaOculta
+                      >
+                        {`Seleccionar la ausencia de ${fila.usuario || fila.dni} el ${etiquetaFecha(fila)}`}
+                      </Checkbox>
+                    </td>
                     <td>
                       <Button
                         tamano="sm"
@@ -208,8 +286,10 @@ export function AusenciasScreen({
 
                   {abierta && (
                     <tr>
-                      <td />
-                      <td colSpan={COLUMNAS - 1}>
+                      {/* Under the selection and expand columns, so the panel lines up with
+                          the person's name as it did before the selection column existed. */}
+                      <td colSpan={2} />
+                      <td colSpan={COLUMNAS - 2}>
                         <PanelAdjuntos
                           adjuntos={fila.adjuntos}
                           disponible={adjuntosDisponibles}

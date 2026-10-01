@@ -175,5 +175,37 @@ export function crearRepositorioAusenciasLocal(
         adjuntos: 0,
       };
     },
+
+    async asignarMotivos(dias, motivoId) {
+      // Every date is checked before anything is stored, so a bad one writes nothing — the
+      // same all-or-nothing the server gives, with one `escribir` instead of N. Deduplicated
+      // by registry key, as the server does.
+      const claves = new Map<string, { dni: string; fechaIso: string }>();
+      for (const { dni, fechaStr } of dias) {
+        const fechaIso = fechaIsoDesdeAR(fechaStr);
+        if (!fechaIso) {
+          throw new ErrorRepositorio(`No se pudo interpretar la fecha "${fechaStr}".`);
+        }
+        claves.set(claveRegistro(dni, fechaIso), { dni, fechaIso });
+      }
+      const mapa = { ...leer() };
+      const decision: DecisionGuardada = {
+        motivoId,
+        motivoSource: motivoId === null ? null : 'manual',
+        resueltoAt: new Date().toISOString(),
+      };
+      for (const clave of claves.keys()) mapa[clave] = decision;
+      escribir(mapa);
+
+      return [...claves.values()].map(({ dni, fechaIso }) => ({
+        dni,
+        fecha: fechaIso,
+        motivoId: decision.motivoId,
+        motivoSource: decision.motivoSource,
+        resueltoPor: 'local',
+        resueltoAt: decision.resueltoAt,
+        adjuntos: 0,
+      }));
+    },
   };
 }

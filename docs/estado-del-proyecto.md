@@ -1,6 +1,6 @@
 # Estado del proyecto y continuidad
 
-Actualizado: 17 de septiembre de 2026.
+Actualizado: 1 de octubre de 2026.
 
 Este documento permite continuar el trabajo sin depender del historial de una conversación.
 Antes de actuar, comprobar siempre `git status`, `git log -5` y el estado real de producción.
@@ -61,7 +61,8 @@ semana que abrió el lunes anterior. Está cubierto en `src/ui/periodo/periodo.t
 - Administración de usuarios: listar, crear, activar/desactivar y restablecer contraseña.
 - Carga y persistencia del historial QUICKPASS.
 - Configuración de parámetros, reglas por sector, motivos y exclusiones.
-- Registro/clasificación de ausencias y adjuntos.
+- Registro/clasificación de ausencias y adjuntos, de a un día o en lote (ver «Clasificación en
+  lote»).
 - Generador de notificaciones Word puro en `src/notificaciones`, con fixtures golden.
 - Pantalla Notificaciones: agrupación por persona y descarga del Word, individual y masiva.
 - Pantalla Indicador: faltas por clase y totales del período, sobre la misma agrupación.
@@ -188,8 +189,9 @@ un arreglo vacío significa «nada», nunca «todo». El sector vive dentro del 
 (`JSON_VALUE([payload], '$.Sector')`), así que `ausencias` y `adjuntos` lo alcanzan uniéndose
 a `fichadas` por `(dni, fecha)`.
 
-Un encargado es de sólo lectura salvo tres cosas: `PUT /api/ausencias/motivo` sobre un día de
-sus sectores, los adjuntos de esos mismos días y su propia contraseña. Todo lo demás —
+Un encargado es de sólo lectura salvo tres cosas: `PUT /api/ausencias/motivo` (y su variante en
+lote `PUT /api/ausencias/motivos`) sobre días de sus sectores, los adjuntos de esos mismos días y
+su propia contraseña. Todo lo demás —
 `POST`/`DELETE /api/fichadas`, las escrituras de configuración y `/api/admin/*` — responde
 403 mediante los guardias `SOLO_RRHH` y `SOLO_ADMIN`, que son hooks `onRequest` para que un
 cuerpo de 30 MB no se lea antes de rechazarlo.
@@ -217,9 +219,53 @@ la base, el CLI `crearUsuario` se apoya en ese default y el adaptador local se l
 Borrar el miembro de `RolUsuario` dejaría esas cuentas afuera por el guardia de arriba;
 `src/ui/roles.test.ts` existe para que eso falle como prueba y no como login.
 
+## Clasificación en lote
+
+La pantalla de Ausencias permite tildar filas y aplicarles un mismo motivo de una vez. Es la
+misma decisión que la clasificación de a un día, repetida sobre varios días, y nada en la base
+ni en la auditoría las distingue salvo el horario.
+
+```text
+PUT /api/ausencias/motivos
+{ "dias": [{ "dni": "30111222", "fecha": "05/01/2026" }, ...], "motivoId": 4 | null }
+-> 200 { "ausencias": [AusenciaRegistrada, ...] }   // las filas como quedaron, orden (dni, fecha)
+```
+
+- Entre 1 y 500 días (`MAX_DIAS_POR_LOTE`, en `esquemas.ts` y espejado en el puerto de la UI).
+  `motivoId: null` quita la clasificación. El esquema es nuevo y cerrado; el de un día no se
+  ensanchó.
+- **Todo o nada.** Una fecha ilegible es 400; un solo día fuera del alcance o sin fichada es el
+  mismo 403 `fuera_de_alcance` que da la ruta de un día, con el mismo cuerpo; en ambos casos no
+  se escribe nada. Un motivo inexistente viola la FK dentro de la transacción y vuelve como el
+  mismo 409 `integridad`.
+- El alcance se resuelve con **una** consulta (`permiteLosDias` en `src/api/sectores.ts`: los
+  días en un parámetro JSON, `OPENJSON` con `LEFT JOIN` a `fichadas`) y la pertenencia la
+  decide el mismo `dentroDelAlcance`. RRHH no consulta nada, igual que con un día.
+- Los días repetidos se deduplican por `(dni, fecha)` antes de escribir.
+- Una transacción: un `MERGE` por conjunto con las mismas reglas que el de un día (`motivo_source`
+  según el rol, `resuelto_por`/`resuelto_at`, limpieza a `NULL`) y una fila de auditoría por día,
+  con la misma acción y el mismo `datos` (`motivoId`, `motivoAnterior`, `origen`), insertadas con
+  `auditarVarios` en una sola sentencia.
+
+En la pantalla, `AusenciasContainer` guarda la selección cruda como `ReadonlySet<ClaveRegistro>`,
+pero lo que se muestra y lo que se envía es `seleccionEfectiva` (`ausencias.ts`): la intersección
+con las filas visibles, derivada y no podada en un efecto, igual que en Notificaciones. Así un
+filtro, un cambio de período o el propio lote —con «Mostrar solo las sin clasificar», las filas
+recién clasificadas salen de la tabla— nunca dejan tildada una fila que la persona ya no ve. La
+casilla del encabezado tilda o destilda sólo las visibles y queda indeterminada si hay algunas.
+La selección se limpia tras aplicar con éxito y se conserva si falla. «Aplicar» se deshabilita si
+el lote no cambiaría ningún motivo (el caso por defecto: «Sin clasificar» sobre filas sin
+clasificar) o si supera los 500 días.
+
+`Checkbox` ganó dos props opcionales: `indeterminado` y `etiquetaOculta` (etiqueta sólo para
+lectores de pantalla). Las pantallas que ya lo usaban no cambian.
+
 ## Pruebas
 
-El baseline esperado es **405 pruebas en 30 archivos** (300 en 18 antes del rol encargado; 69
+El baseline esperado es **444 pruebas en 32 archivos**. La clasificación en lote sumó 39 sobre
+las 405 en 30 que había: la ruta en lote, su constructor SQL y su auditoría, el alcance de varios
+días, la selección efectiva y el adaptador local. Antes de eso, el rol encargado había llevado
+de 300 en 18 a 405 (69
 en `src/api/` —alcance de sesión, constructores SQL con sector, el 403 de una justificación
 fuera de alcance, la creación transaccional con sectores y la lista de negación por rol— y 36
 en `src/ui/` —los guardias de rol ensanchados, el mapeo rol→secciones con su ruta de

@@ -31,9 +31,14 @@
 import { construirRegistroDia } from '../domain/fichadas/dia.js';
 import { parsearFechaDMY } from '../domain/fichadas/parseo.js';
 import type { ConfiguracionFichadas, FilaQuickpass } from '../domain/fichadas/tipos.js';
-import { auditar, idDeDia } from './auditoria.js';
+import { auditar, auditarVarios, idDeDia } from './auditoria.js';
 import { enTransaccion, type ConsultaSql, type Pool, type PoolClient } from './db.js';
-import { filtroDeSector, valorDeAlcance, type AlcanceSectores } from './sectores.js';
+import {
+  filtroDeSector,
+  valorDeAlcance,
+  type AlcanceSectores,
+  type DiaPedido,
+} from './sectores.js';
 
 /** One row of the registry, as the API hands it to the screen. */
 export interface AusenciaRegistrada {
@@ -230,6 +235,109 @@ async function sincronizarVigentes(
 }
 
 /**
+ * The batch twin of the single-day MERGE in `asignarMotivo`: one motivo, many days.
+ *
+ * SAME SEMANTICS, SET-BASED. Every clause of the single statement is here unchanged — the
+ * `motivo_source` CASE that clears the source together with the motivo, `resuelto_por` and
+ * `resuelto_at` signed on both branches, the HOLDLOCK — only the source is a table of days
+ * instead of one literal row. The FKs are the same FKs: an unknown motivo or a day with no
+ * fichada fails the whole statement, and the transaction around it takes everything back.
+ *
+ * `deleted.[motivo_id]` is the motivo BEFORE the write, which the single path reads with a
+ * separate SELECT. For an INSERT it is NULL, which is also what that SELECT yields for a day
+ * with no registry row, so `motivoAnterior` in the audit means the same thing on both paths —
+ * and here it is read atomically with the write instead of just before it.
+ *
+ * The OUTPUT goes INTO a table variable and not straight to the client because the attachment
+ * count is a subquery, and OUTPUT cannot hold one. `origen.[dni]` is kept beside
+ * `inserted.[dni]` so each audit row is keyed on the DNI exactly as it was requested, which is
+ * what `asignarMotivo` keys it on.
+ *
+ * The days travel as one JSON parameter (`$1`) — see `filtroDeSector` for why never an
+ * `IN ($1, $2, ...)` — and must already be unique by (dni, fechaIso): the PRIMARY KEY of
+ * `@dias` refuses a duplicate rather than silently writing the day twice.
+ */
+export function sqlAsignarMotivos(
+  dias: readonly DiaPedido[],
+  motivoId: number | null,
+  actor: string,
+  origen: OrigenDecision,
+): ConsultaSql {
+  return {
+    texto: `
+    DECLARE @dias TABLE (
+      [dni]   nvarchar(32) NOT NULL,
+      [fecha] date NOT NULL,
+      PRIMARY KEY ([dni], [fecha])
+    );
+
+    INSERT INTO @dias ([dni], [fecha])
+     SELECT [dni], [fecha]
+       FROM OPENJSON($1)
+       WITH (
+         [dni] nvarchar(32) '$.dni',
+         [fecha] date '$.fechaIso'
+       );
+
+    DECLARE @escritas TABLE (
+      [dni]             nvarchar(32) NOT NULL,
+      [dni_pedido]      nvarchar(32) NOT NULL,
+      [fecha]           date NOT NULL,
+      [motivo_id]       int NULL,
+      [motivo_source]   nvarchar(16) NULL,
+      [resuelto_por]    nvarchar(320) NULL,
+      [resuelto_at]     datetime2(3) NULL,
+      [motivo_anterior] int NULL
+    );
+
+    MERGE [controlhorario].[ausencias] WITH (HOLDLOCK) AS destino
+    USING (SELECT d.[dni], d.[fecha], CONVERT(int, $2) AS [motivo_id],
+                  CONVERT(nvarchar(320), $3) AS [actor]
+             FROM @dias d) AS origen
+       ON destino.[dni] = origen.[dni] AND destino.[fecha] = origen.[fecha]
+    WHEN MATCHED THEN UPDATE SET
+      [motivo_id] = origen.[motivo_id],
+      [motivo_source] = CASE WHEN origen.[motivo_id] IS NULL THEN NULL ELSE $4 END,
+      [resuelto_por] = origen.[actor],
+      [resuelto_at] = SYSUTCDATETIME()
+    WHEN NOT MATCHED THEN INSERT
+      ([dni], [fecha], [motivo_id], [motivo_source], [resuelto_por], [resuelto_at])
+      VALUES (
+        origen.[dni], origen.[fecha], origen.[motivo_id],
+        CASE WHEN origen.[motivo_id] IS NULL THEN NULL ELSE $4 END,
+        origen.[actor], SYSUTCDATETIME()
+      )
+    OUTPUT inserted.[dni], origen.[dni], inserted.[fecha], inserted.[motivo_id],
+           inserted.[motivo_source], inserted.[resuelto_por], inserted.[resuelto_at],
+           deleted.[motivo_id]
+      INTO @escritas ([dni], [dni_pedido], [fecha], [motivo_id], [motivo_source],
+                      [resuelto_por], [resuelto_at], [motivo_anterior]);
+
+    SELECT e.[dni], e.[dni_pedido],
+           CONVERT(char(10), e.[fecha], 23) AS [fecha],
+           e.[motivo_id], e.[motivo_source], e.[resuelto_por], e.[resuelto_at],
+           e.[motivo_anterior],
+           (SELECT CAST(COUNT_BIG(*) AS int)
+              FROM [controlhorario].[adjuntos] ad
+             WHERE ad.[dni] = e.[dni] AND ad.[fecha] = e.[fecha]) AS [adjuntos]
+      FROM @escritas e
+     ORDER BY e.[dni], e.[fecha];
+  `,
+    valores: [
+      JSON.stringify(dias.map((d) => ({ dni: d.dni, fechaIso: d.fechaIso }))),
+      motivoId,
+      actor,
+      origen,
+    ],
+  };
+}
+
+interface FilaEscrita extends FilaRegistro {
+  dni_pedido: string;
+  motivo_anterior: number | null;
+}
+
+/**
  * Who decided, as the registry records it.
  *
  * `partes` is not here: that value is written by the sync from the QUICKPASS note and is the
@@ -261,6 +369,21 @@ export interface RepositorioAusenciasAzureSql {
     actor: string,
     origen: OrigenDecision,
   ): Promise<AusenciaRegistrada | null>;
+  /**
+   * Sets or clears the motivo of many days at once, all or nothing.
+   *
+   * Exactly `asignarMotivo` applied to each day — same columns, same attribution, one audit
+   * row per day with the same action and the same `datos` — inside ONE transaction, so a
+   * failure on any day (an unknown motivo, a day with no fichada) writes none of them.
+   * `dias` must be unique by (dni, fechaIso); the route deduplicates before calling.
+   * Returns the rows as they now stand, in (dni, fecha) order.
+   */
+  asignarMotivos(
+    dias: readonly DiaPedido[],
+    motivoId: number | null,
+    actor: string,
+    origen: OrigenDecision,
+  ): Promise<readonly AusenciaRegistrada[]>;
   /** Re-derives the registry from the evidence. Called after every upload. */
   sincronizar(
     filas: readonly FilaQuickpass[],
@@ -333,6 +456,30 @@ export function crearRepositorioAusencias(pool: Pool): RepositorioAusenciasAzure
           [dni, fechaIso],
         );
         return aRegistro({ ...fila, adjuntos: Number(conteo[0]?.n ?? 0) });
+      });
+    },
+
+    async asignarMotivos(dias, motivoId, actor, origen) {
+      if (dias.length === 0) return [];
+      return enTransaccion(pool, async (cliente) => {
+        const consulta = sqlAsignarMotivos(dias, motivoId, actor, origen);
+        const { rows } = await cliente.query<FilaEscrita>(consulta.texto, consulta.valores);
+
+        // One row per day, each the row `asignarMotivo` would have written for it. See
+        // `auditarVarios` for why one statement and not one per day.
+        await auditarVarios(
+          cliente,
+          rows.map((fila) => ({
+            actor,
+            accion: motivoId === null ? 'motivo_quitado' : 'motivo_asignado',
+            entidad: 'ausencias',
+            entidadId: idDeDia(fila.dni_pedido, fila.fecha),
+            // Same shape, same key order and same meaning as the single path.
+            datos: { motivoId, motivoAnterior: fila.motivo_anterior ?? null, origen },
+          })),
+        );
+
+        return rows.map(aRegistro);
       });
     },
 

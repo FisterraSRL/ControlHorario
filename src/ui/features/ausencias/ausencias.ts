@@ -20,6 +20,7 @@ import {
   fechaIsoDesdeAR,
   type AusenciaRegistrada,
   type ClaveRegistro,
+  type DiaAClasificar,
 } from '../../ausencias/RepositorioAusencias.js';
 import { dentroDelPeriodo, type RangoPeriodo } from '../../periodo/periodo.js';
 
@@ -183,6 +184,83 @@ function comparar(a: FilaAusencia, b: FilaAusencia): number {
     a.usuario.localeCompare(b.usuario) ||
     a.fechaIso.localeCompare(b.fechaIso)
   );
+}
+
+/* --- Batch classification: which rows are ticked ----------------------------------- */
+
+/**
+ * The selection that counts: what is ticked AND is on screen right now.
+ *
+ * DERIVED, NEVER PRUNED IN AN EFFECT — the same rule as `NotificacionesContainer`. The raw set
+ * may still hold keys that a filter, a period change or the batch itself took off the table
+ * ("Solo sin clasificar" drops every row it just classified). An effect would render once
+ * with those stale keys still counted; deriving the intersection on every render means a
+ * motivo can never be applied to a row the person can no longer see.
+ */
+export function seleccionEfectiva(
+  seleccionadas: ReadonlySet<ClaveRegistro>,
+  filas: readonly FilaAusencia[],
+): ReadonlySet<ClaveRegistro> {
+  const efectiva = new Set<ClaveRegistro>();
+  if (seleccionadas.size === 0) return efectiva;
+  for (const fila of filas) if (seleccionadas.has(fila.clave)) efectiva.add(fila.clave);
+  return efectiva;
+}
+
+/** The header checkbox: empty, partial (indeterminate) or full, over the visible rows only. */
+export type EstadoSeleccionGeneral = 'ninguna' | 'algunas' | 'todas';
+
+export function estadoSeleccionGeneral(
+  efectiva: ReadonlySet<ClaveRegistro>,
+  filas: readonly FilaAusencia[],
+): EstadoSeleccionGeneral {
+  if (filas.length === 0 || efectiva.size === 0) return 'ninguna';
+  return filas.every((fila) => efectiva.has(fila.clave)) ? 'todas' : 'algunas';
+}
+
+/**
+ * Ticks or unticks every VISIBLE row, leaving any other key in the raw set as it was.
+ *
+ * Only visible rows, because the header checkbox sits above the table the person is looking
+ * at; "select all" that reached rows hidden by a filter would be the bug the derivation
+ * above exists to prevent, introduced from the other side.
+ */
+export function alternarVisibles(
+  seleccionadas: ReadonlySet<ClaveRegistro>,
+  filas: readonly FilaAusencia[],
+  marcar: boolean,
+): ReadonlySet<ClaveRegistro> {
+  const siguiente = new Set(seleccionadas);
+  for (const fila of filas) {
+    if (marcar) siguiente.add(fila.clave);
+    else siguiente.delete(fila.clave);
+  }
+  return siguiente;
+}
+
+/** The days the batch write is about, in table order. */
+export function diasSeleccionados(
+  efectiva: ReadonlySet<ClaveRegistro>,
+  filas: readonly FilaAusencia[],
+): readonly DiaAClasificar[] {
+  return filas
+    .filter((fila) => efectiva.has(fila.clave))
+    .map((fila) => ({ dni: fila.dni, fechaStr: fila.fechaStr }));
+}
+
+/**
+ * Whether applying `motivoId` to the selection would change nothing.
+ *
+ * It is what keeps the batch bar's default — "Sin clasificar" over rows that are all
+ * unclassified, which is exactly what the work queue shows — from writing a decision per day
+ * that changes no motivo and only re-signs `resuelto_por` and adds audit rows.
+ */
+export function loteSinCambios(
+  efectiva: ReadonlySet<ClaveRegistro>,
+  filas: readonly FilaAusencia[],
+  motivoId: number | null,
+): boolean {
+  return filas.every((fila) => !efectiva.has(fila.clave) || fila.motivoId === motivoId);
 }
 
 /** `1,2 MB`. Spanish decimal comma, because the rest of the screen uses one. */

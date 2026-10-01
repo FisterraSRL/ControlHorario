@@ -53,6 +53,44 @@ export function fechaARDesdeIso(fechaIso: string): string {
   return `${m[3]}/${m[2]}/${m[1]}`;
 }
 
+/**
+ * The registry after a batch write: every returned row replaces the one with its key, and a
+ * key the registry did not have yet is appended. Order is otherwise preserved.
+ *
+ * Pure so the provider can apply a whole batch in ONE `setAusencias` — N single-row updates
+ * would re-derive every day record N times — and so the rule can be tested without React.
+ */
+export function reemplazarAusencias(
+  previas: readonly AusenciaRegistrada[],
+  actualizadas: readonly AusenciaRegistrada[],
+): readonly AusenciaRegistrada[] {
+  if (actualizadas.length === 0) return previas;
+  const nuevas = new Map<ClaveRegistro, AusenciaRegistrada>();
+  for (const a of actualizadas) nuevas.set(claveRegistro(a.dni, a.fecha), a);
+  const salida = previas.map((a) => {
+    const clave = claveRegistro(a.dni, a.fecha);
+    const nueva = nuevas.get(clave);
+    if (!nueva) return a;
+    nuevas.delete(clave);
+    return nueva;
+  });
+  return [...salida, ...nuevas.values()];
+}
+
+/** One day of a batch classification, as the screen has it in hand. */
+export interface DiaAClasificar {
+  readonly dni: string;
+  /** The raw `DD/MM/YYYY` cell, exactly as `asignarMotivo` takes it. */
+  readonly fechaStr: string;
+}
+
+/**
+ * The most days one `asignarMotivos` call may carry. It mirrors `MAX_DIAS_POR_LOTE` in
+ * `src/api/esquemas.ts`, which refuses anything larger; the screen checks it first so the
+ * operator reads why instead of a schema error.
+ */
+export const MAX_DIAS_POR_LOTE = 500;
+
 export interface RepositorioAusencias {
   /** The whole registry. Filtering by period and sector happens in the screen. */
   listar(): Promise<readonly AusenciaRegistrada[]>;
@@ -67,4 +105,15 @@ export interface RepositorioAusencias {
     fechaStr: string,
     motivoId: number | null,
   ): Promise<AusenciaRegistrada>;
+  /**
+   * Sets or clears the motivo of many days in one decision, all or nothing.
+   *
+   * The same decision as `asignarMotivo` applied to each day. Either every day is written or
+   * none is — the server refuses the whole batch if any day is out of the caller's scope —
+   * and the answer is the rows as they now stand, so the caller can replace them in place.
+   */
+  asignarMotivos(
+    dias: readonly DiaAClasificar[],
+    motivoId: number | null,
+  ): Promise<readonly AusenciaRegistrada[]>;
 }
