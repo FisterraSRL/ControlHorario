@@ -93,6 +93,19 @@ export function nombreArchivoMasivo(cantidad: number, hoy: Date): string {
 }
 
 /**
+ * `Notificacion_Nombre_Apellido_14-09-2026.docx`: the per-person name plus the day.
+ *
+ * `fecha` is the QUICKPASS cell verbatim (`DD/MM/YYYY` in practice), so its slashes — and
+ * anything else Windows refuses in a file name, plus whitespace — become dashes. The day is
+ * in the name because the same person can get several of these in one sitting, and a browser
+ * that silently renames the second one to `(1)` would make them indistinguishable.
+ */
+export function nombreArchivoDia(usuario: string, fecha: string): string {
+  const dia = fecha.trim().replace(/[\\/:*?"<>|\s]+/g, '-') || 'sin-fecha';
+  return `Notificacion_${usuario.replace(/\s+/g, '_')}_${dia}.docx`;
+}
+
+/**
  * One person's notification as a finished `.docx`.
  *
  * Returns `null` when the person has no faltas — there is nothing to notify, and the
@@ -106,6 +119,30 @@ export function generarWord(
   if (!bodyXml) return null;
   return {
     nombreArchivo: nombreArchivoPersona(persona.usuario),
+    bytes: buildDocxBytes(bodyXml),
+  };
+}
+
+/**
+ * The notification for one day of one person, as a finished `.docx`.
+ *
+ * `persona` must already hold only that day's rows — cutting a person into days is UI-layer
+ * work (`src/ui/faltas/porDia.ts`), exactly like grouping them is, and this module stays out
+ * of it. The body is `buildPersonaXml`, the same builder `generarWord` uses, so the letter
+ * reads word for word like the per-person one; only the table rows (and therefore the
+ * density picked from their count) and the file name differ.
+ *
+ * Returns `null` when `persona` has no faltas, as `generarWord` does.
+ */
+export function generarWordDia(
+  persona: NotificacionPersona,
+  fecha: string,
+  opts: OpcionesNotificacion = {},
+): DocumentoGenerado | null {
+  const bodyXml = buildPersonaXml(persona, opts);
+  if (!bodyXml) return null;
+  return {
+    nombreArchivo: nombreArchivoDia(persona.usuario, fecha),
     bytes: buildDocxBytes(bodyXml),
   };
 }

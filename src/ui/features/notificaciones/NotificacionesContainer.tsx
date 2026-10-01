@@ -1,17 +1,19 @@
 /**
  * Container for the Notificaciones screen.
  *
- * It owns which people are ticked and the download, and nothing else: the grouping is
- * `agruparFaltasPorPersona` and the `.docx` is the notificaciones module. Both are pure, so
+ * It owns which people are ticked, which rows are open and the download, and nothing else:
+ * the grouping is `agruparFaltasPorPersona`, the cut into days is `separarPorDia`, and the
+ * `.docx` is the notificaciones module. Both are pure, so
  * the whole document is built in the browser — nothing about a disciplinary letter is sent
  * to the server, and there is no request to fail halfway.
  */
 
 import { useCallback, useMemo, useState } from 'react';
 
-import { generarWord, generarWordMasivo, MIME_DOCX } from '../../../notificaciones/index.js';
+import { generarWord, generarWordDia, generarWordMasivo, MIME_DOCX, type NotificacionPersona } from '../../../notificaciones/index.js';
 import { useConfiguracion } from '../../configuracion/ConfiguracionProvider.js';
 import { agruparFaltasPorPersona } from '../../faltas/agrupacion.js';
+import { separarPorDia } from '../../faltas/porDia.js';
 import { useHistorial } from '../../historial/HistorialProvider.js';
 import { usePeriodo } from '../../periodo/PeriodoProvider.js';
 import { NotificacionesScreen } from './NotificacionesScreen.js';
@@ -52,6 +54,19 @@ function comoDocx(bytes: Uint8Array): Blob {
   return new Blob([bytes as Uint8Array<ArrayBuffer>], { type: MIME_DOCX });
 }
 
+/**
+ * The DNIs of `marcados` that are still on screen. Selection and open rows both go through
+ * it: changing the period replaces the whole list, and a DNI that is no longer on screen must
+ * neither count towards "Generar seleccionadas" nor show as open. Derived rather than pruned
+ * in an effect, because an effect would render once with the stale state before correcting it.
+ */
+function soloVisibles(
+  marcados: ReadonlySet<string>,
+  personas: readonly NotificacionPersona[],
+): ReadonlySet<string> {
+  return new Set(personas.filter((p) => marcados.has(p.dni)).map((p) => p.dni));
+}
+
 export function NotificacionesContainer() {
   const { registros, cargando } = useHistorial();
   const { paraElMotor } = useConfiguracion();
@@ -64,12 +79,28 @@ export function NotificacionesContainer() {
 
   const [seleccionadas, setSeleccionadas] = useState<ReadonlySet<string>>(() => new Set());
 
-  // Changing the period replaces the whole list, and a DNI that is no longer on screen must
-  // not keep counting towards "Generar seleccionadas". Derived rather than pruned in an
-  // effect: an effect would render once with the stale count before correcting itself.
-  const vigentes = useMemo(
-    () => new Set(personas.filter((p) => seleccionadas.has(p.dni)).map((p) => p.dni)),
-    [personas, seleccionadas],
+  const vigentes = useMemo(() => soloVisibles(seleccionadas, personas), [personas, seleccionadas]);
+
+  // Raw, like Horas: the screen only ever sees `abiertas`, and every toggle starts from that
+  // derived set, so a period change needs no effect to close anything.
+  const [abiertasCrudas, setAbiertas] = useState<ReadonlySet<string>>(() => new Set());
+  const abiertas = useMemo(() => soloVisibles(abiertasCrudas, personas), [abiertasCrudas, personas]);
+
+  // Only the open rows are cut into days: that is all the screen lists, and the split of a
+  // closed row would be thrown away on every render.
+  const dias = useMemo(
+    () => new Map(personas.filter((p) => abiertas.has(p.dni)).map((p) => [p.dni, separarPorDia(p)])),
+    [personas, abiertas],
+  );
+
+  const alternarDetalle = useCallback(
+    (dni: string) => {
+      const siguientes = new Set(abiertas);
+      if (siguientes.has(dni)) siguientes.delete(dni);
+      else siguientes.add(dni);
+      setAbiertas(siguientes);
+    },
+    [abiertas],
   );
 
   const alternar = useCallback((dni: string) => {
@@ -99,6 +130,27 @@ export function NotificacionesContainer() {
     [personas],
   );
 
+  /**
+   * The ONE way a single day's letter is produced. It resolves the day from the same split the
+   * screen listed, so what is downloaded is exactly the row the operator clicked.
+   *
+   * NEXT UNIT (persist "notified" per dni/fecha/tipo): `clavesNotificadas(delDia.persona)` from
+   * `src/ui/faltas/porDia.ts` is the exact list this document covers. Record it HERE, before
+   * `guardarComo`, so a letter is never handed over without its record.
+   */
+  const generarDia = useCallback(
+    (dni: string, fecha: string) => {
+      const persona = personas.find((p) => p.dni === dni);
+      if (!persona) return;
+      const delDia = separarPorDia(persona).find((d) => d.fecha === fecha);
+      if (!delDia) return;
+      const doc = generarWordDia(delDia.persona, delDia.fecha);
+      if (!doc) return;
+      guardarComo(comoDocx(doc.bytes), doc.nombreArchivo);
+    },
+    [personas],
+  );
+
   const generarSeleccionadas = useCallback(() => {
     const doc = generarWordMasivo(personas.filter((p) => vigentes.has(p.dni)));
     if (!doc) return;
@@ -109,10 +161,14 @@ export function NotificacionesContainer() {
     <NotificacionesScreen
       personas={personas}
       seleccionadas={vigentes}
+      abiertas={abiertas}
+      dias={dias}
       cargando={cargando}
       onAlternar={alternar}
       onAlternarTodas={alternarTodas}
+      onAlternarDetalle={alternarDetalle}
       onGenerarPersona={generarPersona}
+      onGenerarDia={generarDia}
       onGenerarSeleccionadas={generarSeleccionadas}
     />
   );

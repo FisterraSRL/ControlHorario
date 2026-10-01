@@ -99,7 +99,8 @@ y el mismo día dos veces es un rango de un día. Esc y un click afuera cierran 
 - Registro/clasificación de ausencias y adjuntos, de a un día o en lote (ver «Clasificación en
   lote»).
 - Generador de notificaciones Word puro en `src/notificaciones`, con fixtures golden.
-- Pantalla Notificaciones: agrupación por persona y descarga del Word, individual y masiva.
+- Pantalla Notificaciones: agrupación por persona y descarga del Word, individual, masiva y por
+  día con falta desde el detalle de la persona (ver «Notificación por día»).
 - Pantalla Indicador: faltas por clase y totales del período, sobre la misma agrupación.
 - Horas trabajadas: detalle por día con las fichadas, «Desplegar todas» y clasificación del
   motivo de cada ausencia desde el detalle (ver «Horas trabajadas»).
@@ -197,6 +198,32 @@ desactualizado por este motivo.
 Verificado en el navegador con datos reales, no sólo con pruebas: los bytes entregados
 empiezan con el magic ZIP `50 4b 03 04` y contienen `[Content_Types].xml`, `_rels/.rels` y
 `word/document.xml`.
+
+#### Notificación por día
+
+Cada fila de persona tiene un botón `+` que despliega un renglón por día con al menos una
+falta: la fecha, los chips de ese día (el mismo componente y las mismas etiquetas que la
+columna Faltas) y un «Generar Word» que baja la carta de ese día solo. El Word por persona y
+«Generar seleccionadas» no cambiaron. El estado de despliegue es crudo y se deriva contra las
+filas visibles, igual que la selección y que Horas.
+
+El corte vive en `src/ui/faltas/porDia.ts`, al lado de la agrupación, y **no es una segunda
+agrupación**: `separarPorDia(persona)` recibe la salida de `agruparFaltasPorPersona` y sólo
+reparte sus filas ya formateadas. La clave del día es el texto `fecha` (la celda QUICKPASS,
+la misma que imprime la carta); los días se ordenan por `fechaOrden`, los ilegibles al final
+y después por el texto. Un día con tardanza y exceso de descanso es UNA carta con las dos
+secciones. Una prueba sostiene el invariante: la suma de los días es exactamente la persona.
+
+La carta es `generarWordDia(personaDelDia, fecha)` en `documentoWord.ts`: usa el mismo
+`buildPersonaXml` que `generarWord`, así que el texto es idéntico; sólo cambian las filas de
+las tablas (y con ellas la densidad) y el nombre, `nombreArchivoDia(usuario, fecha)` →
+`Notificacion_Nombre_Apellido_14-09-2026.docx` (las barras y lo que Windows no acepta en un
+nombre pasan a guiones).
+
+Preparado para la próxima unidad, sin implementarla: toda carta por día sale de
+`generarDia(dni, fecha)` en el container, y `clavesNotificadas(persona)` devuelve las ternas
+`(dni, fecha, tipo)` que cubre un documento. Hoy no se usa; el comentario de `generarDia`
+marca dónde registrar «notificada» antes de la descarga. No hay API, tabla ni persistencia.
 
 ### Indicador
 
@@ -369,7 +396,12 @@ flotando 50px a la derecha del resto. En el login va centrado arriba del panel.
 
 ## Pruebas
 
-El baseline esperado es **514 pruebas en 35 archivos**. El rango elegido en el calendario sumó
+El baseline esperado es **530 pruebas en 37 archivos**. La notificación por día sumó 16 sobre
+las 514 en 35, en dos archivos nuevos: 9 en `src/ui/faltas/porDia.test.ts` (orden de los
+días, clases juntas en un día, la suma igual a la persona con las mismas filas, identidad y
+legajo, días ilegibles al final, persona limpia sin días, y `clavesNotificadas` sin repetir) y
+7 en `src/notificaciones/documentoWordDia.test.ts` (nombre del archivo, `null` sin faltas y la
+carta idéntica a la de `generarWord`); `documentoWord.test.ts` no se tocó. El rango elegido en el calendario sumó
 39 sobre las 475 en 34: 21 en el archivo nuevo
 `src/ui/components/molecules/Calendario/grillaMes.test.ts` (grilla de lunes a domingo, la
 trampa UTC bajo UTC-3, los dos clicks, la banda, el teclado y los textos), 14 en
