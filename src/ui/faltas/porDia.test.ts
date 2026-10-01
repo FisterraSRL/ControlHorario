@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { RegistroDia } from '../../domain/fichadas/index.js';
 import { totalDeFaltas } from '../../notificaciones/index.js';
 import { agruparFaltasPorPersona } from './agrupacion.js';
-import { clavesNotificadas, separarPorDia } from './porDia.js';
+import { clavesNotificadas, contarNotificadas, idDeFalta, idFaltaNotificada, separarPorDia } from './porDia.js';
 
 const RANGO = { desde: new Date('2026-09-14T00:00:00Z'), hasta: new Date('2026-09-20T00:00:00Z') };
 
@@ -83,24 +83,59 @@ describe('notificaciones de un día', () => {
 });
 
 describe('claves de lo que cubre una notificación', () => {
-  it('lista (dni, fecha, tipo) por día y en el orden de las faltas', () => {
+  it('lista (dni, fecha ISO, tipo) por día y en el orden de las faltas', () => {
     expect(clavesNotificadas(unaPersona(REGISTROS))).toEqual([
-      { dni:'20-00000000-0', fecha:'15/09/2026', tipo:'incompleta' },
-      { dni:'20-00000000-0', fecha:'16/09/2026', tipo:'descanso' },
-      { dni:'20-00000000-0', fecha:'16/09/2026', tipo:'tardanza' },
-      { dni:'20-00000000-0', fecha:'17/09/2026', tipo:'tardanza' },
+      { dni:'20-00000000-0', fechaIso:'2026-09-15', tipo:'incompleta' },
+      { dni:'20-00000000-0', fechaIso:'2026-09-16', tipo:'descanso' },
+      { dni:'20-00000000-0', fechaIso:'2026-09-16', tipo:'tardanza' },
+      { dni:'20-00000000-0', fechaIso:'2026-09-17', tipo:'tardanza' },
     ]);
   });
 
   it('cubre sólo el día cuando recibe la notificación de un día', () => {
     const del16 = separarPorDia(unaPersona(REGISTROS))[1];
     if (!del16) throw new Error('expected the 16th');
-    expect(clavesNotificadas(del16.persona).map((c) => `${c.fecha}/${c.tipo}`)).toEqual(['16/09/2026/descanso','16/09/2026/tardanza']);
+    expect(clavesNotificadas(del16.persona).map((c) => `${c.fechaIso}/${c.tipo}`)).toEqual(['2026-09-16/descanso','2026-09-16/tardanza']);
   });
 
   it('no repite una clave cuando el mismo día trae dos filas de la misma clase', () => {
     const persona = unaPersona([el('16/09/2026', [TARDE]), el('16/09/2026', [TARDE])]);
     expect(totalDeFaltas(persona.faltasPorTipo)).toBe(2);
-    expect(clavesNotificadas(persona)).toEqual([{ dni:'20-00000000-0', fecha:'16/09/2026', tipo:'tardanza' }]);
+    expect(clavesNotificadas(persona)).toEqual([{ dni:'20-00000000-0', fechaIso:'2026-09-16', tipo:'tardanza' }]);
+  });
+
+  it('saltea las filas sin fecha legible: no se pueden guardar ni comparar', () => {
+    const base = unaPersona([el('16/09/2026', [TARDE]), el('17/09/2026', [TARDE])]);
+    const [t16, t17] = base.faltasPorTipo.tardanza;
+    if (!t16 || !t17) throw new Error('expected the fixture rows');
+    const conIlegible = { ...base, faltasPorTipo: { ...base.faltasPorTipo, tardanza: [t16, { ...t17, fecha:'sin dato', fechaOrden:null }] } };
+    expect(clavesNotificadas(conIlegible)).toEqual([{ dni:'20-00000000-0', fechaIso:'2026-09-16', tipo:'tardanza' }]);
+    expect(idDeFalta(base.dni, { ...t17, fechaOrden:null }, 'tardanza')).toBeNull();
+  });
+
+  it('la fecha ISO es el mismo día de la celda QUICKPASS', () => {
+    // `fechaOrden` is UTC midnight and `fmtFechaISO` reads it in UTC; a local-time formatter
+    // would read it as the 13th anywhere west of Greenwich.
+    const [clave] = clavesNotificadas(unaPersona([el('14/09/2026', [TARDE])]));
+    expect(clave?.fechaIso).toBe('2026-09-14');
+    expect(idFaltaNotificada('1', '2026-09-14', 'tardanza')).toBe('1|2026-09-14|tardanza');
+  });
+});
+
+describe('cuántas faltas ya están notificadas', () => {
+  it('cuenta filas, en la misma escala que el total de faltas', () => {
+    const persona = unaPersona(REGISTROS);
+    const notificadas = new Set([idFaltaNotificada(persona.dni, '2026-09-16', 'tardanza'), idFaltaNotificada(persona.dni, '2026-09-16', 'descanso')]);
+    expect(contarNotificadas(persona, notificadas)).toEqual({ notificadas:2, total:4 });
+  });
+
+  it('ignora una clave notificada que ya no es una falta y una de otra persona', () => {
+    const persona = unaPersona(REGISTROS);
+    const notificadas = new Set([
+      idFaltaNotificada(persona.dni, '2026-09-18', 'tardanza'),
+      idFaltaNotificada('otra', '2026-09-15', 'incompleta'),
+      idFaltaNotificada(persona.dni, '2026-09-15', 'descanso'),
+    ]);
+    expect(contarNotificadas(persona, notificadas)).toEqual({ notificadas:0, total:4 });
   });
 });

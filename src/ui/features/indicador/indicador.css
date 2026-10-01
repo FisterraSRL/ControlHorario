@@ -4,3 +4,4 @@
 .tabla thead th.indicador__numero { text-align: right; }
 /* A zero is muted: a clean row should not read as loudly as one with three faltas. */
 .indicador__numero--cero { color: var(--app-muted); }
+.indicador__aviso { margin-bottom: var(--app-space-4); }

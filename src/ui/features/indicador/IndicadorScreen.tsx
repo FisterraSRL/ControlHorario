@@ -5,6 +5,10 @@
  * This screen only reports: there is no checkbox, no button and nothing to download. The
  * column headings come from `META_FALTAS`, so they read exactly as the chips on the
  * Notificaciones screen and as the section titles of the Word document.
+ *
+ * «Total faltas» is every falta of the person in the period; «Notificadas» is how many of
+ * those a generated Word already covered. A falta notified once and later erased by a rule
+ * fix is not counted: the column only intersects with the faltas that exist now.
  */
 
 import { Fragment } from 'react';
@@ -15,18 +19,23 @@ import {
   totalDeFaltas,
   type NotificacionPersona,
 } from '../../../notificaciones/index.js';
+import { Alert } from '../../components/molecules/Alert/Alert.js';
 import { Card } from '../../components/molecules/Card/Card.js';
 import { FilaVacia, Table } from '../../components/molecules/Table/Table.js';
-import type { TotalesIndicador } from './indicador.js';
+import type { NotificadasIndicador, TotalesIndicador } from './indicador.js';
 import './indicador.css';
 
-/** Persona, DNI and Total, plus one column per falta class: six today. */
-const COLUMNAS = 3 + ORDEN_FALTAS.length;
+/** Persona, DNI, Total faltas and Notificadas, plus one column per falta class: seven today. */
+const COLUMNAS = 4 + ORDEN_FALTAS.length;
 
 interface Props {
   readonly personas: readonly NotificacionPersona[];
   readonly totales: TotalesIndicador;
+  readonly notificadas: NotificadasIndicador;
   readonly cargando: boolean;
+  /** While the period's notified keys load, the column says so instead of a false zero. */
+  readonly cargandoNotificadas: boolean;
+  readonly errorNotificadas: string | null;
 }
 
 /** A count in its own cell. A zero is muted so a clean row does not shout as loudly. */
@@ -35,14 +44,34 @@ function Cuenta({ valor }: { readonly valor: number }) {
   return <td className={clase}>{valor}</td>;
 }
 
-export function IndicadorScreen({ personas, totales, cargando }: Props) {
+/** The «Notificadas» cell: a count, or an ellipsis while it is not known yet. */
+function CuentaNotificadas({ valor, cargando }: { readonly valor: number; readonly cargando: boolean }) {
+  if (cargando) return <td className="tabla__mono indicador__numero indicador__numero--cero">…</td>;
+  return <Cuenta valor={valor} />;
+}
+
+export function IndicadorScreen({
+  personas,
+  totales,
+  notificadas,
+  cargando,
+  cargandoNotificadas,
+  errorNotificadas,
+}: Props) {
   let sectorAnterior = '';
 
   return (
     <Card
       titulo="Indicador de notificaciones"
-      bajada="Cantidad de faltas detectadas por persona en el período seleccionado."
+      bajada="Cantidad de faltas detectadas por persona en el período seleccionado y cuántas ya fueron notificadas con un Word."
     >
+      {errorNotificadas && (
+        <div className="indicador__aviso">
+          <Alert tono="aviso" titulo="No se pudo leer qué faltas ya están notificadas">
+            {errorNotificadas}
+          </Alert>
+        </div>
+      )}
       <Table etiqueta="Faltas por persona en el período">
         <thead>
           <tr>
@@ -53,7 +82,8 @@ export function IndicadorScreen({ personas, totales, cargando }: Props) {
                 {META_FALTAS[tipo].label}
               </th>
             ))}
-            <th className="indicador__numero">Total</th>
+            <th className="indicador__numero">Total faltas</th>
+            <th className="indicador__numero">Notificadas</th>
           </tr>
         </thead>
         <tbody>
@@ -81,6 +111,10 @@ export function IndicadorScreen({ personas, totales, cargando }: Props) {
                     <Cuenta key={tipo} valor={persona.faltasPorTipo[tipo].length} />
                   ))}
                   <Cuenta valor={totalDeFaltas(persona.faltasPorTipo)} />
+                  <CuentaNotificadas
+                    valor={notificadas.porDni.get(persona.dni) ?? 0}
+                    cargando={cargandoNotificadas}
+                  />
                 </tr>
               </Fragment>
             );
@@ -96,6 +130,7 @@ export function IndicadorScreen({ personas, totales, cargando }: Props) {
                 <Cuenta key={tipo} valor={totales.porTipo[tipo]} />
               ))}
               <Cuenta valor={totales.total} />
+              <CuentaNotificadas valor={notificadas.total} cargando={cargandoNotificadas} />
             </tr>
           )}
         </tbody>

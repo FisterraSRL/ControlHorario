@@ -3,20 +3,29 @@
  *
  * It owns which people are ticked, which rows are open and the download, and nothing else:
  * the grouping is `agruparFaltasPorPersona`, the cut into days is `separarPorDia`, and the
- * `.docx` is the notificaciones module. Both are pure, so
- * the whole document is built in the browser — nothing about a disciplinary letter is sent
- * to the server, and there is no request to fail halfway.
+ * `.docx` is the notificaciones module. The document itself is still built in the browser —
+ * no letter content is ever sent to the server.
+ *
+ * GENERATING A WORD IS WHAT MARKS ITS FALTAS AS NOTIFIED, so every download now makes ONE
+ * request first: the (dni, fecha, tipo) keys the document covers, computed by
+ * `clavesNotificadas` from exactly the persona(s) the document is built from, are recorded
+ * through `useNotificadas().registrar`. Only when that succeeds is the file handed over
+ * (`entregarRegistrado`); when it fails the operator reads why and nothing is downloaded, so
+ * a letter never leaves the app without its record. All three paths — per person, per day
+ * and the mass file — go through `entregar` below.
  */
 
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 
-import { generarWord, generarWordDia, generarWordMasivo, MIME_DOCX, type NotificacionPersona } from '../../../notificaciones/index.js';
+import { generarWord, generarWordDia, generarWordMasivo, MIME_DOCX, type DocumentoGenerado, type NotificacionPersona } from '../../../notificaciones/index.js';
 import { useConfiguracion } from '../../configuracion/ConfiguracionProvider.js';
 import { agruparFaltasPorPersona } from '../../faltas/agrupacion.js';
-import { separarPorDia } from '../../faltas/porDia.js';
+import { clavesNotificadas, separarPorDia, type ClaveNotificada } from '../../faltas/porDia.js';
 import { useHistorial } from '../../historial/HistorialProvider.js';
+import { useNotificadas } from '../../notificaciones/NotificadasProvider.js';
 import { usePeriodo } from '../../periodo/PeriodoProvider.js';
 import { NotificacionesScreen } from './NotificacionesScreen.js';
+import { entregarRegistrado, MENSAJE_SIN_REGISTRO } from './notificaciones.js';
 
 /**
  * Hands the browser a file it already has in memory.
@@ -117,6 +126,38 @@ export function NotificacionesContainer() {
     [personas],
   );
 
+  const { notificadas, registrar, error: errorLectura } = useNotificadas();
+  const [errorRegistro, setErrorRegistro] = useState<string | null>(null);
+  // One document at a time: a second click while the record is in flight would post the
+  // same keys again and download twice.
+  // The ref closes the gap before the disabled buttons re-render; the state disables them.
+  const [registrando, setRegistrando] = useState(false);
+  const enVuelo = useRef(false);
+
+  /**
+   * The ONE way a document leaves this screen: record the keys it covers, then download.
+   * `claves` must come from the same `NotificacionPersona` values the document was built
+   * from, which every caller below guarantees by computing both from one variable.
+   */
+  const entregar = useCallback(
+    async (claves: readonly ClaveNotificada[], doc: DocumentoGenerado) => {
+      if (enVuelo.current) return;
+      enVuelo.current = true;
+      setErrorRegistro(null);
+      setRegistrando(true);
+      try {
+        const resultado = await entregarRegistrado(claves, registrar, () =>
+          guardarComo(comoDocx(doc.bytes), doc.nombreArchivo),
+        );
+        if (resultado === 'no_registrado') setErrorRegistro(MENSAJE_SIN_REGISTRO);
+      } finally {
+        enVuelo.current = false;
+        setRegistrando(false);
+      }
+    },
+    [registrar],
+  );
+
   const generarPersona = useCallback(
     (dni: string) => {
       const persona = personas.find((p) => p.dni === dni);
@@ -125,18 +166,15 @@ export function NotificacionesContainer() {
       // to hand over.
       const doc = generarWord(persona);
       if (!doc) return;
-      guardarComo(comoDocx(doc.bytes), doc.nombreArchivo);
+      void entregar(clavesNotificadas(persona), doc);
     },
-    [personas],
+    [personas, entregar],
   );
 
   /**
    * The ONE way a single day's letter is produced. It resolves the day from the same split the
-   * screen listed, so what is downloaded is exactly the row the operator clicked.
-   *
-   * NEXT UNIT (persist "notified" per dni/fecha/tipo): `clavesNotificadas(delDia.persona)` from
-   * `src/ui/faltas/porDia.ts` is the exact list this document covers. Record it HERE, before
-   * `guardarComo`, so a letter is never handed over without its record.
+   * screen listed, so what is downloaded — and recorded — is exactly the row the operator
+   * clicked: `clavesNotificadas(delDia.persona)` covers that day and nothing else.
    */
   const generarDia = useCallback(
     (dni: string, fecha: string) => {
@@ -146,16 +184,17 @@ export function NotificacionesContainer() {
       if (!delDia) return;
       const doc = generarWordDia(delDia.persona, delDia.fecha);
       if (!doc) return;
-      guardarComo(comoDocx(doc.bytes), doc.nombreArchivo);
+      void entregar(clavesNotificadas(delDia.persona), doc);
     },
-    [personas],
+    [personas, entregar],
   );
 
   const generarSeleccionadas = useCallback(() => {
-    const doc = generarWordMasivo(personas.filter((p) => vigentes.has(p.dni)));
+    const elegidas = personas.filter((p) => vigentes.has(p.dni));
+    const doc = generarWordMasivo(elegidas);
     if (!doc) return;
-    guardarComo(comoDocx(doc.bytes), doc.nombreArchivo);
-  }, [personas, vigentes]);
+    void entregar(elegidas.flatMap((p) => clavesNotificadas(p)), doc);
+  }, [personas, vigentes, entregar]);
 
   return (
     <NotificacionesScreen
@@ -163,7 +202,10 @@ export function NotificacionesContainer() {
       seleccionadas={vigentes}
       abiertas={abiertas}
       dias={dias}
+      notificadas={notificadas}
       cargando={cargando}
+      registrando={registrando}
+      error={errorRegistro ?? (errorLectura ? `No se pudo leer qué faltas ya están notificadas: ${errorLectura}` : null)}
       onAlternar={alternar}
       onAlternarTodas={alternarTodas}
       onAlternarDetalle={alternarDetalle}

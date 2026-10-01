@@ -43,11 +43,13 @@ import type { LimitadorLogin } from './limitador.js';
 import { crearRepositorioAdjuntos } from './repositorioAdjuntos.js';
 import { crearRepositorioAusencias } from './repositorioAusencias.js';
 import { crearRepositorioConfiguracion } from './repositorioConfiguracion.js';
+import { crearRepositorioNotificaciones } from './repositorioNotificaciones.js';
 import { crearRepositorioAzureSql } from './repositorioAzureSql.js';
 import { registrarRutas } from './rutas.js';
 import { registrarRutasAdjuntos } from './rutasAdjuntos.js';
 import { registrarRutasAusencias } from './rutasAusencias.js';
 import { registrarRutasConfiguracion } from './rutasConfiguracion.js';
+import { registrarRutasNotificaciones } from './rutasNotificaciones.js';
 import { registrarRutasUsuarios } from './rutasUsuarios.js';
 
 /** The path without its query string. Nothing here puts personal data in a query today, and
@@ -197,6 +199,7 @@ export async function construirServidor(
   registrarRutasConfiguracion(app, { repositorio: configuracion, fichadas: repositorio, ausencias });
   registrarRutasAdjuntos(app, { config, pool, repositorio: adjuntos });
   registrarRutasUsuarios(app, pool);
+  registrarRutasNotificaciones(app, { repositorio: crearRepositorioNotificaciones(pool) });
 
   if (await existeSpa(config.directorioEstatico)) {
     await registrarEstatico(app, config.directorioEstatico);

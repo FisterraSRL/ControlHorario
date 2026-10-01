@@ -49,7 +49,8 @@ export type AccionAuditada =
   | 'motivo_retirado'
   | 'exclusion_agregada'
   | 'exclusion_quitada'
-  | 'exclusiones_sembradas';
+  | 'exclusiones_sembradas'
+  | 'faltas_notificadas';
 
 export interface EntradaAuditoria {
   /** Who. The email of the logged-in operator, or `config.operador` for boot-time work. */

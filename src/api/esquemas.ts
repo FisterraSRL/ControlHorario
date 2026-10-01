@@ -20,6 +20,8 @@
  * structure never reaches `jsonb`.
  */
 
+import type { TipoFalta } from '../domain/fichadas/tipos.js';
+
 /** ~55.000 rows is a year of QUICKPASS for 200 people. Ten times that is a mistake. */
 const MAX_FILAS = 500_000;
 
@@ -254,3 +256,73 @@ export const ESQUEMA_CUERPO_SECTOR_REGLA = {
  * shape is checked by hand in `rutasAdjuntos.ts` against these same bounds.
  */
 export const LIMITES_CAMPO_ADJUNTO = { maxDni: 32, maxNombre: 255 } as const;
+
+/**
+ * The falta classes a notification can cover, written as a record so the compiler refuses
+ * this file the day the engine's `TipoFalta` grows or loses a member. Migration 005 holds
+ * the same list in `CK_ch_faltas_notificadas_tipo`.
+ */
+const CLASES_DE_FALTA: Readonly<Record<TipoFalta, true>> = {
+  incompleta: true,
+  descanso: true,
+  tardanza: true,
+};
+export const TIPOS_FALTA = Object.keys(CLASES_DE_FALTA) as readonly TipoFalta[];
+
+/**
+ * The most faltas one `POST /api/notificaciones` may record. A mass letter for a whole sector
+ * over a year is a few thousand (dni, day, class) triples; this bounds the request without
+ * forcing that letter to be split. The screen's adapter splits anything larger into requests
+ * of this size (`MAX_FALTAS_POR_REGISTRO` in `src/ui/notificaciones/RepositorioNotificaciones.ts`).
+ */
+export const MAX_FALTAS_POR_NOTIFICACION = 5000;
+
+/**
+ * The widest window `GET /api/notificaciones` answers, in days, both ends included. A year
+ * view is 366 at most; the bound keeps one response from carrying the whole table.
+ */
+export const MAX_DIAS_VENTANA_NOTIFICADAS = 400;
+
+/** `YYYY-MM-DD`. The shape only; whether it names a real day is checked in the route. */
+const FECHA_ISO = { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$' } as const;
+
+/**
+ * Recording that a Word was generated for these faltas.
+ *
+ * The date is ISO and not the QUICKPASS cell: the client derives it from the parsed day, so
+ * the key it sends is the key the `date` column gives back. Duplicates are not refused, the
+ * route deduplicates — same reasoning as `ESQUEMA_CUERPO_MOTIVOS_DIAS`.
+ */
+export const ESQUEMA_CUERPO_NOTIFICADAS = {
+  type: 'object',
+  required: ['faltas'],
+  additionalProperties: false,
+  properties: {
+    faltas: {
+      type: 'array',
+      minItems: 1,
+      maxItems: MAX_FALTAS_POR_NOTIFICACION,
+      items: {
+        type: 'object',
+        required: ['dni', 'fecha', 'tipo'],
+        additionalProperties: false,
+        properties: {
+          dni: DNI,
+          fecha: FECHA_ISO,
+          tipo: { type: 'string', enum: TIPOS_FALTA },
+        },
+      },
+    },
+  },
+} as const;
+
+/** The window of `GET /api/notificaciones`. Both ends required: there is no "everything". */
+export const ESQUEMA_CONSULTA_NOTIFICADAS = {
+  type: 'object',
+  required: ['desde', 'hasta'],
+  additionalProperties: false,
+  properties: {
+    desde: FECHA_ISO,
+    hasta: FECHA_ISO,
+  },
+} as const;

@@ -13,8 +13,12 @@
  *                           above. It is last because it needs both: a day's motivo comes
  *                           from the registry and its faults from the thresholds.
  *           PeriodoProvider the día / semana / mes / año window the screens are read
- *                           through. It depends on nothing and is innermost so that
- *                           changing the period does not re-run a repository read.
+ *                           through. It depends on nothing and sits below the providers
+ *                           above so that changing the period does not re-run their reads.
+ *             NotificadasProvider which faltas of the period were already notified. It is
+ *                           the one read that IS period-scoped (the server answers a
+ *                           window of days), so it is the one provider below the period,
+ *                           and changing the period re-reads it and nothing else.
  *
  * Every route below points at a real screen; none of them is a placeholder any more.
  *
@@ -39,6 +43,7 @@ import { MiCuentaContainer } from '../features/micuenta/MiCuentaContainer.js';
 import { NotificacionesContainer } from '../features/notificaciones/NotificacionesContainer.js';
 import { UsuariosContainer } from '../features/usuarios/UsuariosContainer.js';
 import { HistorialProvider } from '../historial/HistorialProvider.js';
+import { NotificadasProvider } from '../notificaciones/NotificadasProvider.js';
 import { PeriodoProvider } from '../periodo/PeriodoProvider.js';
 import { SesionProvider, useSesion } from '../sesion/SesionProvider.js';
 import { AppLayout } from './AppLayout.js';
@@ -79,25 +84,27 @@ function Autenticado() {
       <AusenciasProvider>
         <HistorialProvider>
           <PeriodoProvider>
-            <Routes>
-              <Route element={<AppLayout />}>
-                {SECCIONES.map((seccion) => (
-                  <Route
-                    key={seccion.id}
-                    path={seccion.path}
-                    element={
-                      permiteRol(seccion, rol) ? (
-                        PANTALLAS[seccion.id]
-                      ) : (
-                        <Navigate to={inicial} replace />
-                      )
-                    }
-                  />
-                ))}
-                {/* Anything else, including "/", lands on this role's first section. */}
-                <Route path="*" element={<Navigate to={inicial} replace />} />
-              </Route>
-            </Routes>
+            <NotificadasProvider>
+              <Routes>
+                <Route element={<AppLayout />}>
+                  {SECCIONES.map((seccion) => (
+                    <Route
+                      key={seccion.id}
+                      path={seccion.path}
+                      element={
+                        permiteRol(seccion, rol) ? (
+                          PANTALLAS[seccion.id]
+                        ) : (
+                          <Navigate to={inicial} replace />
+                        )
+                      }
+                    />
+                  ))}
+                  {/* Anything else, including "/", lands on this role's first section. */}
+                  <Route path="*" element={<Navigate to={inicial} replace />} />
+                </Route>
+              </Routes>
+            </NotificadasProvider>
           </PeriodoProvider>
         </HistorialProvider>
       </AusenciasProvider>

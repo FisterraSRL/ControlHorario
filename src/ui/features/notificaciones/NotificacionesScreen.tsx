@@ -5,6 +5,10 @@
  *
  * The chips carry the same labels and the same three colours the letter is printed with
  * (`META_FALTAS`), so the screen and the document read as one thing rather than two.
+ *
+ * Each open day also says whether it was already notified: «Notificada» when every falta of
+ * the day is on record, «N de M notificadas» when only some are. Generating a Word is what
+ * records them, so the buttons are disabled while a record is in flight.
  */
 
 import { Fragment } from 'react';
@@ -16,13 +20,15 @@ import {
   type FaltasPorTipo,
   type NotificacionPersona,
 } from '../../../notificaciones/index.js';
-import type { DiaConFaltas } from '../../faltas/porDia.js';
+import { contarNotificadas, type DiaConFaltas, type IdFaltaNotificada } from '../../faltas/porDia.js';
 import { Button } from '../../components/atoms/Button/Button.js';
 import { Checkbox } from '../../components/atoms/Checkbox/Checkbox.js';
 import { Chip } from '../../components/atoms/Chip/Chip.js';
+import { Alert } from '../../components/molecules/Alert/Alert.js';
 import { Card } from '../../components/molecules/Card/Card.js';
 import { FilaVacia, Table } from '../../components/molecules/Table/Table.js';
 import { pluralizar } from '../../texto.js';
+import { etiquetaNotificacion } from './notificaciones.js';
 import './notificaciones.css';
 
 /** Expand, Persona (with its checkbox), DNI, faltas, total, and the per-person button. */
@@ -35,7 +41,13 @@ interface Props {
   readonly abiertas: ReadonlySet<string>;
   /** Each open row's days, keyed by DNI. A row missing here simply lists nothing. */
   readonly dias: ReadonlyMap<string, readonly DiaConFaltas[]>;
+  /** Notified keys of the period (`idFaltaNotificada`). */
+  readonly notificadas: ReadonlySet<IdFaltaNotificada>;
   readonly cargando: boolean;
+  /** A document's record is in flight: every generate button waits for it. */
+  readonly registrando: boolean;
+  /** Why the last document was not handed over, or why the notified state is unknown. */
+  readonly error: string | null;
   readonly onAlternar: (dni: string) => void;
   readonly onAlternarTodas: (marcado: boolean) => void;
   readonly onAlternarDetalle: (dni: string) => void;
@@ -66,7 +78,10 @@ export function NotificacionesScreen({
   seleccionadas,
   abiertas,
   dias,
+  notificadas,
   cargando,
+  registrando,
+  error,
   onAlternar,
   onAlternarTodas,
   onAlternarDetalle,
@@ -81,13 +96,22 @@ export function NotificacionesScreen({
   return (
     <Card
       titulo="Notificaciones a generar"
-      bajada="Fichadas incompletas, exceso de descanso y llegadas tarde del período, agrupadas por sector y persona. El Word se arma en esta misma pantalla."
+      bajada="Fichadas incompletas, exceso de descanso y llegadas tarde del período, agrupadas por sector y persona. El Word se arma en esta misma pantalla, y al generarlo sus faltas quedan registradas como notificadas."
       acciones={
-        <Button variante="primary" onClick={onGenerarSeleccionadas} disabled={seleccionadas.size === 0}>
+        <Button
+          variante="primary"
+          onClick={onGenerarSeleccionadas}
+          disabled={seleccionadas.size === 0 || registrando}
+        >
           Generar seleccionadas ({seleccionadas.size})
         </Button>
       }
     >
+      {error && (
+        <div className="notificaciones__aviso">
+          <Alert tono="error">{error}</Alert>
+        </div>
+      )}
       <Table etiqueta="Personas con faltas en el período">
         <thead>
           <tr>
@@ -155,6 +179,7 @@ export function NotificacionesScreen({
                       variante="ghost"
                       tamano="sm"
                       aria-label={`Generar el Word de ${persona.usuario}`}
+                      disabled={registrando}
                       onClick={() => onGenerarPersona(persona.dni)}
                     >
                       Generar Word
@@ -167,20 +192,30 @@ export function NotificacionesScreen({
                     <td />
                     <td colSpan={COLUMNAS - 1}>
                       <ul className="notificaciones__dias" aria-label={`Días con faltas de ${persona.usuario}`}>
-                        {(dias.get(persona.dni) ?? []).map((dia) => (
-                          <li key={dia.fecha} className="notificaciones__dia">
-                            <span className="notificaciones__fecha">{dia.fecha}</span>
-                            <ChipsDeFaltas faltasPorTipo={dia.persona.faltasPorTipo} />
-                            <Button
-                              variante="ghost"
-                              tamano="sm"
-                              aria-label={`Generar el Word de ${persona.usuario} del ${dia.fecha}`}
-                              onClick={() => onGenerarDia(persona.dni, dia.fecha)}
-                            >
-                              Generar Word
-                            </Button>
-                          </li>
-                        ))}
+                        {(dias.get(persona.dni) ?? []).map((dia) => {
+                          const cuenta = contarNotificadas(dia.persona, notificadas);
+                          const estado = etiquetaNotificacion(cuenta);
+                          return (
+                            <li key={dia.fecha} className="notificaciones__dia">
+                              <span className="notificaciones__fecha">{dia.fecha}</span>
+                              <ChipsDeFaltas faltasPorTipo={dia.persona.faltasPorTipo} />
+                              {estado && (
+                                <Chip tono={cuenta.notificadas >= cuenta.total ? 'ok' : 'neutral'}>
+                                  {estado}
+                                </Chip>
+                              )}
+                              <Button
+                                variante="ghost"
+                                tamano="sm"
+                                aria-label={`Generar el Word de ${persona.usuario} del ${dia.fecha}`}
+                                disabled={registrando}
+                                onClick={() => onGenerarDia(persona.dni, dia.fecha)}
+                              >
+                                Generar Word
+                              </Button>
+                            </li>
+                          );
+                        })}
                       </ul>
                     </td>
                   </tr>

@@ -101,7 +101,10 @@ y el mismo día dos veces es un rango de un día. Esc y un click afuera cierran 
 - Generador de notificaciones Word puro en `src/notificaciones`, con fixtures golden.
 - Pantalla Notificaciones: agrupación por persona y descarga del Word, individual, masiva y por
   día con falta desde el detalle de la persona (ver «Notificación por día»).
-- Pantalla Indicador: faltas por clase y totales del período, sobre la misma agrupación.
+- Pantalla Indicador: faltas por clase y totales del período, sobre la misma agrupación, con
+  el total de faltas y el total de faltas notificadas por persona (ver «Faltas notificadas»).
+- Registro de faltas notificadas: generar un Word marca sus faltas como notificadas (ver
+  «Faltas notificadas»). Requiere la migración 005, todavía no aplicada.
 - Horas trabajadas: detalle por día con las fichadas, «Desplegar todas» y clasificación del
   motivo de cada ausencia desde el detalle (ver «Horas trabajadas»).
 - Mini-calendario en el header para elegir un rango Desde/Hasta en dos clicks (ver «Rango
@@ -169,7 +172,9 @@ La exportación CSV no cambió.
 
 Implementada. `NotificacionesContainer` agrupa las faltas del período por persona, permite
 selección individual y masiva, y descarga los bytes mediante un object URL que se revoca.
-Nada se envía al servidor: el `.docx` se arma en el navegador.
+El `.docx` se arma en el navegador y su contenido nunca se envía al servidor; lo único que
+viaja, antes de la descarga, son las claves de las faltas que cubre (ver «Faltas
+notificadas»).
 
 La agrupación NO vive en el feature. Está en `src/ui/faltas/agrupacion.ts`, junto a
 `periodo/` e `historial/`:
@@ -220,10 +225,68 @@ las tablas (y con ellas la densidad) y el nombre, `nombreArchivoDia(usuario, fec
 `Notificacion_Nombre_Apellido_14-09-2026.docx` (las barras y lo que Windows no acepta en un
 nombre pasan a guiones).
 
-Preparado para la próxima unidad, sin implementarla: toda carta por día sale de
-`generarDia(dni, fecha)` en el container, y `clavesNotificadas(persona)` devuelve las ternas
-`(dni, fecha, tipo)` que cubre un documento. Hoy no se usa; el comentario de `generarDia`
-marca dónde registrar «notificada» antes de la descarga. No hay API, tabla ni persistencia.
+#### Faltas notificadas
+
+**Generar el Word es lo que marca una falta como notificada.** No hay marca manual ni forma
+de «des-notificar». Las tres salidas —por persona, por día y «Generar seleccionadas»— pasan
+por un único `entregar` en el container:
+
+1. `clavesNotificadas(persona)` (`src/ui/faltas/porDia.ts`) calcula las ternas
+   `(dni, fechaIso, tipo)` que cubre el documento, sobre exactamente las mismas
+   `NotificacionPersona` con las que se arma (la persona, el día o las seleccionadas).
+2. `useNotificadas().registrar(claves)` las envía. Si responde `false`, se muestra «No se pudo
+   registrar la notificación; el Word no se descargó. Probá de nuevo.» y **no se descarga
+   nada**: una carta nunca sale sin su registro. La decisión vive en `entregarRegistrado`
+   (`features/notificaciones/notificaciones.ts`) y tiene prueba propia.
+3. Recién entonces `guardarComo`. Mientras el registro está en vuelo los botones se
+   deshabilitan, para que un doble click no descargue dos veces.
+
+**La fecha de la clave es ISO, no la celda QUICKPASS.** La base guarda un `date` y responde
+`YYYY-MM-DD`; una clave con `14/09/2026` nunca coincidiría y el Indicador mostraría cero
+notificadas para siempre. `fechaIso` sale de `fechaOrden` (la medianoche UTC que produjo
+`parsearFechaDMY`) con `fmtFechaISO`, y una fila con `fechaOrden` nulo se saltea: sin día
+legible no se puede guardar ni comparar. El corte por día sigue usando el texto de la celda.
+La única forma de escribir una clave es `idFaltaNotificada` → `${dni}|${fechaIso}|${tipo}`.
+
+**Se conserva la primera notificación.** Volver a generar la misma carta no pisa
+`notificado_at` ni `notificado_por`; cada generación, primera o no, igual deja su rastro en
+`auditoria`.
+
+```text
+POST /api/notificaciones                     (sólo RRHH)
+{ "faltas": [{ "dni": "30111222", "fecha": "2026-09-14", "tipo": "tardanza" }, ...] }
+-> 200 { "registradas": 3 }        // claves insertadas por primera vez
+
+GET /api/notificaciones?desde=2026-09-01&hasta=2026-09-30   (sólo RRHH)
+-> 200 { "notificadas": [{ "dni", "fecha": "YYYY-MM-DD", "tipo", "notificadoAt": ISO }, ...] }
+```
+
+- `POST`: entre 1 y 5000 faltas (`MAX_FALTAS_POR_NOTIFICACION`), esquema cerrado, `tipo` en
+  `incompleta`/`descanso`/`tardanza`, fecha `YYYY-MM-DD` que además tiene que ser un día real
+  (`2026-02-30` es 400 y no un error de conversión de la base). Las repetidas se deduplican.
+  Una transacción: un `MERGE` por conjunto **sólo de inserción** (sin `WHEN MATCHED`) con las
+  claves en un parámetro JSON expandido con `OPENJSON`, y la auditoría con `auditarVarios`. Un
+  día sin fichada viola la FK y vuelve como el mismo 409 `integridad` de ausencias.
+- **Auditoría**: acción `faltas_notificadas`, una fila por día `(dni, fecha)` del pedido con
+  `entidad_id = DNI|YYYY-MM-DD` (`idDeDia`, igual que las decisiones de ausencias) y
+  `datos = { tipos, nuevas }`: las clases que cubrió el documento ese día y cuáles se
+  registraron por primera vez. Sólo códigos; nada de nombres ni del contenido de la carta.
+- `GET`: `desde` y `hasta` obligatorios, días reales, `desde <= hasta` y a lo sumo 400 días
+  (`ventana_invalida`). La UI parte en ventanas consecutivas un rango elegido más largo, y en
+  lotes de 5000 un registro más grande (los lotes van en serie: si uno falla, los anteriores
+  quedan registrados y el Word no se descarga; volver a generar sólo agrega lo que faltaba).
+- Las dos rutas usan `SOLO_RRHH`: un encargado no ve Notificaciones ni Indicador y recibe 403.
+
+En la UI, `src/ui/notificaciones/` tiene el puerto, el adaptador HTTP, el adaptador local
+(localStorage, idempotente, conserva el primer `notificadoAt`, una sola escritura por registro)
+y `NotificadasProvider`. El provider va **debajo de `PeriodoProvider`**, porque es la única
+lectura que depende del período: cambiar el período la repite y no repite ninguna otra.
+Expone `notificadas: ReadonlySet<string>` con las claves del período más las registradas en
+esta sesión (un conjunto aparte que se une, para que una lectura lenta del período no borre
+lo recién registrado). Un rol que no puede abrir ninguna de las dos pantallas no la pide.
+
+En el detalle por día de Notificaciones, un día con todas sus faltas registradas muestra el
+chip «Notificada» y uno parcial «N de M notificadas».
 
 ### Indicador
 
@@ -237,6 +300,16 @@ igual que los chips de Notificaciones y que los títulos del Word.
 `src/ui/features/indicador/indicador.ts` sólo suma: `totalesDelPeriodo` recorre
 `ORDEN_FALTAS` y usa `totalDeFaltas`, de modo que el total general de la pantalla y el total
 por persona de la carta son la misma función.
+
+La columna «Total» pasó a llamarse «Total faltas» y a su lado está «Notificadas»:
+`notificadasDelPeriodo(personas, notificadas)` cuenta, con `contarNotificadas` de
+`porDia.ts`, las **filas** de falta de cada persona cuya clave está en el conjunto del
+provider. Filas y no claves, para que esté en la misma escala que «Total faltas» y nunca lo
+supere. Es una **intersección con las faltas actuales**: una falta notificada que una
+corrección de reglas borró después no se cuenta, aunque la tabla la conserve como historia.
+La fila «Total período» suma también las notificadas. El estado de notificación se compone
+al lado de `NotificacionPersona` y no se le agrega ningún campo, porque ese tipo llega al
+generador puro del Word.
 
 #### La opción `incluirSinFaltas`
 
@@ -396,7 +469,20 @@ flotando 50px a la derecha del resto. En el login va centrado arriba del panel.
 
 ## Pruebas
 
-El baseline esperado es **530 pruebas en 37 archivos**. La notificación por día sumó 16 sobre
+El baseline esperado es **577 pruebas en 41 archivos**. Las faltas notificadas sumaron 47
+sobre las 530 en 37, con cuatro archivos nuevos: 22 en `src/api/rutasNotificaciones.test.ts`
+(403 para un encargado en las dos rutas, 400 por cuerpo vacío, campo de más, clase
+desconocida, fecha QUICKPASS, día irreal y más de 5000; 400 por ventana faltante, invertida,
+irreal o de más de 400 días; deduplicación; el 409 de la FK con rollback), 6 en
+`src/api/repositorioNotificaciones.test.ts` (el MERGE sólo de inserción, la ventana, la forma
+de la auditoría, una transacción con commit y el rollback sin auditar), 7 en
+`src/ui/notificaciones/RepositorioNotificaciones.test.ts` (el adaptador local idempotente que
+conserva la primera fecha, la ventana, sin almacenamiento, el registro dañado, las ventanas y
+los lotes) y 4 en `src/ui/features/notificaciones/notificaciones.test.ts` (registrar antes de
+descargar, no descargar si falla, y los chips del día). Además 4 en `porDia.test.ts` (claves
+ISO, filas sin fecha salteadas, conteo en filas y claves viejas ignoradas), 3 en
+`indicador.test.ts` (incluida una clave notificada que ya no es falta) y 1 en
+`aislamientoSql.test.ts` por la migración 005. La notificación por día sumó 16 sobre
 las 514 en 35, en dos archivos nuevos: 9 en `src/ui/faltas/porDia.test.ts` (orden de los
 días, clases juntas en un día, la suma igual a la persona con las mismas filas, identidad y
 legajo, días ilegibles al final, persona limpia sin días, y `clavesNotificadas` sin repetir) y
@@ -457,10 +543,17 @@ Aplicadas:
 Escrita y **todavía no aplicada**:
 
 4. `004_encargados.sql` — reemplaza `CK_ch_usuarios_rol` para admitir `encargado` y crea
-   `[controlhorario].[usuarios_sectores]`. Hasta aplicarla, `db:inspect` falla a propósito:
-   `verificarEsquema.ts` ya espera cuatro migraciones y la tabla nueva. La API tampoco puede
-   autenticar a un encargado antes de aplicarla, porque la consulta de sectores leería una
-   tabla inexistente.
+   `[controlhorario].[usuarios_sectores]`. La API no puede autenticar a un encargado antes de
+   aplicarla, porque la consulta de sectores leería una tabla inexistente.
+5. `005_faltas_notificadas.sql` — crea `[controlhorario].[faltas_notificadas]`
+   (`dni`, `fecha`, `tipo`, `notificado_por`, `notificado_at`; PK `(dni, fecha, tipo)`, CHECK
+   de las tres clases, FK `(dni, fecha)` a `fichadas` con `ON DELETE CASCADE` e índice por
+   `fecha`). Antes de aplicarla, generar un Word en producción responde 503
+   `base_sin_migrar` y **no se descarga**, y el Indicador avisa que no pudo leer las
+   notificadas: aplicar la 005 antes de publicar el frontend.
+
+Hasta aplicarlas, `db:inspect` falla a propósito: `verificarEsquema.ts` ya espera cinco
+migraciones y las dos tablas nuevas.
 
 Nunca abrir el firewall de Azure SQL ampliamente. Crear una regla temporal para la IP
 exacta, ejecutar `db:verify` antes de `db:migrate` y eliminar la regla en un bloque `finally`.

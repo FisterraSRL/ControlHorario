@@ -5,3 +5,4 @@
 .notificaciones__dia { display:flex; flex-wrap:wrap; align-items:center; gap:var(--app-space-3); border-left:3px solid var(--app-border); padding:var(--app-space-2) var(--app-space-3); background:var(--app-surface-2); border-radius:var(--app-radius-sm); }
 .notificaciones__fecha { font-family:var(--app-font-mono); min-width:10ch; }
 .notificaciones__dia .notificaciones__chips { flex:1; }
+.notificaciones__aviso { margin-bottom:var(--app-space-3); }

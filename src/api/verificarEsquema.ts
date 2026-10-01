@@ -12,6 +12,7 @@ const TABLAS_ESPERADAS = [
   'empleados',
   'exclusiones',
   'exclusiones_semilla',
+  'faltas_notificadas',
   'fichadas',
   'motivos',
   'schema_migrations',
@@ -61,7 +62,7 @@ async function main(): Promise<void> {
     const permisosReales = permisos.rows.map((p) => p.permission_name);
     const errores: string[] = [];
     if (JSON.stringify(nombres) !== JSON.stringify(esperadas)) errores.push('la lista de tablas no coincide');
-    if (migraciones.rows.length !== 4) errores.push('el ledger no contiene las cuatro migraciones');
+    if (migraciones.rows.length !== 5) errores.push('el ledger no contiene las cinco migraciones');
     if ((crucesFk.rows[0]?.n ?? -1) !== 0) errores.push('hay claves foráneas hacia otros esquemas');
     if ((dependencias.rows[0]?.n ?? -1) !== 0) errores.push('hay dependencias SQL hacia otros esquemas');
     if (!rol.rows[0]?.existe) errores.push('falta el rol controlhorario_app');

@@ -2,7 +2,7 @@
  * Which adapters this build runs against — all of them, decided once.
  *
  * This replaces `historial/crearRepositorio.ts`, which made the same decision for one port
- * back when there was only one. There are five now, and they have to agree: a build where
+ * back when there was only one. There are seven now, and they have to agree: a build where
  * the historial is in Postgres and the absence registry is in localStorage would show a
  * registry that belongs to a historial nobody can see, and the operator would have no way
  * to tell.
@@ -23,6 +23,9 @@ import { crearRepositorioConfiguracionHttp } from './configuracion/repositorioCo
 import { crearRepositorioConfiguracionLocal } from './configuracion/repositorioConfiguracionLocal.js';
 import type { RepositorioConfiguracion } from './configuracion/RepositorioConfiguracion.js';
 import { modoServidor } from './entorno.js';
+import { crearRepositorioNotificacionesHttp } from './notificaciones/repositorioNotificacionesHttp.js';
+import { crearRepositorioNotificacionesLocal } from './notificaciones/repositorioNotificacionesLocal.js';
+import type { RepositorioNotificaciones } from './notificaciones/RepositorioNotificaciones.js';
 import { crearRepositorioHttp } from './historial/repositorioHttp.js';
 import { crearRepositorioLocal } from './historial/repositorioLocal.js';
 import type { RepositorioFichadas } from './historial/RepositorioFichadas.js';
@@ -39,6 +42,7 @@ export interface Repositorios {
   readonly ausencias: RepositorioAusencias;
   readonly configuracion: RepositorioConfiguracion;
   readonly adjuntos: RepositorioAdjuntos;
+  readonly notificaciones: RepositorioNotificaciones;
   readonly usuarios: RepositorioUsuarios | null;
 }
 
@@ -57,6 +61,7 @@ export function crearRepositorios(): Repositorios {
       ausencias: crearRepositorioAusenciasHttp(servidor.base),
       configuracion: crearRepositorioConfiguracionHttp(servidor.base),
       adjuntos: crearRepositorioAdjuntosHttp(servidor.base),
+      notificaciones: crearRepositorioNotificacionesHttp(servidor.base),
       usuarios: crearRepositorioUsuariosHttp(servidor.base),
     };
   }
@@ -82,6 +87,7 @@ export function crearRepositorios(): Repositorios {
     ),
     configuracion,
     adjuntos: crearRepositorioAdjuntosLocal(),
+    notificaciones: crearRepositorioNotificacionesLocal(),
     usuarios: null,
   };
 }

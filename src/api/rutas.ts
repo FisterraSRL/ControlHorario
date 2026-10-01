@@ -7,10 +7,8 @@
  *
  * plus `/health`, which is for the person on call, not for the app.
  *
- * The decision endpoints — ausencias, configuración, adjuntos — live in their own
- * `rutas*.ts` files next to this one. Solicitudes and notificaciones still have none:
- * those tables exist because slice 3 needs them, and an endpoint written now against a
- * screen that does not exist yet is a guess that has to be un-guessed later.
+ * The decision endpoints — ausencias, configuración, adjuntos, notificaciones — live in
+ * their own `rutas*.ts` files next to this one.
  *
  * THE UPLOAD DOES TWO THINGS. It writes the evidence, and then it re-derives the absence
  * registry from it — the port of the legacy `recompute()`, which called
