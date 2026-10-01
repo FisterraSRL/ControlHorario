@@ -534,26 +534,35 @@ de PGlite y no revive el arnés retirado.
 
 ## Migraciones y base compartida
 
-Aplicadas:
+Aplicadas en producción (las cinco; el ledger de `fstrack` cuenta 5 desde el 2026-10-01):
 
 1. `001_initial.sql`
 2. `002_acceso_y_decisiones.sql`
 3. `003_administracion_usuarios.sql`
-
-Escrita y **todavía no aplicada**:
-
 4. `004_encargados.sql` — reemplaza `CK_ch_usuarios_rol` para admitir `encargado` y crea
-   `[controlhorario].[usuarios_sectores]`. La API no puede autenticar a un encargado antes de
-   aplicarla, porque la consulta de sectores leería una tabla inexistente.
+   `[controlhorario].[usuarios_sectores]`.
 5. `005_faltas_notificadas.sql` — crea `[controlhorario].[faltas_notificadas]`
    (`dni`, `fecha`, `tipo`, `notificado_por`, `notificado_at`; PK `(dni, fecha, tipo)`, CHECK
    de las tres clases, FK `(dni, fecha)` a `fichadas` con `ON DELETE CASCADE` e índice por
-   `fecha`). Antes de aplicarla, generar un Word en producción responde 503
-   `base_sin_migrar` y **no se descarga**, y el Indicador avisa que no pudo leer las
-   notificadas: aplicar la 005 antes de publicar el frontend.
+   `fecha`). Aplicada el 2026-10-01, ANTES de desplegar la API y el frontend que la usan: la
+   API anterior no la toca y su `/health` sólo informa el conteo. Sin ella, generar un Word
+   responde 503 `base_sin_migrar` y no se descarga.
 
-Hasta aplicarlas, `db:inspect` falla a propósito: `verificarEsquema.ts` ya espera cinco
-migraciones y las dos tablas nuevas.
+`db:inspect` espera cinco migraciones y las dos tablas nuevas; con la API vieja compilada
+falla por el conteo, que es lo esperado hasta desplegar la nueva.
+
+**Cómo se aplicó la 005**, para la próxima: con `.azure/migrar-entra.mjs` (modos `probe`,
+`verify`, `migrate`) sobre `dist-api` recompilado, y un token de Entra en `CH_AZ_SQL_TOKEN`
+obtenido con `az account get-access-token --resource https://database.windows.net/`. Dos
+cosas que costaron un intento cada una:
+
+- **La identidad.** La administradora de Entra del servidor `fstrack` (grupo
+  `fisterrasrl_group`) es `b.merino@fisterragroup.com`. Otra cuenta con permisos sobre los
+  recursos de Azure llega al servidor pero la base la rechaza con «Login failed for user
+  '<token-identified principal>'». La sesión de `az` tiene que ser la de esa administradora.
+- **El firewall.** La IP de la máquina tiene que tener una regla temporal; sin ella el error
+  es «Client with IP address … is not allowed to access the server». La crea y la borra una
+  persona con permisos, nunca un agente, y se borra en cuanto termina la migración.
 
 Nunca abrir el firewall de Azure SQL ampliamente. Crear una regla temporal para la IP
 exacta, ejecutar `db:verify` antes de `db:migrate` y eliminar la regla en un bloque `finally`.
