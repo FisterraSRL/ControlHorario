@@ -1,6 +1,6 @@
 # Estado del proyecto y continuidad
 
-Actualizado: 1 de octubre de 2026.
+Actualizado: 2 de octubre de 2026.
 
 Este documento permite continuar el trabajo sin depender del historial de una conversación.
 Antes de actuar, comprobar siempre `git status`, `git log -5` y el estado real de producción.
@@ -104,7 +104,7 @@ y el mismo día dos veces es un rango de un día. Esc y un click afuera cierran 
 - Pantalla Indicador: faltas por clase y totales del período, sobre la misma agrupación, con
   el total de faltas y el total de faltas notificadas por persona (ver «Faltas notificadas»).
 - Registro de faltas notificadas: generar un Word marca sus faltas como notificadas (ver
-  «Faltas notificadas»). Requiere la migración 005, todavía no aplicada.
+  «Faltas notificadas»). Usa la migración 005, aplicada el 2026-10-01.
 - Horas trabajadas: detalle por día con las fichadas, «Desplegar todas» y clasificación del
   motivo de cada ausencia desde el detalle (ver «Horas trabajadas»).
 - Mini-calendario en el header para elegir un rango Desde/Hasta en dos clicks (ver «Rango
@@ -112,7 +112,8 @@ y el mismo día dos veces es un rango de un día. Esc y un click afuera cierran 
 - Tardanzas perdonadas por semana: un parámetro de Configuración que perdona las primeras N
   tardanzas de cada persona en cada semana de lunes a domingo (ver «Tardanzas perdonadas por
   semana»).
-- Frontend y API desplegados; tres migraciones aplicadas.
+- Frontend y API desplegados; cinco migraciones aplicadas (ver «Migraciones y base
+  compartida»).
 
 Ninguna pantalla es ya un placeholder. `src/ui/app/PlaceholderScreen.tsx` quedó sin
 importadores; se conserva a propósito, no es código muerto que haya que borrar sin decidirlo.
@@ -501,6 +502,8 @@ motivo es el orden de despliegue: Vercel publica el frontend en cada push a `mai
 despliega a mano después; con el guardia estricto, la lectura de la configuración fallaría
 entera contra la API vieja. En esa ventana, **guardar** el campo contra la API vieja responde
 400 (el esquema viejo no lo conoce): conviene desplegar la API antes de cambiar el valor.
+Así se publicó el 2026-10-02: primero la API (deployment `f77791b2`) y después `main`; la
+pantalla y Horas se verificaron en producción con una sesión real.
 
 El adaptador local tenía un merge superficial: un `parametros` guardado por una versión
 anterior reemplazaba los valores por defecto enteros y el campo nuevo llegaba `undefined`.
