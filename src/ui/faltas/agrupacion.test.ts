@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { RegistroDia } from '../../domain/fichadas/index.js';
+import { perdonarTardanzas, type RegistroDia } from '../../domain/fichadas/index.js';
 import { agruparFaltasPorPersona } from './agrupacion.js';
 
 const RANGO = { desde: new Date('2026-09-14T00:00:00Z'), hasta: new Date('2026-09-20T00:00:00Z') };
@@ -110,5 +110,25 @@ describe('agrupación con las personas sin faltas incluidas', () => {
       dia({usuario:'Zulema',dni:'2',faltas:[{tipo:'tardanza',detalle:'Llegó tarde'}]}),
     ], {}, RANGO, {incluirSinFaltas:true});
     expect(personas.map((p) => [p.usuario, p.faltasPorTipo.tardanza.length])).toEqual([['Ariel',0],['Zulema',1]]);
+  });
+});
+
+describe('agrupación sobre el historial con tardanzas perdonadas', () => {
+  const faltas = [{tipo:'tardanza' as const, detalle:'Llegó tarde'}];
+  const semana = (n: number) => dia({fecha:new Date(Date.UTC(2026, 8, n)),fechaStr:`${n}/09/2026`,faltas});
+
+  it('cuenta una tardanza menos por semana y la persona perdonada del todo queda en cero', () => {
+    const historial = perdonarTardanzas([semana(14), semana(15), semana(16)], 1);
+    expect(agruparFaltasPorPersona(historial, {}, RANGO)[0]?.faltasPorTipo.tardanza).toHaveLength(2);
+
+    const unaSola = perdonarTardanzas([semana(14)], 1);
+    expect(agruparFaltasPorPersona(unaSola, {}, RANGO)).toHaveLength(0);
+    expect(agruparFaltasPorPersona(unaSola, {}, RANGO, {incluirSinFaltas:true})[0]?.faltasPorTipo.tardanza).toHaveLength(0);
+  });
+
+  it('el perdón no depende del período: un período que empieza a mitad de semana no lo vuelve a dar', () => {
+    const historial = perdonarTardanzas([semana(14), semana(15), semana(16)], 1);
+    const desdeElMartes = { desde:new Date('2026-09-15T00:00:00Z'), hasta:RANGO.hasta };
+    expect(agruparFaltasPorPersona(historial, {}, desdeElMartes)[0]?.faltasPorTipo.tardanza.map((f) => f.fecha)).toEqual(['15/09/2026','16/09/2026']);
   });
 });

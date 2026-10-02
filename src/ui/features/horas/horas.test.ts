@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { RegistroDia, SemanaEmpleado } from '../../../domain/fichadas/index.js';
 import { crearPeriodo, crearRango } from '../../periodo/periodo.js';
-import { abiertasVisibles, alternarSemana, avisoSemanasParciales, claveSemana, construirReporteHoras, csvDeHoras, desplegarTodas, lineaFichadas, rangoSemana, todasAbiertas } from './horas.js';
+import { abiertasVisibles, alternarSemana, avisoSemanasParciales, claveSemana, construirReporteHoras, csvDeHoras, desplegarTodas, estadoDelDia, lineaFichadas, rangoSemana, todasAbiertas } from './horas.js';
 
 function dia(fecha: Date, horasBrutas = 480): RegistroDia {
   return { sector:'Administración', usuario:'Persona', dni:'20-00000000-0', legajo:'1', fecha, fechaStr:'14/09/2026', inicioSemana:'2026-09-14', cantidadMovimientos:2, movimientos:[480,960], turnoRaw:'08:00 - 16:00', esDiaLibre:false, esFlexible:false, inicioTurno:480, fichadasRequeridas:2, horasTurno:480, horasBrutas, cantidadTarde:0, partesRaw:'', descansoReal:0, faltas:[], tipoDia:'trabajo', motivoId:null, motivoSource:null, excluido:false };
@@ -85,5 +85,25 @@ describe('aviso de semanas incompletas en el período', () => {
   it('un período dentro de una sola semana no habla de dos semanas', () => {
     expect(avisoSemanasParciales(crearRango(d(15), d(17)))).toMatch(/^El período no cubre la semana entera/);
     expect(avisoSemanasParciales(crearPeriodo('dia', d(17)))).toMatch(/^El período no cubre la semana entera/);
+  });
+});
+
+describe('estado del día en el detalle', () => {
+  const base = dia(new Date('2026-09-14T00:00:00Z'));
+  const tarde = { tipo:'tardanza' as const, detalle:'0:15 tarde (turno 08:00)' };
+  const descanso = { tipo:'descanso' as const, detalle:'1:00 de descanso (máx 30 min)' };
+
+  it('un día sin faltas es correcto y un franco es franco', () => {
+    expect(estadoDelDia(base)).toEqual({ texto:'Correcto', tono:'ok' });
+    expect(estadoDelDia({ ...base, tipoDia:'libre', faltas:[tarde] })).toEqual({ texto:'Franco', tono:'neutral' });
+  });
+  it('lista las faltas del día', () => {
+    expect(estadoDelDia({ ...base, faltas:[descanso, tarde] })).toEqual({ texto:'1:00 de descanso (máx 30 min) · 0:15 tarde (turno 08:00)', tono:'incompleta' });
+  });
+  it('muestra la tardanza perdonada sin tratarla como falta', () => {
+    expect(estadoDelDia({ ...base, tardanzaPerdonada:tarde })).toEqual({ texto:'0:15 tarde (turno 08:00) (perdonada)', tono:'neutral' });
+  });
+  it('con otra falta en el mismo día, la perdonada va después y el día sigue en falta', () => {
+    expect(estadoDelDia({ ...base, faltas:[descanso], tardanzaPerdonada:tarde })).toEqual({ texto:'1:00 de descanso (máx 30 min) · 0:15 tarde (turno 08:00) (perdonada)', tono:'incompleta' });
   });
 });

@@ -109,6 +109,9 @@ y el mismo día dos veces es un rango de un día. Esc y un click afuera cierran 
   motivo de cada ausencia desde el detalle (ver «Horas trabajadas»).
 - Mini-calendario en el header para elegir un rango Desde/Hasta en dos clicks (ver «Rango
   elegido en el calendario»).
+- Tardanzas perdonadas por semana: un parámetro de Configuración que perdona las primeras N
+  tardanzas de cada persona en cada semana de lunes a domingo (ver «Tardanzas perdonadas por
+  semana»).
 - Frontend y API desplegados; tres migraciones aplicadas.
 
 Ninguna pantalla es ya un placeholder. `src/ui/app/PlaceholderScreen.tsx` quedó sin
@@ -449,6 +452,64 @@ día. Por eso:
 - La pantalla de Configuración recarga el registro de ausencias tras crear o retirar un
   motivo. El adaptador local deriva con los motivos de la configuración local.
 
+## Tardanzas perdonadas por semana
+
+Cuarto parámetro de Configuración, al lado de «Tolerancia de tardanza (minutos)»: **cuántas
+tardanzas se le perdonan a cada persona por semana**. Entero de 0 a 7, por defecto 1; 0 no
+perdona ninguna. No tiene equivalente en el legacy.
+
+Semántica:
+
+- La semana es la semana calendario de lunes a domingo, la misma `RegistroDia.inicioSemana`
+  que usa Horas trabajadas. Se agrupa por `dni|inicioSemana`.
+- Se perdonan las primeras N faltas `tardanza` de cada persona-semana en orden cronológico
+  (fecha del día; a igual fecha, la celda cruda y después la posición, para que sea
+  determinista). Sólo cuentan las tardanzas que ya superaron la tolerancia; las demás clases de
+  falta no se tocan ni consumen el cupo. Un día sin fecha no tiene semana y nunca se perdona.
+- **Se calcula sobre todo el historial, nunca sobre el período elegido.** Si se calculara sobre
+  el período, uno que empieza un miércoles volvería a perdonar la tardanza del miércoles aunque
+  el lunes ya hubiera usado el cupo, y el mismo día sería falta en una pantalla y perdonado en
+  otra según el filtro.
+
+Dónde se aplica: en **un solo punto**, `HistorialProvider`, como post-proceso de los registros
+del día: `perdonarTardanzas(registros, n)` (`src/domain/fichadas/perdon.ts`, pura) recibe el
+arreglo completo que sale de `construirRegistroDia`. No es un conteo: la tardanza perdonada se
+**saca de `RegistroDia.faltas`**, así que `agruparFaltasPorPersona` (que sigue siendo la única
+agrupación por persona), el contador de la barra lateral, Notificaciones, el Word, el Indicador
+y Horas quedan consistentes sin saber nada nuevo. Para no ocultarla, queda en el campo opcional
+`RegistroDia.tardanzaPerdonada`, y el detalle de Horas trabajadas la muestra como su detalle
+seguido de « (perdonada)», en tono neutro si es lo único del día (`estadoDelDia` en
+`horas.ts`). `construirRegistroDia` no lee el parámetro: un día suelto no puede saber si es la
+primera tardanza de su semana. El servidor lo devuelve en `paraElMotor()`, pero la
+sincronización de ausencias no depende de las tardanzas.
+
+**Cambia los números al desplegar.** Con el valor por defecto 1, el Indicador y Notificaciones
+muestran una tardanza menos por persona y semana desde el primer render. «Notificadas» sigue
+siendo una intersección con las faltas actuales: una tardanza ya notificada que ahora queda
+perdonada deja de contarse ahí, aunque la tabla de notificadas la conserve como historia.
+
+**Sin migración.** `configuracion` es una tabla clave/valor: la clave
+`tardanzas_perdonadas_semana` no tiene fila sembrada, el valor por defecto de
+`PARAMETROS_POR_DEFECTO` cubre su ausencia y el `MERGE` de `guardarParametros` inserta la fila
+la primera vez que alguien la guarda. `ESQUEMA_CUERPO_PARAMETROS` la acepta como
+`integer` 0..7 y sigue con `additionalProperties: false`.
+
+**El guardia HTTP es indulgente con este campo.** `leerParametros`
+(`repositorioConfiguracionHttp.ts`) completa `tardanzasPerdonadasSemana` con el valor por
+defecto si la respuesta no lo trae, y sólo rechaza un valor presente que no sea número. El
+motivo es el orden de despliegue: Vercel publica el frontend en cada push a `main` y la API se
+despliega a mano después; con el guardia estricto, la lectura de la configuración fallaría
+entera contra la API vieja. En esa ventana, **guardar** el campo contra la API vieja responde
+400 (el esquema viejo no lo conoce): conviene desplegar la API antes de cambiar el valor.
+
+El adaptador local tenía un merge superficial: un `parametros` guardado por una versión
+anterior reemplazaba los valores por defecto enteros y el campo nuevo llegaba `undefined`.
+Ahora `parametros` se combina un nivel más adentro (`{ ...inicial.parametros,
+...guardada.parametros }`).
+
+En la pantalla, `CampoParametro` ganó `entero?: boolean`: con él un decimal se descarta igual
+que cualquier valor inválido. Los tres campos anteriores no cambian.
+
 ## Marca
 
 `BrandLockup` (`src/ui/components/atoms/BrandLockup/`) es el único logo de la app: lo usan
@@ -469,7 +530,18 @@ flotando 50px a la derecha del resto. En el login va centrado arriba del panel.
 
 ## Pruebas
 
-El baseline esperado es **577 pruebas en 41 archivos**. Las faltas notificadas sumaron 47
+El baseline esperado es **611 pruebas en 43 archivos**. Las tardanzas perdonadas por semana
+sumaron 34 sobre las 577 en 41, con dos archivos nuevos: 13 en
+`src/domain/fichadas/perdon.test.ts` (0 y valores inválidos como identidad, cupo de 1 y de 2,
+cupo propio por semana y por persona, el domingo en la semana del lunes anterior, las otras
+clases intactas, tardanza más descanso, la perdonada expuesta sin mutar la entrada, orden
+cronológico con entrada desordenada y días sin fecha) y 7 en
+`src/ui/configuracion/repositorioConfiguracion.test.ts` (el guardia indulgente con una API
+vieja, el cero, el valor presente no numérico, y el merge profundo del adaptador local). Además
+8 en `rutasConfiguracion.test.ts` (acepta 0, 1 y 7; rechaza 8, -1, 1,5 y texto sin escribir;
+la lectura lo devuelve), 4 en `horas.test.ts` (el estado del día con « (perdonada)») y 2 en
+`agrupacion.test.ts` (una tardanza menos por semana y la independencia del período). Las
+faltas notificadas sumaron 47
 sobre las 530 en 37, con cuatro archivos nuevos: 22 en `src/api/rutasNotificaciones.test.ts`
 (403 para un encargado en las dos rutas, 400 por cuerpo vacío, campo de más, clase
 desconocida, fecha QUICKPASS, día irreal y más de 5000; 400 por ventana faltante, invertida,

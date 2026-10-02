@@ -137,6 +137,8 @@ interface CampoParametro {
   readonly ayuda: string;
   readonly maximo: number;
   readonly paso: string;
+  /** Only whole numbers are committed; a decimal is discarded like any invalid value. */
+  readonly entero?: boolean;
 }
 
 const CAMPOS: readonly CampoParametro[] = [
@@ -161,6 +163,14 @@ const CAMPOS: readonly CampoParametro[] = [
     maximo: 24 * 60,
     paso: '1',
   },
+  {
+    campo: 'tardanzasPerdonadasSemana',
+    etiqueta: 'Tardanzas perdonadas por semana',
+    ayuda: 'Las primeras tardanzas de cada persona en la semana (lunes a domingo) no cuentan como falta. Cero no perdona ninguna.',
+    maximo: 7,
+    paso: '1',
+    entero: true,
+  },
 ];
 
 function SeccionParametros({
@@ -173,7 +183,7 @@ function SeccionParametros({
   return (
     <Card
       titulo="Parámetros"
-      bajada="Los tres umbrales con los que el motor deriva las faltas. Cambiarlos vuelve a calcular todo el historial: las faltas nunca se guardan, se derivan en cada lectura."
+      bajada="Los cuatro parámetros con los que el motor deriva las faltas y las horas. Cambiarlos vuelve a calcular todo el historial: las faltas nunca se guardan, se derivan en cada lectura."
     >
       {!parametros ? (
         <p className="config__vacio">Leyendo la configuración…</p>
@@ -219,6 +229,7 @@ function CampoNumerico({
     const n = Number(limpio);
     setBorrador(null);
     if (limpio === '' || !Number.isFinite(n) || n < 0 || n > definicion.maximo) return;
+    if (definicion.entero && !Number.isInteger(n)) return;
     if (n !== valor) onGuardar(n);
   };
 
@@ -238,7 +249,7 @@ function CampoNumerico({
       min={0}
       max={definicion.maximo}
       step={definicion.paso}
-      inputMode="decimal"
+      inputMode={definicion.entero ? 'numeric' : 'decimal'}
     />
   );
 }

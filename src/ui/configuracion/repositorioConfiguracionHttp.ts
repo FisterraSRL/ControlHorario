@@ -1,4 +1,4 @@
-import type { Motivo } from '../../domain/fichadas/index.js';
+import { TARDANZAS_PERDONADAS_POR_DEFECTO, type Motivo } from '../../domain/fichadas/index.js';
 import { conJson, esObjeto, pedir, pedirJson } from '../http.js';
 import type {
   ConfiguracionGuardada,
@@ -24,13 +24,32 @@ function esExclusion(valor: unknown): valor is Exclusion {
   return esObjeto(valor) && typeof valor['dni'] === 'string';
 }
 
-function esParametros(valor: unknown): valor is ParametrosConfiguracion {
-  return (
-    esObjeto(valor) &&
-    typeof valor['descansoMaxMin'] === 'number' &&
-    typeof valor['toleranciaMin'] === 'number' &&
-    typeof valor['horasTurnoSemanales'] === 'number'
-  );
+/**
+ * The parameters as the server sent them, or null when they are not usable.
+ *
+ * `tardanzasPerdonadasSemana` is read LENIENTLY: absent means the default. Vercel publishes
+ * the frontend on every push to `main`, while the API is deployed by hand afterwards, so for
+ * a while a new screen talks to an API that does not know the field yet. Rejecting the whole
+ * body for it would leave Configuración, and every screen the engine feeds, without a
+ * configuration. A value that IS present must still be a number.
+ */
+export function leerParametros(valor: unknown): ParametrosConfiguracion | null {
+  if (
+    !esObjeto(valor) ||
+    typeof valor['descansoMaxMin'] !== 'number' ||
+    typeof valor['toleranciaMin'] !== 'number' ||
+    typeof valor['horasTurnoSemanales'] !== 'number'
+  ) {
+    return null;
+  }
+  const perdonadas = valor['tardanzasPerdonadasSemana'];
+  if (perdonadas !== undefined && typeof perdonadas !== 'number') return null;
+  return {
+    descansoMaxMin: valor['descansoMaxMin'],
+    toleranciaMin: valor['toleranciaMin'],
+    horasTurnoSemanales: valor['horasTurnoSemanales'],
+    tardanzasPerdonadasSemana: perdonadas ?? TARDANZAS_PERDONADAS_POR_DEFECTO,
+  };
 }
 
 function esReglas(valor: unknown): valor is Record<string, number> {
@@ -43,9 +62,10 @@ export function crearRepositorioConfiguracionHttp(base: string): RepositorioConf
   return {
     async leer() {
       const cuerpo = await pedirJson(raiz, { method: 'GET' });
+      const parametros = esObjeto(cuerpo) ? leerParametros(cuerpo['parametros']) : null;
       if (
         !esObjeto(cuerpo) ||
-        !esParametros(cuerpo['parametros']) ||
+        !parametros ||
         !esReglas(cuerpo['reglasSector']) ||
         !Array.isArray(cuerpo['motivos']) ||
         !Array.isArray(cuerpo['exclusiones'])
@@ -53,7 +73,7 @@ export function crearRepositorioConfiguracionHttp(base: string): RepositorioConf
         throw new Error(FORMATO_INESPERADO);
       }
       const configuracion: ConfiguracionGuardada = {
-        parametros: cuerpo['parametros'],
+        parametros,
         reglasSector: cuerpo['reglasSector'],
         motivos: cuerpo['motivos'].filter(esMotivo),
         exclusiones: cuerpo['exclusiones'].filter(esExclusion),
@@ -63,10 +83,9 @@ export function crearRepositorioConfiguracionHttp(base: string): RepositorioConf
 
     async guardarParametros(cambios) {
       const cuerpo = await pedirJson(`${raiz}/parametros`, conJson('PATCH', cambios));
-      if (!esObjeto(cuerpo) || !esParametros(cuerpo['parametros'])) {
-        throw new Error(FORMATO_INESPERADO);
-      }
-      return cuerpo['parametros'];
+      const parametros = esObjeto(cuerpo) ? leerParametros(cuerpo['parametros']) : null;
+      if (!parametros) throw new Error(FORMATO_INESPERADO);
+      return parametros;
     },
 
     async guardarReglaSector(sector, fichadasRequeridas) {

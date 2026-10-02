@@ -2,7 +2,7 @@
  * The Azure SQL side of `RepositorioConfiguracion`: everything the Configuración screen edits.
  *
  * Four different things share this file because they are one screen and one atomic read:
- * the three global parameters (`configuracion`), the per-sector fichada rule
+ * the four global parameters (`configuracion`), the per-sector fichada rule
  * (`sector_reglas`), the closed list of motivos (`motivos`, from 001) and the exclusion list
  * (`exclusiones`, also from 001).
  *
@@ -22,6 +22,7 @@
 
 import {
   MOTIVOS_POR_DEFECTO,
+  TARDANZAS_PERDONADAS_POR_DEFECTO,
   type ConfiguracionFichadas,
   type Motivo,
 } from '../domain/fichadas/index.js';
@@ -32,6 +33,7 @@ export interface ParametrosConfiguracion {
   readonly descansoMaxMin: number;
   readonly toleranciaMin: number;
   readonly horasTurnoSemanales: number;
+  readonly tardanzasPerdonadasSemana: number;
 }
 
 export interface Exclusion {
@@ -53,14 +55,20 @@ export interface ConfiguracionCompleta {
 /**
  * The defaults, used when a key is missing from `configuracion`.
  *
- * They duplicate the values migration 002 seeds, on purpose: a rollback to an older
- * database, or a key somebody deleted with psql, must not make the engine read `undefined`
- * minutes of tolerance. They are the same numbers the domain layer already falls back to.
+ * The first three duplicate the values migration 002 seeds, on purpose: a rollback to an
+ * older database, or a key somebody deleted by hand, must not make the engine read
+ * `undefined` minutes of tolerance. They are the same numbers the domain layer already falls
+ * back to.
+ *
+ * `tardanzas_perdonadas_semana` has NO seed row and no migration: `configuracion` is a
+ * key/value table, so the default below covers a database that never saw the key, and the
+ * MERGE in `guardarParametros` inserts the row the first time somebody saves it.
  */
 const PARAMETROS_POR_DEFECTO: ParametrosConfiguracion = {
   descansoMaxMin: 30,
   toleranciaMin: 0,
   horasTurnoSemanales: 51,
+  tardanzasPerdonadasSemana: TARDANZAS_PERDONADAS_POR_DEFECTO,
 };
 
 /** The keys of `configuracion`, paired with the field of `ParametrosConfiguracion` they fill. */
@@ -68,6 +76,7 @@ const CLAVES: readonly (readonly [string, keyof ParametrosConfiguracion])[] = [
   ['descanso_max_min', 'descansoMaxMin'],
   ['tolerancia_min', 'toleranciaMin'],
   ['horas_turno_semanales', 'horasTurnoSemanales'],
+  ['tardanzas_perdonadas_semana', 'tardanzasPerdonadasSemana'],
 ];
 
 function numeroDeJson(valor: unknown): number | null {
@@ -185,6 +194,7 @@ export function crearRepositorioConfiguracion(pool: Pool): RepositorioConfigurac
         descansoMaxMin: completa.parametros.descansoMaxMin,
         toleranciaMin: completa.parametros.toleranciaMin,
         horasTurnoSemanales: completa.parametros.horasTurnoSemanales,
+        tardanzasPerdonadasSemana: completa.parametros.tardanzasPerdonadasSemana,
       };
     },
 

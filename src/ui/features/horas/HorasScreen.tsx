@@ -8,7 +8,7 @@ import { Alert } from '../../components/molecules/Alert/Alert.js';
 import { Card } from '../../components/molecules/Card/Card.js';
 import { FilaVacia, Table } from '../../components/molecules/Table/Table.js';
 import { pluralizar } from '../../texto.js';
-import { claveSemana, lineaFichadas, rangoSemana } from './horas.js';
+import { claveSemana, estadoDelDia, lineaFichadas, rangoSemana } from './horas.js';
 import './horas.css';
 
 type OnMotivo = (dni: string, fechaStr: string, motivoId: number | null) => void;
@@ -57,16 +57,14 @@ export function HorasScreen({ semanas, motivos, cargando, abiertas, todasAbierta
 function DetalleSemana({ dias, opciones, onMotivo }: { readonly dias: readonly RegistroDia[]; readonly opciones: readonly OpcionMotivo[]; readonly onMotivo: OnMotivo }) {
   return <div className="horas__dias">{[...dias].sort((a, b) => (a.fecha?.getTime() ?? 0) - (b.fecha?.getTime() ?? 0)).map((dia) => {
     const fecha = fmtFechaAR(dia.fecha) || dia.fechaStr; const fichadas = lineaFichadas(dia);
-    let estado = 'Correcto'; let tono: 'ok' | 'neutral' | 'incompleta' = 'ok';
-    if (dia.tipoDia === 'libre') { estado = 'Franco'; tono = 'neutral'; }
-    else if (dia.faltas.length) { estado = dia.faltas.map((f) => f.detalle).join(' · '); tono = 'incompleta'; }
+    const estado = estadoDelDia(dia);
     return <div className="horas__dia" key={`${dia.dni}|${dia.fechaStr}`}>
       <div className="horas__dia-cabecera"><span><b>{fecha}</b> · {dia.turnoRaw || 'Sin turno'}</span>
         {dia.tipoDia === 'ausencia'
           // A motivo QUICKPASS's note implied shows as selected, as in Ausencias; picking any
           // value turns it into a human decision.
           ? <Select etiqueta={`Motivo de ${dia.usuario || dia.dni} el ${fecha}`} tamano="sm" valor={dia.motivoId === null ? '' : String(dia.motivoId)} opciones={opciones} onCambio={(valor) => onMotivo(dia.dni, dia.fechaStr, valor === '' ? null : Number(valor))} />
-          : <Chip tono={tono}>{estado}</Chip>}
+          : <Chip tono={estado.tono}>{estado.texto}</Chip>}
       </div>
       {fichadas && <div className="horas__movimientos">{fichadas}</div>}
     </div>;

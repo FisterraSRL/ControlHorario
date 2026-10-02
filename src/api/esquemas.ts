@@ -197,6 +197,7 @@ export const ESQUEMA_CUERPO_PARAMETROS = {
     descansoMaxMin: { type: 'integer', minimum: 0, maximum: 24 * 60 },
     toleranciaMin: { type: 'integer', minimum: 0, maximum: 24 * 60 },
     horasTurnoSemanales: { type: 'number', minimum: 0, maximum: 168 },
+    tardanzasPerdonadasSemana: { type: 'integer', minimum: 0, maximum: 7 },
   },
 } as const;
 

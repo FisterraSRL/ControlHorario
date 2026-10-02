@@ -229,6 +229,7 @@ export function ConfiguracionProvider({ children }: { readonly children: ReactNo
       descansoMaxMin: configuracion.parametros.descansoMaxMin,
       toleranciaMin: configuracion.parametros.toleranciaMin,
       horasTurnoSemanales: configuracion.parametros.horasTurnoSemanales,
+      tardanzasPerdonadasSemana: configuracion.parametros.tardanzasPerdonadasSemana,
     };
   }, [configuracion]);
 

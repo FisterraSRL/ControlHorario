@@ -21,6 +21,8 @@ import type { ReactNode } from 'react';
 
 import {
   construirRegistroDia,
+  perdonarTardanzas,
+  TARDANZAS_PERDONADAS_POR_DEFECTO,
   type FilaQuickpass,
   type RegistroDia,
 } from '../../domain/fichadas/index.js';
@@ -110,8 +112,17 @@ export function HistorialProvider({
     [paraElMotor, indiceParaElMotor],
   );
 
+  /**
+   * The weekly tardanza allowance is applied HERE, once, over every row — never per screen
+   * and never over a period. Every consumer below reads `registros`, so the Indicador, the
+   * Word, Horas and the sidebar count all see the same forgiven days. See `perdon.ts`.
+   */
   const registros = useMemo(
-    () => filas.map((fila) => construirRegistroDia(fila, cfg)),
+    () =>
+      perdonarTardanzas(
+        filas.map((fila) => construirRegistroDia(fila, cfg)),
+        cfg.tardanzasPerdonadasSemana ?? TARDANZAS_PERDONADAS_POR_DEFECTO,
+      ),
     [filas, cfg],
   );
 

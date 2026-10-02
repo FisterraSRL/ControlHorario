@@ -4,7 +4,8 @@
  * It starts from exactly the values migration 002 seeds — the same three parameters, the
  * same three two-punch sectors, the same nine motivos out of the engine's own
  * `MOTIVOS_POR_DEFECTO` — so the offline path and the server path behave the same way on a
- * fresh install rather than merely looking similar.
+ * fresh install rather than merely looking similar. The fourth parameter,
+ * `tardanzasPerdonadasSemana`, has no seed row; both sides start from the code default.
  *
  * `exclusiones` starts EMPTY and is never seeded from source. That is the one rule this
  * whole area exists to enforce: the legacy file hardcoded six real employees by name, and
@@ -12,7 +13,11 @@
  * runtime to seed it from, so it is empty until somebody adds a DNI by hand.
  */
 
-import { MOTIVOS_POR_DEFECTO, SECTORES_2_FICHADAS } from '../../domain/fichadas/index.js';
+import {
+  MOTIVOS_POR_DEFECTO,
+  SECTORES_2_FICHADAS,
+  TARDANZAS_PERDONADAS_POR_DEFECTO,
+} from '../../domain/fichadas/index.js';
 import type { Motivo } from '../../domain/fichadas/index.js';
 import { ErrorRepositorio } from '../historial/RepositorioFichadas.js';
 import type {
@@ -32,7 +37,12 @@ function reglasPorDefecto(): Record<string, number> {
 
 function configuracionInicial(): ConfiguracionGuardada {
   return {
-    parametros: { descansoMaxMin: 30, toleranciaMin: 0, horasTurnoSemanales: 51 },
+    parametros: {
+      descansoMaxMin: 30,
+      toleranciaMin: 0,
+      horasTurnoSemanales: 51,
+      tardanzasPerdonadasSemana: TARDANZAS_PERDONADAS_POR_DEFECTO,
+    },
     reglasSector: reglasPorDefecto(),
     motivos: MOTIVOS_POR_DEFECTO.map((m) => ({ ...m })),
     exclusiones: [],
@@ -72,8 +82,16 @@ export function crearRepositorioConfiguracionLocal(
       }
       // Merged over the defaults rather than trusted wholesale: a blob written by an older
       // version is missing whatever was added since, and a missing `descansoMaxMin` would
-      // reach the engine as `undefined` minutes.
-      return { ...configuracionInicial(), ...(parseado as Partial<ConfiguracionGuardada>) };
+      // reach the engine as `undefined` minutes. `parametros` is merged one level deeper:
+      // a blob from before `tardanzasPerdonadasSemana` existed carries a `parametros` object
+      // of its own, and a shallow spread would let it replace the defaults wholesale.
+      const inicial = configuracionInicial();
+      const guardada = parseado as Partial<ConfiguracionGuardada>;
+      return {
+        ...inicial,
+        ...guardada,
+        parametros: { ...inicial.parametros, ...guardada.parametros },
+      };
     } catch {
       throw new ErrorRepositorio(
         'La configuración guardada en este navegador no se pudo leer: el contenido está dañado.',

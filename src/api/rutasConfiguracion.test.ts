@@ -16,7 +16,12 @@ function repositorioIntocable(tocado: string[]): RepositorioConfiguracionAzureSq
   return {
     leer: () =>
       Promise.resolve({
-        parametros: { descansoMaxMin: 30, toleranciaMin: 0, horasTurnoSemanales: 51 },
+        parametros: {
+          descansoMaxMin: 30,
+          toleranciaMin: 0,
+          horasTurnoSemanales: 51,
+          tardanzasPerdonadasSemana: 1,
+        },
         reglasSector: {},
         motivos: [],
         exclusiones: [],
@@ -241,5 +246,63 @@ describe('Crear o retirar un motivo vuelve a derivar el registro de ausencias', 
     expect(respuesta.statusCode).toBe(201);
     expect(respuesta.json()).toMatchObject({ motivo: { id: 10 } });
     expect(tocado).toEqual(['crearMotivo', ...RESINCRONIZACION]);
+  });
+});
+
+describe('Tardanzas perdonadas por semana', () => {
+  /** A repository whose parameter write succeeds and echoes what it was given. */
+  function repositorioDeParametros(tocado: string[]): RepositorioConfiguracionAzureSql {
+    return {
+      ...repositorioIntocable(tocado),
+      guardarParametros: (cambios) => {
+        tocado.push(`guardarParametros:${JSON.stringify(cambios)}`);
+        return Promise.resolve({
+          descansoMaxMin: 30,
+          toleranciaMin: 0,
+          horasTurnoSemanales: 51,
+          tardanzasPerdonadasSemana: 1,
+          ...cambios,
+        });
+      },
+    };
+  }
+
+  it.each([0, 1, 7])('acepta %i', async (valor) => {
+    const { app: servidor, tocado } = await levantar(sesionDePrueba({ rol: 'admin' }), {
+      repositorio: repositorioDeParametros,
+    });
+
+    const respuesta = await servidor.inject({
+      method: 'PATCH',
+      url: '/api/configuracion/parametros',
+      payload: { tardanzasPerdonadasSemana: valor },
+    });
+
+    expect(respuesta.statusCode).toBe(200);
+    expect(respuesta.json()).toMatchObject({ parametros: { tardanzasPerdonadasSemana: valor } });
+    expect(tocado).toEqual([`guardarParametros:{"tardanzasPerdonadasSemana":${valor}}`]);
+  });
+
+  it.each([8, -1, 1.5, '2'])('rechaza %j sin escribir', async (valor) => {
+    const { app: servidor, tocado } = await levantar(sesionDePrueba({ rol: 'admin' }), {
+      repositorio: repositorioDeParametros,
+    });
+
+    const respuesta = await servidor.inject({
+      method: 'PATCH',
+      url: '/api/configuracion/parametros',
+      payload: { tardanzasPerdonadasSemana: valor },
+    });
+
+    expect(respuesta.statusCode).toBe(400);
+    expect(tocado).toEqual([]);
+  });
+
+  it('la lectura lo devuelve junto con los demás parámetros', async () => {
+    const { app: servidor } = await levantar(sesionDePrueba({ rol: 'admin' }));
+
+    const respuesta = await servidor.inject({ method: 'GET', url: '/api/configuracion' });
+
+    expect(respuesta.json()).toMatchObject({ parametros: { tardanzasPerdonadasSemana: 1 } });
   });
 });

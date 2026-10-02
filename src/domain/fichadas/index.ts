@@ -8,3 +8,4 @@ export * from './parseo.js';
 export * from './motivos.js';
 export * from './dia.js';
 export * from './semana.js';
+export * from './perdon.js';

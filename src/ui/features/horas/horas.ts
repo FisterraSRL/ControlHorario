@@ -78,6 +78,27 @@ export function lineaFichadas(dia: RegistroDia): string | null {
   return nota ? `Sin fichadas · Nota QUICKPASS: ${nota}` : 'Sin fichadas';
 }
 
+/** What the day's chip says in the detail row, and its tone. */
+export interface EstadoDia {
+  readonly texto: string;
+  readonly tono: 'ok' | 'neutral' | 'incompleta';
+}
+
+/**
+ * The day's status line. A tardanza forgiven by the weekly allowance is no longer a falta,
+ * but it is still shown — with its own detail and « (perdonada)» — so the operator can see
+ * the person WAS late and why it did not count. Alone it reads neutral rather than
+ * «Correcto»; next to a real falta it is listed after it and the day stays a fault.
+ */
+export function estadoDelDia(dia: RegistroDia): EstadoDia {
+  if (dia.tipoDia === 'libre') return { texto: 'Franco', tono: 'neutral' };
+  const partes = dia.faltas.map((f) => f.detalle);
+  if (dia.tardanzaPerdonada) partes.push(`${dia.tardanzaPerdonada.detalle} (perdonada)`);
+  if (dia.faltas.length > 0) return { texto: partes.join(' · '), tono: 'incompleta' };
+  if (partes.length > 0) return { texto: partes.join(' · '), tono: 'neutral' };
+  return { texto: 'Correcto', tono: 'ok' };
+}
+
 /**
  * The notice for a period whose window cuts a Monday–Sunday week short — a hand-picked range,
  * but also a month or a single day. The calculation is NOT adjusted: `reporteSemanal`

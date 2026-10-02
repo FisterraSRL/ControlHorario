@@ -2,7 +2,7 @@
  * The configuration boundary.
  *
  * Everything the Configuración screen edits, and everything the engine needs to run:
- * the per-sector fichada rule, the three thresholds, the closed list of motivos, and the
+ * the per-sector fichada rule, the four parameters, the closed list of motivos, and the
  * people excluded from disciplinary notifications.
  *
  * It is ONE port and one read on purpose. The four things are edited on one screen and used
@@ -24,6 +24,8 @@ export interface ParametrosConfiguracion {
   readonly toleranciaMin: number;
   /** Contractual weekly hours, one global value. The legacy `horasTurnoFixed`. */
   readonly horasTurnoSemanales: number;
+  /** Tardanzas forgiven per person per Monday–Sunday week. 0 forgives none. No legacy twin. */
+  readonly tardanzasPerdonadasSemana: number;
 }
 
 export interface Exclusion {

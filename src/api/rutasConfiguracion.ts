@@ -2,7 +2,7 @@
  * The HTTP surface of Configuración.
  *
  *     GET    /api/configuracion                  everything the screen renders, in one read
- *     PATCH  /api/configuracion/parametros       breakMax, tolerancia, horas de turno
+ *     PATCH  /api/configuracion/parametros       breakMax, tolerancia, horas de turno, tardanzas perdonadas
  *     PUT    /api/configuracion/sectores         fichadas required for one sector
  *     POST   /api/configuracion/motivos          add a motivo
  *     PATCH  /api/configuracion/motivos/:id      toggle its `worked` flag

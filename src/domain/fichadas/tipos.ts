@@ -94,6 +94,13 @@ export interface ConfiguracionFichadas {
   readonly toleranciaMin?: number;
   /** Contractual weekly hours, a single global value for everyone. Default 51. */
   readonly horasTurnoSemanales?: number;
+  /**
+   * How many `tardanza` faults each person gets forgiven per Monday–Sunday week. Default 1;
+   * 0 forgives none. NOT read by `construirRegistroDia`: a single day cannot know whether it
+   * is the first late arrival of its week. `perdonarTardanzas` applies it over the whole
+   * historial afterwards.
+   */
+  readonly tardanzasPerdonadasSemana?: number;
 }
 
 /** The full derived record of one person on one day. */
@@ -125,6 +132,11 @@ export interface RegistroDia {
   /** Real break in minutes: only computed when 4 fichadas are required and 3+ were made. */
   readonly descansoReal: number;
   readonly faltas: readonly Falta[];
+  /**
+   * The `tardanza` fault `perdonarTardanzas` took out of `faltas` because it fell within the
+   * week's allowance. Kept so the day can still say it was late; absent on every other day.
+   */
+  readonly tardanzaPerdonada?: Falta;
   readonly tipoDia: TipoDia | null;
   readonly motivoId: number | null;
   readonly motivoSource: OrigenMotivo | null;

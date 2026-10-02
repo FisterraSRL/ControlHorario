@@ -34,6 +34,8 @@ import type {
 const FICHADAS_REQUERIDAS_POR_DEFECTO = 4;
 const DESCANSO_MAX_POR_DEFECTO = 30;
 const TOLERANCIA_POR_DEFECTO = 0;
+/** Tardanzas forgiven per person per week when nothing is configured. See `perdon.ts`. */
+export const TARDANZAS_PERDONADAS_POR_DEFECTO = 1;
 
 /** Key of a human decision over a (dni, fecha). `fechaStr` is the raw cell, not the Date. */
 export function claveAusencia(dni: string, fechaStr: string): string {
