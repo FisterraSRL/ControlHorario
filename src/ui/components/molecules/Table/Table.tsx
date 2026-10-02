@@ -7,7 +7,8 @@ import './Table.css';
  *
  * The horizontal scroll is on this wrapper and never on the page: a table of fichadas is
  * wide, and a page that scrolls sideways moves the sidebar and the period control out of
- * view along with it.
+ * view along with it. Because of that, the vertical scroll is here too: a sticky header
+ * can only stick inside its scroll container, so the wrapper has a max-height.
  */
 export function Table({ children, etiqueta }: { readonly children: ReactNode; readonly etiqueta: string }) {
   return (

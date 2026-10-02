@@ -1,5 +1,13 @@
+/* `overflow-x: auto` already makes this box the scroll container of the sticky header,
+   in both axes, so the header can only stick while this box scrolls. The max-height
+   makes it scroll: once the table is taller than the viewport, it scrolls inside its
+   own box and the header stays on screen. 11rem leaves room for the sticky Topbar
+   (about 100px on one line) and the page padding below the card, so the whole box fits
+   under the Topbar when the page is scrolled to the end. */
 .tabla-envoltorio {
   overflow-x: auto;
+  max-height: calc(100vh - 11rem);
+  max-height: calc(100dvh - 11rem);
   border: 1px solid var(--app-border);
   border-radius: var(--app-radius);
   background: var(--app-surface);
@@ -23,7 +31,9 @@
   text-transform: uppercase;
   text-align: left;
   padding: var(--app-space-2) var(--app-space-3);
-  border-bottom: 1px solid var(--app-border);
+  /* A shadow and not a border: with `border-collapse` the border belongs to the table
+     and stays behind when the header sticks. */
+  box-shadow: inset 0 -1px 0 var(--app-border);
   white-space: nowrap;
 }
 
