@@ -1,6 +1,6 @@
 # Estado del proyecto y continuidad
 
-Actualizado: 2 de octubre de 2026.
+Actualizado: 5 de octubre de 2026.
 
 Este documento permite continuar el trabajo sin depender del historial de una conversación.
 Antes de actuar, comprobar siempre `git status`, `git log -5` y el estado real de producción.
@@ -100,7 +100,8 @@ y el mismo día dos veces es un rango de un día. Esc y un click afuera cierran 
   lote»).
 - Generador de notificaciones Word puro en `src/notificaciones`, con fixtures golden.
 - Pantalla Notificaciones: agrupación por persona y descarga del Word, individual, masiva y por
-  día con falta desde el detalle de la persona (ver «Notificación por día»).
+  día con falta desde el detalle de la persona; selección de varios días, incluso no
+  consecutivos (ver «Notificación por día» y «Selección de días específicos»).
 - Pantalla Indicador: faltas por clase y totales del período, sobre la misma agrupación, con
   el total de faltas y el total de faltas notificadas por persona (ver «Faltas notificadas»).
 - Registro de faltas notificadas: generar un Word marca sus faltas como notificadas (ver
@@ -175,7 +176,8 @@ La exportación CSV no cambió.
 ### Notificaciones
 
 Implementada. `NotificacionesContainer` agrupa las faltas del período por persona, permite
-selección individual y masiva, y descarga los bytes mediante un object URL que se revoca.
+selección de personas completas o de días específicos, y descarga los bytes mediante un object
+URL que se revoca.
 El `.docx` se arma en el navegador y su contenido nunca se envía al servidor; lo único que
 viaja, antes de la descarga, son las claves de las faltas que cubre (ver «Faltas
 notificadas»).
@@ -212,9 +214,10 @@ empiezan con el magic ZIP `50 4b 03 04` y contienen `[Content_Types].xml`, `_rel
 
 Cada fila de persona tiene un botón `+` que despliega un renglón por día con al menos una
 falta: la fecha, los chips de ese día (el mismo componente y las mismas etiquetas que la
-columna Faltas) y un «Generar Word» que baja la carta de ese día solo. El Word por persona y
-«Generar seleccionadas» no cambiaron. El estado de despliegue es crudo y se deriva contra las
-filas visibles, igual que la selección y que Horas.
+columna Faltas) y un «Generar Word» que baja la carta de ese día solo. «Generar Word completo»
+conserva la carta de todos los días del período de esa persona, independientemente de las
+casillas seleccionadas. El estado de despliegue es crudo y se deriva contra las filas visibles,
+igual que la selección y que Horas.
 
 El corte vive en `src/ui/faltas/porDia.ts`, al lado de la agrupación, y **no es una segunda
 agrupación**: `separarPorDia(persona)` recibe la salida de `agruparFaltasPorPersona` y sólo
@@ -228,6 +231,23 @@ La carta es `generarWordDia(personaDelDia, fecha)` en `documentoWord.ts`: usa el
 las tablas (y con ellas la densidad) y el nombre, `nombreArchivoDia(usuario, fecha)` →
 `Notificacion_Nombre_Apellido_14-09-2026.docx` (las barras y lo que Windows no acepta en un
 nombre pasan a guiones).
+
+#### Selección de días específicos
+
+Cada día del detalle tiene una casilla. Se pueden marcar fechas no consecutivas y de varias
+personas: «Generar seleccionadas» conserva una carta por persona dentro de un único Word,
+pero incluye únicamente sus días marcados. La casilla de una persona selecciona todos sus
+días visibles; si sólo algunos están marcados, queda indeterminada y muestra el conteo. La
+casilla del encabezado aplica el mismo criterio a todas las personas del período. El número
+del botón «Generar seleccionadas» sigue contando personas, no días.
+
+La selección guarda fechas explícitas por DNI (`SeleccionDias`), nunca un indicador de
+«todos los días» que pueda seleccionar fechas nuevas al cambiar de período. `seleccionVisible`
+la intersecta con los días actuales de `separarPorDia`, incluso cuando el DNI sigue visible.
+Cada alternancia parte de esa intersección. `personasSeleccionadas` filtra las filas que ya
+produjo la agrupación; no recalcula faltas. Tanto el Word masivo como sus `clavesNotificadas`
+reciben ese mismo recorte. Los botones de Word completo y de un día conservan su alcance
+explícito; la selección no los modifica. No requiere cambios de API ni migraciones.
 
 #### Faltas notificadas
 
@@ -533,7 +553,11 @@ flotando 50px a la derecha del resto. En el login va centrado arriba del panel.
 
 ## Pruebas
 
-El baseline esperado es **611 pruebas en 43 archivos**. Las tardanzas perdonadas por semana
+El baseline esperado es **619 pruebas en 43 archivos**. La selección de días específicos
+sumó 8 en `src/ui/features/notificaciones/notificaciones.test.ts`: fechas no consecutivas
+excluidas tanto del XML del Word como del registro, casillas de persona completa/parcial,
+último día destildado, independencia por persona y cambios de período con el mismo DNI.
+Las tardanzas perdonadas por semana
 sumaron 34 sobre las 577 en 41, con dos archivos nuevos: 13 en
 `src/domain/fichadas/perdon.test.ts` (0 y valores inválidos como identidad, cupo de 1 y de 2,
 cupo propio por semana y por persona, el domingo en la semana del lunes anterior, las otras

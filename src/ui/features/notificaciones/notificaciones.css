@@ -6,3 +6,5 @@
 .notificaciones__fecha { font-family:var(--app-font-mono); min-width:10ch; }
 .notificaciones__dia .notificaciones__chips { flex:1; }
 .notificaciones__aviso { margin-bottom:var(--app-space-3); }
+.notificaciones__ayuda { margin:0 0 var(--app-space-3); color:var(--app-muted); font-size:var(--app-text-sm); }
+.notificaciones__seleccion { margin-top:var(--app-space-1); color:var(--app-muted); font-size:var(--app-text-sm); }

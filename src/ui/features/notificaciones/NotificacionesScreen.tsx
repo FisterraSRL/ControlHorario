@@ -1,7 +1,7 @@
 /**
  * Presentational. Who has faltas in the period, and the three ways to turn that into a Word:
  * one letter for one person, one letter for one day of one person (from the row's detail),
- * or one file with everybody's ticked letter in it.
+ * or one file with each person's selected days in their letter.
  *
  * The chips carry the same labels and the same three colours the letter is printed with
  * (`META_FALTAS`), so the screen and the document read as one thing rather than two.
@@ -28,7 +28,7 @@ import { Alert } from '../../components/molecules/Alert/Alert.js';
 import { Card } from '../../components/molecules/Card/Card.js';
 import { FilaVacia, Table } from '../../components/molecules/Table/Table.js';
 import { pluralizar } from '../../texto.js';
-import { etiquetaNotificacion } from './notificaciones.js';
+import { etiquetaNotificacion, type SeleccionDias } from './notificaciones.js';
 import './notificaciones.css';
 
 /** Expand, Persona (with its checkbox), DNI, faltas, total, and the per-person button. */
@@ -36,10 +36,10 @@ const COLUMNAS = 6;
 
 interface Props {
   readonly personas: readonly NotificacionPersona[];
-  readonly seleccionadas: ReadonlySet<string>;
+  readonly seleccionadas: SeleccionDias;
   /** The VISIBLE open rows, already intersected with `personas` by the container. */
   readonly abiertas: ReadonlySet<string>;
-  /** Each open row's days, keyed by DNI. A row missing here simply lists nothing. */
+  /** The current period's days, keyed by DNI, including closed rows. */
   readonly dias: ReadonlyMap<string, readonly DiaConFaltas[]>;
   /** Notified keys of the period (`idFaltaNotificada`). */
   readonly notificadas: ReadonlySet<IdFaltaNotificada>;
@@ -49,6 +49,7 @@ interface Props {
   /** Why the last document was not handed over, or why the notified state is unknown. */
   readonly error: string | null;
   readonly onAlternar: (dni: string) => void;
+  readonly onAlternarDia: (dni: string, fecha: string) => void;
   readonly onAlternarTodas: (marcado: boolean) => void;
   readonly onAlternarDetalle: (dni: string) => void;
   readonly onGenerarPersona: (dni: string) => void;
@@ -83,14 +84,16 @@ export function NotificacionesScreen({
   registrando,
   error,
   onAlternar,
+  onAlternarDia,
   onAlternarTodas,
   onAlternarDetalle,
   onGenerarPersona,
   onGenerarDia,
   onGenerarSeleccionadas,
 }: Props) {
-  // `Checkbox` has no indeterminate state, so "todas" is all or nothing, never a partial tick.
-  const todas = personas.length > 0 && seleccionadas.size === personas.length;
+  const todas = personas.length > 0 && personas.every(
+    (persona) => (seleccionadas.get(persona.dni)?.size ?? 0) === (dias.get(persona.dni)?.length ?? 0),
+  );
   let sectorAnterior = '';
 
   return (
@@ -107,6 +110,10 @@ export function NotificacionesScreen({
         </Button>
       }
     >
+      <p className="notificaciones__ayuda">
+        El detalle permite seleccionar días específicos, incluso no consecutivos. Generar
+        seleccionadas incluye sólo esos días en una carta por persona.
+      </p>
       {error && (
         <div className="notificaciones__aviso">
           <Alert tono="error">{error}</Alert>
@@ -119,7 +126,12 @@ export function NotificacionesScreen({
               <span className="notificaciones__sr">Detalle por día</span>
             </th>
             <th>
-              <Checkbox marcado={todas} onCambio={onAlternarTodas} disabled={personas.length === 0}>
+              <Checkbox
+                marcado={todas}
+                indeterminado={!todas && seleccionadas.size > 0}
+                onCambio={onAlternarTodas}
+                disabled={personas.length === 0}
+              >
                 Persona
               </Checkbox>
             </th>
@@ -141,6 +153,10 @@ export function NotificacionesScreen({
             sectorAnterior = persona.sector;
             const total = totalDeFaltas(persona.faltasPorTipo);
             const abierta = abiertas.has(persona.dni);
+            const diasPersona = dias.get(persona.dni) ?? [];
+            const fechasSeleccionadas = seleccionadas.get(persona.dni);
+            const cantidadSeleccionada = fechasSeleccionadas?.size ?? 0;
+            const personaCompleta = diasPersona.length > 0 && cantidadSeleccionada === diasPersona.length;
 
             return (
               <Fragment key={persona.dni}>
@@ -163,11 +179,17 @@ export function NotificacionesScreen({
                   </td>
                   <td>
                     <Checkbox
-                      marcado={seleccionadas.has(persona.dni)}
+                      marcado={personaCompleta}
+                      indeterminado={cantidadSeleccionada > 0 && !personaCompleta}
                       onCambio={() => onAlternar(persona.dni)}
                     >
                       {persona.usuario}
                     </Checkbox>
+                    {cantidadSeleccionada > 0 && (
+                      <div className="notificaciones__seleccion">
+                        {cantidadSeleccionada} de {diasPersona.length} días seleccionados
+                      </div>
+                    )}
                   </td>
                   <td className="tabla__mono">{persona.dni}</td>
                   <td>
@@ -178,11 +200,11 @@ export function NotificacionesScreen({
                     <Button
                       variante="ghost"
                       tamano="sm"
-                      aria-label={`Generar el Word de ${persona.usuario}`}
+                      aria-label={`Generar el Word de ${persona.usuario} con todos los días del período`}
                       disabled={registrando}
                       onClick={() => onGenerarPersona(persona.dni)}
                     >
-                      Generar Word
+                      Generar Word completo
                     </Button>
                   </td>
                 </tr>
@@ -192,12 +214,19 @@ export function NotificacionesScreen({
                     <td />
                     <td colSpan={COLUMNAS - 1}>
                       <ul className="notificaciones__dias" aria-label={`Días con faltas de ${persona.usuario}`}>
-                        {(dias.get(persona.dni) ?? []).map((dia) => {
+                        {diasPersona.map((dia) => {
                           const cuenta = contarNotificadas(dia.persona, notificadas);
                           const estado = etiquetaNotificacion(cuenta);
                           return (
                             <li key={dia.fecha} className="notificaciones__dia">
-                              <span className="notificaciones__fecha">{dia.fecha}</span>
+                              <span className="notificaciones__fecha">
+                                <Checkbox
+                                  marcado={fechasSeleccionadas?.has(dia.fecha) ?? false}
+                                  onCambio={() => onAlternarDia(persona.dni, dia.fecha)}
+                                >
+                                  {dia.fecha}
+                                </Checkbox>
+                              </span>
                               <ChipsDeFaltas faltasPorTipo={dia.persona.faltasPorTipo} />
                               {estado && (
                                 <Chip tono={cuenta.notificadas >= cuenta.total ? 'ok' : 'neutral'}>

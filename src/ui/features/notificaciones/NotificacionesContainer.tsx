@@ -1,7 +1,7 @@
 /**
  * Container for the Notificaciones screen.
  *
- * It owns which people are ticked, which rows are open and the download, and nothing else:
+ * It owns which days are ticked, which rows are open and the download, and nothing else:
  * the grouping is `agruparFaltasPorPersona`, the cut into days is `separarPorDia`, and the
  * `.docx` is the notificaciones module. The document itself is still built in the browser —
  * no letter content is ever sent to the server.
@@ -25,7 +25,15 @@ import { useHistorial } from '../../historial/HistorialProvider.js';
 import { useNotificadas } from '../../notificaciones/NotificadasProvider.js';
 import { usePeriodo } from '../../periodo/PeriodoProvider.js';
 import { NotificacionesScreen } from './NotificacionesScreen.js';
-import { entregarRegistrado, MENSAJE_SIN_REGISTRO } from './notificaciones.js';
+import {
+  alternarDiaSeleccionado,
+  alternarPersonaSeleccionada,
+  entregarRegistrado,
+  MENSAJE_SIN_REGISTRO,
+  personasSeleccionadas,
+  seleccionVisible,
+  type SeleccionDias,
+} from './notificaciones.js';
 
 /**
  * Hands the browser a file it already has in memory.
@@ -64,10 +72,9 @@ function comoDocx(bytes: Uint8Array): Blob {
 }
 
 /**
- * The DNIs of `marcados` that are still on screen. Selection and open rows both go through
- * it: changing the period replaces the whole list, and a DNI that is no longer on screen must
- * neither count towards "Generar seleccionadas" nor show as open. Derived rather than pruned
- * in an effect, because an effect would render once with the stale state before correcting it.
+ * The DNIs of open rows that are still on screen. A DNI that is no longer on screen must
+ * not show as open. Derived rather than pruned in an effect, because an effect would render
+ * once with the stale state before correcting it.
  */
 function soloVisibles(
   marcados: ReadonlySet<string>,
@@ -86,21 +93,18 @@ export function NotificacionesContainer() {
     [registros, paraElMotor, rango],
   );
 
-  const [seleccionadas, setSeleccionadas] = useState<ReadonlySet<string>>(() => new Set());
-
-  const vigentes = useMemo(() => soloVisibles(seleccionadas, personas), [personas, seleccionadas]);
+  // All current days are needed for selection, including when a person's detail is closed.
+  const dias = useMemo(
+    () => new Map(personas.map((p) => [p.dni, separarPorDia(p)])),
+    [personas],
+  );
+  const [seleccionadas, setSeleccionadas] = useState<SeleccionDias>(() => new Map());
+  const vigentes = useMemo(() => seleccionVisible(seleccionadas, dias), [dias, seleccionadas]);
 
   // Raw, like Horas: the screen only ever sees `abiertas`, and every toggle starts from that
   // derived set, so a period change needs no effect to close anything.
   const [abiertasCrudas, setAbiertas] = useState<ReadonlySet<string>>(() => new Set());
   const abiertas = useMemo(() => soloVisibles(abiertasCrudas, personas), [abiertasCrudas, personas]);
-
-  // Only the open rows are cut into days: that is all the screen lists, and the split of a
-  // closed row would be thrown away on every render.
-  const dias = useMemo(
-    () => new Map(personas.filter((p) => abiertas.has(p.dni)).map((p) => [p.dni, separarPorDia(p)])),
-    [personas, abiertas],
-  );
 
   const alternarDetalle = useCallback(
     (dni: string) => {
@@ -112,18 +116,25 @@ export function NotificacionesContainer() {
     [abiertas],
   );
 
-  const alternar = useCallback((dni: string) => {
-    setSeleccionadas((previas) => {
-      const siguientes = new Set(previas);
-      if (siguientes.has(dni)) siguientes.delete(dni);
-      else siguientes.add(dni);
-      return siguientes;
-    });
-  }, []);
+  const alternar = useCallback(
+    (dni: string) => setSeleccionadas((previas) => alternarPersonaSeleccionada(previas, dias, dni)),
+    [dias],
+  );
+
+  const alternarDia = useCallback(
+    (dni: string, fecha: string) =>
+      setSeleccionadas((previas) => alternarDiaSeleccionado(previas, dias, dni, fecha)),
+    [dias],
+  );
 
   const alternarTodas = useCallback(
-    (marcado: boolean) => setSeleccionadas(marcado ? new Set(personas.map((p) => p.dni)) : new Set()),
-    [personas],
+    (marcado: boolean) =>
+      setSeleccionadas(
+        marcado
+          ? new Map([...dias].map(([dni, porDia]) => [dni, new Set(porDia.map((dia) => dia.fecha))]))
+          : new Map(),
+      ),
+    [dias],
   );
 
   const { notificadas, registrar, error: errorLectura } = useNotificadas();
@@ -190,7 +201,7 @@ export function NotificacionesContainer() {
   );
 
   const generarSeleccionadas = useCallback(() => {
-    const elegidas = personas.filter((p) => vigentes.has(p.dni));
+    const elegidas = personasSeleccionadas(personas, vigentes);
     const doc = generarWordMasivo(elegidas);
     if (!doc) return;
     void entregar(elegidas.flatMap((p) => clavesNotificadas(p)), doc);
@@ -207,6 +218,7 @@ export function NotificacionesContainer() {
       registrando={registrando}
       error={errorRegistro ?? (errorLectura ? `No se pudo leer qué faltas ya están notificadas: ${errorLectura}` : null)}
       onAlternar={alternar}
+      onAlternarDia={alternarDia}
       onAlternarTodas={alternarTodas}
       onAlternarDetalle={alternarDetalle}
       onGenerarPersona={generarPersona}
