@@ -57,6 +57,17 @@ describe('queue routes', () => {
 });
 describe('SQL orchestration (doubles, not SQL execution)', () => {
   const fila = { id, snapshot: JSON.stringify(snapshot), creado_at: '2026-10-06T12:00:00Z', emision_id: null };
+  it.each([0, 50, 51])('paginates only emitted documents (%i rows), without reading legacy marks', async cantidad => {
+    const pool = crearPoolFalso(sql => sql.includes('d.[emision_id] IS NOT NULL') ? {
+      rows: Array.from({ length: cantidad }, (_, i) => ({ ...fila, id: String(i), emision_id: emision.id, emitido_at: '2026-10-06T12:00:00Z', fecha_documento: emision.fechaDocumento })),
+    } : undefined);
+    const resultado = await crearRepositorioEnvios(pool).historial(0);
+    expect(resultado.documentos).toHaveLength(Math.min(cantidad, 50));
+    expect(resultado.anteriores).toEqual([]);
+    expect(resultado.hayMas).toBe(cantidad > 50);
+    expect(pool.textos().join(' ')).not.toContain('n.[documento_id] IS NULL');
+    expect(pool.textos().join(' ')).not.toMatch(/DELETE|UPDATE|INSERT/);
+  });
   it('serializes queue mutation and audits it in one transaction', async () => {
     const pool = crearPoolFalso(); await crearRepositorioEnvios(pool).encolar([{ id, snapshot }], 'operator');
     expect(pool.llamadas.every(l => l.enTransaccion)).toBe(true);

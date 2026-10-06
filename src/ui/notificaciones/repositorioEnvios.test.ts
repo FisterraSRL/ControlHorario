@@ -94,12 +94,29 @@ describe('notification queue and history', () => {
     expect(await todas(r)).toEqual([]);
     expect(await r.envios.pendientes()).toHaveLength(1);
   });
-  it('imports legacy marks once and allows removing them without inventing a document', async () => {
-    const storage = almacen(); storage.setItem('controlhorario.notificadas.v1', JSON.stringify({ '123|2026-09-01|tardanza': '2026-10-01T12:00:00Z' }));
+  it('preserves legacy marks without showing them or adding empty history pages', async () => {
+    const storage = almacen();
+    storage.setItem('controlhorario.notificadas.v1', JSON.stringify(Object.fromEntries(
+      Array.from({ length: 51 }, (_, i) => [`${i}|2026-09-01|tardanza`, '2026-10-01T12:00:00Z']),
+    )));
     const r = crearRepositoriosEnviosLocal(storage); const h = await r.envios.historial(0);
-    expect(h.documentos).toEqual([]); expect(h.anteriores).toHaveLength(1);
-    await r.envios.quitar(h.anteriores);
-    expect((await crearRepositoriosEnviosLocal(storage).envios.historial(0)).anteriores).toEqual([]);
+    expect(h).toEqual({ documentos: [], anteriores: [], hayMas: false });
+    expect(await todas(r)).toHaveLength(51);
+    const recargado = crearRepositoriosEnviosLocal(storage);
+    expect(await todas(recargado)).toHaveLength(51);
+    expect(await recargado.envios.historial(0)).toEqual(h);
+  });
+  it('still exposes a next page when emitted documents exceed the page size', async () => {
+    const r = crearRepositoriosEnviosLocal(null);
+    const docs = Array.from({ length: 51 }, (_, i) => ({ id: crypto.randomUUID(), snapshot: { ...snapshot, dni: `person-${i}` } }));
+    await r.envios.encolar(docs);
+    await r.envios.emitir({ ...pedido, documentos: docs.map(d => d.id) });
+    const primera = await r.envios.historial(0);
+    const segunda = await r.envios.historial(1);
+    expect(primera.documentos).toHaveLength(50);
+    expect(primera.hayMas).toBe(true);
+    expect(segunda.documentos).toHaveLength(1);
+    expect(segunda.hayMas).toBe(false);
   });
 });
 describe('immutable letter snapshots', () => {

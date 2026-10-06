@@ -98,8 +98,8 @@ export function crearRepositorioEnvios(pool: Pool): RepositorioEnviosSql {
     },
     async historial(pagina) {
       const { rows } = await pool.query<FilaDocumento>(`${SELECT_DOCUMENTOS} WHERE d.[emision_id] IS NOT NULL ORDER BY e.[emitido_at] DESC, d.[id] OFFSET $1 ROWS FETCH NEXT $2 ROWS ONLY`, [pagina * TAMANO_HISTORIAL, TAMANO_HISTORIAL + 1]);
-      const { rows: anteriores } = await pool.query<FilaMarca>(`${SELECT_MARCAS} WHERE n.[documento_id] IS NULL ORDER BY n.[notificado_at] DESC, n.[dni], n.[fecha], n.[tipo] OFFSET $1 ROWS FETCH NEXT $2 ROWS ONLY`, [pagina * TAMANO_HISTORIAL, TAMANO_HISTORIAL + 1]);
-      return { documentos: await emitidos(pool, rows.slice(0, TAMANO_HISTORIAL)), anteriores: anteriores.slice(0, TAMANO_HISTORIAL).map(marca), hayMas: rows.length > TAMANO_HISTORIAL || anteriores.length > TAMANO_HISTORIAL };
+      // Preserve the response shape while history and pagination contain only documents.
+      return { documentos: await emitidos(pool, rows.slice(0, TAMANO_HISTORIAL)), anteriores: [], hayMas: rows.length > TAMANO_HISTORIAL };
     },
     async quitar(marcas, actor) {
       await escribir(async c => {

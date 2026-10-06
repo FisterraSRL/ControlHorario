@@ -109,7 +109,6 @@ export function EnviosContainer({ historial = false }: { readonly historial?: bo
           })}</ul></details></td><td><div className="envios__acciones"><Button disabled={bloqueado} onClick={() => void accion(async () => descargar(generarDocumentos([d], d.fechaDocumento)))}>Descargar Word</Button><Button disabled={bloqueado || !d.activas.length} onClick={() => setConfirmar(d.activas)}>Quitar Notificado del documento</Button></div></td></tr>)}
         </tbody></Table>
       </Card>
-      {!!registro.anteriores.length && <Card titulo="Notificaciones anteriores" bajada="Marcas registradas antes del panel. No hay documento guardado para volver a descargar."><Table etiqueta="Marcas anteriores"><thead><tr><th>DNI</th><th>Fecha</th><th>Falta</th><th>Notificada</th><th>Acción</th></tr></thead><tbody>{registro.anteriores.map(m => <tr key={m.version}><td>{m.dni}</td><td>{m.fechaIso}</td><td>{META_FALTAS[m.tipo].label}</td><td>{momento(m.notificadoAt)}</td><td><Button disabled={bloqueado} onClick={() => setConfirmar([m])}>Quitar Notificado</Button></td></tr>)}</tbody></Table></Card>}
       <div className="envios__acciones"><Button disabled={bloqueado || pagina === 0} onClick={() => { setConfirmar(null); setPagina(p => p - 1); }}>Anterior</Button><span>Página {pagina + 1}</span><Button disabled={bloqueado || !registro.hayMas} onClick={() => { setConfirmar(null); setPagina(p => p + 1); }}>Siguiente</Button></div>
     </>}
   </section>;

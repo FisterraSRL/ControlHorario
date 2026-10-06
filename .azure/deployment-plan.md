@@ -1,8 +1,35 @@
 # Azure Deployment Plan
 
-> **Status:** Deployed — notification panels API and SQL migration
+> **Status:** Deployed — document-only notification history API update
 
 Generated: 2026-09-16
+
+## Document-only history update — 2026-10-06
+
+The authorized incremental update removes the confusing legacy-mark section from history.
+Existing marks remain stored and available to notification counts. API/local history and
+pagination now contain documents only; the compatible `anteriores` field returns an empty
+array. No migrations, firewall rules, business data or app settings are changed.
+
+### Validation proof
+
+- Implementation checks passed: 661 tests in 46 files, typecheck and frontend/API builds.
+- API rebuilt from a clean verified build directory; changed-file secret scan and diff check
+  passed. RDD remains disabled.
+- Production preflight health is healthy with six migrations; both remote-build settings
+  remain false. The production dependency lock matches and Linux argon2 integrity is verified.
+- ZIP `controlhorario-20261006-historial.zip`: 24,092,897 bytes, 10,273 entries, six migrations,
+  full byte-for-byte readback, no environment files, and slash-normalized paths.
+  SHA256: `1b601b46085134f677004f9c17646d81d9002dd73f34b652d9f34b843cdf5c45`.
+
+### Deployment proof
+
+- API deployment `a39d1312-ad7c-4516-a783-4451ba330076` completed with `RuntimeSuccessful`,
+  one successful instance and zero failures. Kudu confirms active/status 4.
+- Remote `repositorioEnvios.js` matches local SHA256
+  `7526E94CAA8DD57DC0D122DAF97676C9DABF4B4B5BA3D375B34197A7AB8B4FCF`.
+- Health confirms the restarted API and six migrations. The release commit triggers Vercel;
+  authenticated validation is read-only and must confirm the legacy section is absent.
 
 ## Notification panels release — 2026-10-06
 

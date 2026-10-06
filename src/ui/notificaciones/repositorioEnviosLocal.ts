@@ -91,8 +91,8 @@ export function crearRepositoriosEnviosLocal(storage: Storage | null = storageDe
         });
       },
       async historial(pagina) {
-        const e = leer(); const anteriores = Object.values(e.marcas).filter(m => !m.documentoId); const inicio = pagina * TAMANO_HISTORIAL;
-        return { documentos: e.documentos.slice(inicio, inicio + TAMANO_HISTORIAL).map(d => conMarcas(e, d)), anteriores: anteriores.slice(inicio, inicio + TAMANO_HISTORIAL), hayMas: Math.max(e.documentos.length, anteriores.length) > inicio + TAMANO_HISTORIAL };
+        const e = leer(); const inicio = pagina * TAMANO_HISTORIAL;
+        return { documentos: e.documentos.slice(inicio, inicio + TAMANO_HISTORIAL).map(d => conMarcas(e, d)), anteriores: [], hayMas: e.documentos.length > inicio + TAMANO_HISTORIAL };
       },
       async quitar(marcas) {
         await escribir(e => { for (const m of marcas) if (e.marcas[idMarca(m)]?.version === m.version) delete e.marcas[idMarca(m)]; });

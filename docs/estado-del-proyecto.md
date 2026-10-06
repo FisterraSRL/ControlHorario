@@ -188,8 +188,11 @@ builder. Preparation and discard do not mark any fault as notified.
 - `/historial-notificaciones`: persisted emitted documents, original issue date, current
   owned marks, downloadable snapshots, and removal of one mark or all marks owned by a
   document. Removal requires an inline confirmation and never deletes the document.
-  Existing marks from migration 005 appear separately as previous notifications, without an
-  invented document. History pages contain at most 50 documents and 50 legacy marks.
+  History contains only emitted documents, at most 50 per page. The previous-notifications
+  section was removed at the user's request; legacy marks remain stored and still count in
+  Indicador. They no longer contribute empty pages or enable Next. The API refinement was
+  deployed on 2026-10-06 (`a39d1312-ad7c-4516-a783-4451ba330076`, `RuntimeSuccessful`),
+  with no migration or data deletion; the release commit publishes its frontend on Vercel.
 - Both routes and every `/api/envios/*` endpoint are restricted to admin/operator. Encargado
   has neither menu access nor API permission. Panels omit the global period selector.
 
@@ -515,7 +518,7 @@ flotando 50px a la derecha del resto. En el login va centrado arriba del panel.
 
 ## Pruebas
 
-El baseline esperado es **657 pruebas en 46 archivos**. La selección de días específicos
+El baseline esperado es **661 pruebas en 46 archivos**. La selección de días específicos
 sumó 8 en `src/ui/features/notificaciones/notificaciones.test.ts`: fechas no consecutivas
 excluidas tanto del XML del Word como del registro, casillas de persona completa/parcial,
 último día destildado, independencia por persona y cambios de período con el mismo DNI.
