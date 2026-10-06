@@ -10,6 +10,7 @@ const archivos = [
   'db/migrations/003_administracion_usuarios.sql',
   'db/migrations/004_encargados.sql',
   'db/migrations/005_faltas_notificadas.sql',
+  'db/migrations/006_panel_envios.sql',
   'db/bootstrap/000_esquema_y_rol.sql',
 ];
 

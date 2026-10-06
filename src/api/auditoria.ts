@@ -51,7 +51,11 @@ export type AccionAuditada =
   | 'exclusion_agregada'
   | 'exclusion_quitada'
   | 'exclusiones_sembradas'
-  | 'faltas_notificadas';
+  | 'faltas_notificadas'
+  | 'documento_preparado'
+  | 'documento_descartado'
+  | 'documentos_emitidos'
+  | 'notificado_quitado';
 
 export interface EntradaAuditoria {
   /** Who. The email of the logged-in operator, or `config.operador` for boot-time work. */

@@ -1,24 +1,8 @@
-/**
- * Which faltas of the current period have already been notified, shared by Notificaciones
- * (which records them) and Indicador (which counts them).
- *
- * It sits INSIDE `PeriodoProvider` because it is the one read that is period-scoped: the
- * server answers a window of days, and the window is the period's. Changing the period
- * re-reads it; nothing else does.
- *
- * `notificadas` is a set of `${dni}|${YYYY-MM-DD}|${tipo}` ids (`idFaltaNotificada`), the
- * same spelling `contarNotificadas` looks up, so a key read from the server and a key built
- * from a falta on screen meet without a conversion anywhere.
- *
- * Keys recorded during this session are kept in a set of their own and unioned in, instead
- * of being merged into the server's answer: a period read that started before a `registrar`
- * and lands after it would otherwise erase what was just recorded.
- *
- * Roles that cannot open either screen (an encargado) never fire the read, which the server
- * would answer 403.
+/** Period-scoped marks shared by Notificaciones and Indicador.
+ * A mutation invalidates pending reads synchronously, then reloads authoritative marks.
+ * No additive session overlay can resurrect a mark removed from the history panel.
  */
-
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 
 import { fmtFechaISO } from '../../domain/fichadas/index.js';
@@ -40,6 +24,7 @@ interface ContextoNotificadas {
    * `asignarMotivo`, because the caller only has to decide whether to download.
    */
   registrar(claves: readonly ClaveNotificada[]): Promise<boolean>;
+  recargar(): void;
 }
 
 const NotificadasContext = createContext<ContextoNotificadas | null>(null);
@@ -62,9 +47,9 @@ export function NotificadasProvider({ children }: { readonly children: ReactNode
   const hastaIso = fmtFechaISO(rango.hasta);
 
   const [delPeriodo, setDelPeriodo] = useState<ReadonlySet<IdFaltaNotificada>>(() => new Set());
-  const [registradasAqui, setRegistradasAqui] = useState<ReadonlySet<IdFaltaNotificada>>(
-    () => new Set(),
-  );
+  const [revision, setRevision] = useState(0);
+  const generacion = useRef(0);
+  const recargar = useCallback(() => { generacion.current++; setDelPeriodo(new Set()); setRevision(v => v + 1); }, []);
   const [cargando, setCargando] = useState(habilitado);
   const [error, setError] = useState<string | null>(null);
 
@@ -74,16 +59,17 @@ export function NotificadasProvider({ children }: { readonly children: ReactNode
       return;
     }
     let vigente = true;
+    const version = generacion.current;
     setCargando(true);
     repo
       .listar(desdeIso, hastaIso)
       .then((filas) => {
-        if (!vigente) return;
+        if (!vigente || version !== generacion.current) return;
         setDelPeriodo(new Set(filas.map((f) => idFaltaNotificada(f.dni, f.fecha, f.tipo))));
         setError(null);
       })
       .catch((e: unknown) => {
-        if (!vigente) return;
+        if (!vigente || version !== generacion.current) return;
         if (e instanceof ErrorNoAutenticado) {
           expirar();
           return;
@@ -95,39 +81,32 @@ export function NotificadasProvider({ children }: { readonly children: ReactNode
         );
       })
       .finally(() => {
-        if (vigente) setCargando(false);
+        if (vigente && version === generacion.current) setCargando(false);
       });
     return () => {
       vigente = false;
     };
-  }, [repo, desdeIso, hastaIso, habilitado, expirar]);
+  }, [repo, desdeIso, hastaIso, habilitado, expirar, revision]);
 
   const registrar = useCallback(
     async (claves: readonly ClaveNotificada[]): Promise<boolean> => {
       try {
         await repo.registrar(claves);
-        setRegistradasAqui((previas) => {
-          const siguientes = new Set(previas);
-          for (const c of claves) siguientes.add(idFaltaNotificada(c.dni, c.fechaIso, c.tipo));
-          return siguientes;
-        });
+        recargar();
         return true;
       } catch (e: unknown) {
         if (e instanceof ErrorNoAutenticado) expirar();
         return false;
       }
     },
-    [repo, expirar],
+    [repo, expirar, recargar],
   );
 
-  const notificadas = useMemo(() => {
-    if (registradasAqui.size === 0) return delPeriodo;
-    return new Set([...delPeriodo, ...registradasAqui]);
-  }, [delPeriodo, registradasAqui]);
+  const notificadas = delPeriodo;
 
   const valor = useMemo<ContextoNotificadas>(
-    () => ({ notificadas, cargando, error, registrar }),
-    [notificadas, cargando, error, registrar],
+    () => ({ notificadas, cargando, error, registrar, recargar }),
+    [notificadas, cargando, error, registrar, recargar],
   );
 
   return <NotificadasContext.Provider value={valor}>{children}</NotificadasContext.Provider>;

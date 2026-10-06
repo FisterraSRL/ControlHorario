@@ -25,6 +25,8 @@ import { ROLES, type RolUsuario } from '../roles.js';
 export type IdSeccion =
   | 'carga'
   | 'notificaciones'
+  | 'envios'
+  | 'historialNotificaciones'
   | 'ausencias'
   | 'indicador'
   | 'horas'
@@ -81,6 +83,26 @@ export const SECCIONES: readonly Seccion[] = [
     icono: 'notificaciones',
     contador: 'faltas',
     muestraPeriodo: true,
+    roles: ['admin', 'operador'],
+  },
+  {
+    id: 'envios',
+    path: '/envios',
+    label: 'Panel de envío',
+    titulo: 'Panel de envío',
+    icono: 'notificaciones',
+    contador: null,
+    muestraPeriodo: false,
+    roles: ['admin', 'operador'],
+  },
+  {
+    id: 'historialNotificaciones',
+    path: '/historial-notificaciones',
+    label: 'Historial de notificaciones',
+    titulo: 'Historial de notificaciones',
+    icono: 'notificaciones',
+    contador: null,
+    muestraPeriodo: false,
     roles: ['admin', 'operador'],
   },
   {

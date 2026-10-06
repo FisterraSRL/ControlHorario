@@ -1,3 +1,4 @@
+import { EnviosContainer } from '../features/notificaciones/EnviosContainer.js';
 /**
  * The route table and the app-wide providers.
  *
@@ -53,6 +54,8 @@ import { permiteRol, rutaInicialDeRol, SECCIONES, type IdSeccion } from './naveg
 const PANTALLAS: Readonly<Record<IdSeccion, ReactElement>> = {
   carga: <CargaContainer />,
   notificaciones: <NotificacionesContainer />,
+  envios: <EnviosContainer />,
+  historialNotificaciones: <EnviosContainer historial />,
   ausencias: <AusenciasContainer />,
   indicador: <IndicadorContainer />,
   horas: <HorasContainer />,

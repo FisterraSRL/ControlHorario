@@ -15,6 +15,13 @@ function ids(rol: 'admin' | 'operador' | 'encargado'): readonly string[] {
 }
 
 describe('secciones por rol', () => {
+  it('RRHH sees both notification panels without period filtering', () => {
+    for (const id of ['envios', 'historialNotificaciones']) {
+      expect(ids('operador')).toContain(id);
+      expect(ids('admin')).toContain(id);
+      expect(SECCIONES.find(s => s.id === id)?.muestraPeriodo).toBe(false);
+    }
+  });
   it('el encargado ve solamente Ausencias y Mi cuenta', () => {
     expect(ids('encargado')).toEqual(['ausencias', 'cuenta']);
   });

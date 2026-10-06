@@ -99,7 +99,7 @@ y el mismo día dos veces es un rango de un día. Esc y un click afuera cierran 
 - Registro/clasificación de ausencias y adjuntos, de a un día o en lote (ver «Clasificación en
   lote»).
 - Generador de notificaciones Word puro en `src/notificaciones`, con fixtures golden.
-- Pantalla Notificaciones: agrupación por persona y descarga del Word, individual, masiva y por
+- Pantalla Notificaciones: agrupación por persona y preparación de documentos, individual, masiva y por
   día con falta desde el detalle de la persona; selección de varios días, incluso no
   consecutivos (ver «Notificación por día» y «Selección de días específicos»).
 - Pantalla Indicador: faltas por clase y totales del período, sobre la misma agrupación, con
@@ -113,7 +113,7 @@ y el mismo día dos veces es un rango de un día. Esc y un click afuera cierran 
 - Tardanzas perdonadas por semana: un parámetro de Configuración que perdona las primeras N
   tardanzas de cada persona en cada semana de lunes a domingo (ver «Tardanzas perdonadas por
   semana»).
-- Frontend y API desplegados; cinco migraciones aplicadas (ver «Migraciones y base
+- Frontend y API desplegados; seis migraciones aplicadas (ver «Migraciones y base
   compartida»).
 
 Ninguna pantalla es ya un placeholder. `src/ui/app/PlaceholderScreen.tsx` quedó sin
@@ -173,144 +173,77 @@ Después se sumó al detalle:
 
 La exportación CSV no cambió.
 
-### Notificaciones
+### Notification queue and history
 
-Implementada. `NotificacionesContainer` agrupa las faltas del período por persona, permite
-selección de personas completas o de días específicos, y descarga los bytes mediante un object
-URL que se revoca.
-El `.docx` se arma en el navegador y su contenido nunca se envía al servidor; lo único que
-viaja, antes de la descarga, son las claves de las faltas que cubre (ver «Faltas
-notificadas»).
+The current checkout replaces direct Word downloads with a shared RRHH queue. All three
+selection paths (person, one day, selected days across people) prepare immutable snapshots.
+`agruparFaltasPorPersona` remains the sole grouping and `clavesNotificadas` the sole key
+builder. Preparation and discard do not mark any fault as notified.
 
-La agrupación NO vive en el feature. Está en `src/ui/faltas/agrupacion.ts`, junto a
-`periodo/` e `historial/`:
+- `/envios`: persistent queue independent of the global period; inspect included days,
+  discard individual documents, or generate all visible pending documents in one Word file.
+  The panel explicitly states that it preserves the selected content even after evidence or
+  configuration changes. Limits: 200 pending documents, 500 rows per document, 5000 queued
+  fault keys. Overlapping selections are rejected with an actionable message.
+- `/historial-notificaciones`: persisted emitted documents, original issue date, current
+  owned marks, downloadable snapshots, and removal of one mark or all marks owned by a
+  document. Removal requires an inline confirmation and never deletes the document.
+  Existing marks from migration 005 appear separately as previous notifications, without an
+  invented document. History pages contain at most 50 documents and 50 legacy marks.
+- Both routes and every `/api/envios/*` endpoint are restricted to admin/operator. Encargado
+  has neither menu access nor API permission. Panels omit the global period selector.
 
-```ts
-agruparFaltasPorPersona(registros, configuracion, rango, opciones?): readonly NotificacionPersona[]
-```
+`src/notificaciones/envios.ts` defines the serializable snapshot, its strict validation,
+queue limits and repository port. HTTP and local adapters are composed by
+`crearRepositorios`. The SQL adapter uses only `[controlhorario]`; short write transactions
+lock the singleton `envios_mutex` row to serialize competing operators. Emission validates
+all requested pending IDs, records an idempotency ID and original document date, updates
+marks with a new version/document owner, moves every selected item to history and audits
+counts/IDs in the same transaction. A missing evidence FK rolls everything back and returns
+409 with instructions to discard and prepare again. Missing migration returns 503.
 
-Es la **única** definición de “cantidad de faltas” del sistema, y es deliberado: Indicador la
-consume desde ahí, de modo que la pantalla y la carta nunca puedan discrepar sobre cuántas
-faltas tiene alguien. Dejarla dentro de `features/notificaciones` habría obligado a
-`features/indicador` a importar de un hermano. `src/notificaciones/tipos.ts` declara que la
-agrupación es capa UI y no forma parte de ese módulo; ese límite se respeta.
+The browser builds Word bytes before committing an emission. A successful commit followed
+by a lost response/download is recoverable from history; retrying the same emission ID does
+not create another emission or restore subsequently removed marks. Generating a new document
+for an already-notified fault transfers its current mark to the newest document. Thus an old
+document with no owned mark is not necessarily a manually undone notification. Removal
+compares the exact mark version, so stale history cannot remove a later notification.
+`NotificadasProvider` invalidates in-flight reads synchronously and reloads authoritative
+marks after emission/removal, instead of unioning a session overlay that could resurrect
+removed marks. History downloads do not change marks.
 
-Es un puerto fiel de `groupFaultsByPerson` (`legacy/app.html`, ~líneas 1154-1184), con una
-divergencia documentada en el código: las filas sin fecha parseable van al final y no al
-principio.
+Local mode stores queue/history/marks in one `localStorage` value, imports the old marks once,
+and uses one atomic write per transition. Web Locks serialize browser-tab writes where
+available; callback failures release the lock. If storage writes fail, the previous persisted
+state remains intact. Local data are browser-specific, as elsewhere in the app.
 
-Detalle de TypeScript que no es opcional: `new Blob([bytes])` no compila con TS 5.7, que hizo
-`Uint8Array` genérico sobre su buffer. `fflate` devuelve `Uint8Array<ArrayBufferLike>` y
-`BlobPart` sólo acepta una vista sobre un `ArrayBuffer` plano. El container lo resuelve en el
-helper `comoDocx` con un cast acotado; la alternativa copiaba el documento entero en cada
-descarga. El comentario de `src/notificaciones/tipos.ts` que muestra la llamada directa quedó
-desactualizado por este motivo.
+#### Release requirements and validation boundary
 
-Verificado en el navegador con datos reales, no sólo con pruebas: los bytes entregados
-empiezan con el magic ZIP `50 4b 03 04` y contienen `[Content_Types].xml`, `_rels/.rels` y
-`word/document.xml`.
+Migration `006_panel_envios.sql` was **applied to production on 2026-10-06**, before the new
+API and frontend. It creates `envios_mutex`, `emisiones`, `documentos_notificacion` and adds
+version/document ownership to existing marks. Documents/emissions deliberately have no FK to
+imported fichadas, so clearing/replacing evidence cannot erase the document history. Existing
+mark-to-fichada cascade behavior remains. Runtime needs only its existing schema DML grants.
+`db:inspect` now expects six migrations and the new tables.
 
-#### Notificación por día
+Use the existing release procedure: build API, `db:verify`, apply migration with authorized
+administrative access and exact-IP temporary firewall, remove that rule in `finally`, inspect
+schema, deploy API, then frontend. No credentials belong in source or logs.
 
-Cada fila de persona tiene un botón `+` que despliega un renglón por día con al menos una
-falta: la fecha, los chips de ese día (el mismo componente y las mismas etiquetas que la
-columna Faltas) y un «Generar Word» que baja la carta de ese día solo. «Generar Word completo»
-conserva la carta de todos los días del período de esa persona, independientemente de las
-casillas seleccionadas. El estado de despliegue es crudo y se deriva contra las filas visibles,
-igual que la selección y que Horas.
-
-El corte vive en `src/ui/faltas/porDia.ts`, al lado de la agrupación, y **no es una segunda
-agrupación**: `separarPorDia(persona)` recibe la salida de `agruparFaltasPorPersona` y sólo
-reparte sus filas ya formateadas. La clave del día es el texto `fecha` (la celda QUICKPASS,
-la misma que imprime la carta); los días se ordenan por `fechaOrden`, los ilegibles al final
-y después por el texto. Un día con tardanza y exceso de descanso es UNA carta con las dos
-secciones. Una prueba sostiene el invariante: la suma de los días es exactamente la persona.
-
-La carta es `generarWordDia(personaDelDia, fecha)` en `documentoWord.ts`: usa el mismo
-`buildPersonaXml` que `generarWord`, así que el texto es idéntico; sólo cambian las filas de
-las tablas (y con ellas la densidad) y el nombre, `nombreArchivoDia(usuario, fecha)` →
-`Notificacion_Nombre_Apellido_14-09-2026.docx` (las barras y lo que Windows no acepta en un
-nombre pasan a guiones).
-
-#### Selección de días específicos
-
-Cada día del detalle tiene una casilla. Se pueden marcar fechas no consecutivas y de varias
-personas: «Generar seleccionadas» conserva una carta por persona dentro de un único Word,
-pero incluye únicamente sus días marcados. La casilla de una persona selecciona todos sus
-días visibles; si sólo algunos están marcados, queda indeterminada y muestra el conteo. La
-casilla del encabezado aplica el mismo criterio a todas las personas del período. El número
-del botón «Generar seleccionadas» sigue contando personas, no días.
-
-La selección guarda fechas explícitas por DNI (`SeleccionDias`), nunca un indicador de
-«todos los días» que pueda seleccionar fechas nuevas al cambiar de período. `seleccionVisible`
-la intersecta con los días actuales de `separarPorDia`, incluso cuando el DNI sigue visible.
-Cada alternancia parte de esa intersección. `personasSeleccionadas` filtra las filas que ya
-produjo la agrupación; no recalcula faltas. Tanto el Word masivo como sus `clavesNotificadas`
-reciben ese mismo recorte. Los botones de Word completo y de un día conservan su alcance
-explícito; la selección no los modifica. No requiere cambios de API ni migraciones.
-
-#### Faltas notificadas
-
-**Generar el Word es lo que marca una falta como notificada.** No hay marca manual ni forma
-de «des-notificar». Las tres salidas —por persona, por día y «Generar seleccionadas»— pasan
-por un único `entregar` en el container:
-
-1. `clavesNotificadas(persona)` (`src/ui/faltas/porDia.ts`) calcula las ternas
-   `(dni, fechaIso, tipo)` que cubre el documento, sobre exactamente las mismas
-   `NotificacionPersona` con las que se arma (la persona, el día o las seleccionadas).
-2. `useNotificadas().registrar(claves)` las envía. Si responde `false`, se muestra «No se pudo
-   registrar la notificación; el Word no se descargó. Probá de nuevo.» y **no se descarga
-   nada**: una carta nunca sale sin su registro. La decisión vive en `entregarRegistrado`
-   (`features/notificaciones/notificaciones.ts`) y tiene prueba propia.
-3. Recién entonces `guardarComo`. Mientras el registro está en vuelo los botones se
-   deshabilitan, para que un doble click no descargue dos veces.
-
-**La fecha de la clave es ISO, no la celda QUICKPASS.** La base guarda un `date` y responde
-`YYYY-MM-DD`; una clave con `14/09/2026` nunca coincidiría y el Indicador mostraría cero
-notificadas para siempre. `fechaIso` sale de `fechaOrden` (la medianoche UTC que produjo
-`parsearFechaDMY`) con `fmtFechaISO`, y una fila con `fechaOrden` nulo se saltea: sin día
-legible no se puede guardar ni comparar. El corte por día sigue usando el texto de la celda.
-La única forma de escribir una clave es `idFaltaNotificada` → `${dni}|${fechaIso}|${tipo}`.
-
-**Se conserva la primera notificación.** Volver a generar la misma carta no pisa
-`notificado_at` ni `notificado_por`; cada generación, primera o no, igual deja su rastro en
-`auditoria`.
-
-```text
-POST /api/notificaciones                     (sólo RRHH)
-{ "faltas": [{ "dni": "30111222", "fecha": "2026-09-14", "tipo": "tardanza" }, ...] }
--> 200 { "registradas": 3 }        // claves insertadas por primera vez
-
-GET /api/notificaciones?desde=2026-09-01&hasta=2026-09-30   (sólo RRHH)
--> 200 { "notificadas": [{ "dni", "fecha": "YYYY-MM-DD", "tipo", "notificadoAt": ISO }, ...] }
-```
-
-- `POST`: entre 1 y 5000 faltas (`MAX_FALTAS_POR_NOTIFICACION`), esquema cerrado, `tipo` en
-  `incompleta`/`descanso`/`tardanza`, fecha `YYYY-MM-DD` que además tiene que ser un día real
-  (`2026-02-30` es 400 y no un error de conversión de la base). Las repetidas se deduplican.
-  Una transacción: un `MERGE` por conjunto **sólo de inserción** (sin `WHEN MATCHED`) con las
-  claves en un parámetro JSON expandido con `OPENJSON`, y la auditoría con `auditarVarios`. Un
-  día sin fichada viola la FK y vuelve como el mismo 409 `integridad` de ausencias.
-- **Auditoría**: acción `faltas_notificadas`, una fila por día `(dni, fecha)` del pedido con
-  `entidad_id = DNI|YYYY-MM-DD` (`idDeDia`, igual que las decisiones de ausencias) y
-  `datos = { tipos, nuevas }`: las clases que cubrió el documento ese día y cuáles se
-  registraron por primera vez. Sólo códigos; nada de nombres ni del contenido de la carta.
-- `GET`: `desde` y `hasta` obligatorios, días reales, `desde <= hasta` y a lo sumo 400 días
-  (`ventana_invalida`). La UI parte en ventanas consecutivas un rango elegido más largo, y en
-  lotes de 5000 un registro más grande (los lotes van en serie: si uno falla, los anteriores
-  quedan registrados y el Word no se descarga; volver a generar sólo agrega lo que faltaba).
-- Las dos rutas usan `SOLO_RRHH`: un encargado no ve Notificaciones ni Indicador y recibe 403.
-
-En la UI, `src/ui/notificaciones/` tiene el puerto, el adaptador HTTP, el adaptador local
-(localStorage, idempotente, conserva el primer `notificadoAt`, una sola escritura por registro)
-y `NotificadasProvider`. El provider va **debajo de `PeriodoProvider`**, porque es la única
-lectura que depende del período: cambiar el período la repite y no repite ninguna otra.
-Expone `notificadas: ReadonlySet<string>` con las claves del período más las registradas en
-esta sesión (un conjunto aparte que se une, para que una lectura lenta del período no borre
-lo recién registrado). Un rol que no puede abrir ninguna de las dos pantallas no la pide.
-
-En el detalle por día de Notificaciones, un día con todas sus faltas registradas muestra el
-chip «Notificada» y uno parcial «N de M notificadas».
+Automated tests cover local persistence, exact selection, overlapping preparation, discard,
+idempotent retries, stale mark removal, quota failure, legacy marks, snapshot roundtrip,
+route validation/roles, SQL transaction boundaries, audit and rollback. SQL tests use doubles:
+they do **not** prove execution against Azure SQL. The real migration passed verification with
+rollback, application and metadata inspection: 19 tables, six migrations, no external SQL
+dependencies or foreign keys, and unchanged schema-only runtime DML permissions. The exact-IP
+rule added manually by the user was removed in `finally`; all five older rules remain.
+API deployment `3b2573f4-b0ee-4f82-8e9b-439e6b1058d0` completed with `RuntimeSuccessful`
+on 2026-10-06. The three compiled API entry/repository/route modules match the local build
+by SHA256, and health reports database connectivity and six migrations. The release commit
+publishes the frontend through Vercel.
+Authenticated mutation smoke tests remain pending. Required smoke flow: prepare multiple people/days,
+reload, discard one, generate all, verify exact marks in Indicador, download from history,
+remove a mark, then verify it remains removed after reload and that the document survives.
 
 ### Indicador
 
@@ -582,7 +515,7 @@ flotando 50px a la derecha del resto. En el login va centrado arriba del panel.
 
 ## Pruebas
 
-El baseline esperado es **628 pruebas en 44 archivos**. La selección de días específicos
+El baseline esperado es **657 pruebas en 46 archivos**. La selección de días específicos
 sumó 8 en `src/ui/features/notificaciones/notificaciones.test.ts`: fechas no consecutivas
 excluidas tanto del XML del Word como del registro, casillas de persona completa/parcial,
 último día destildado, independencia por persona y cambios de período con el mismo DNI.
@@ -662,7 +595,7 @@ de PGlite y no revive el arnés retirado.
 
 ## Migraciones y base compartida
 
-Aplicadas en producción (las cinco; el ledger de `fstrack` cuenta 5 desde el 2026-10-01):
+Aplicadas en producción (las seis; el ledger de `fstrack` cuenta 6 desde el 2026-10-06):
 
 1. `001_initial.sql`
 2. `002_acceso_y_decisiones.sql`
@@ -676,8 +609,11 @@ Aplicadas en producción (las cinco; el ledger de `fstrack` cuenta 5 desde el 20
    API anterior no la toca y su `/health` sólo informa el conteo. Sin ella, generar un Word
    responde 503 `base_sin_migrar` y no se descarga.
 
-`db:inspect` espera cinco migraciones y las dos tablas nuevas; con la API vieja compilada
-falla por el conteo, que es lo esperado hasta desplegar la nueva.
+6. `006_panel_envios.sql` — notification queue, durable document/emission history and mark
+   ownership/version. Applied on 2026-10-06 after a successful rollback verification.
+
+`db:inspect` expects six migrations and 19 tables; the current compiled inspection passed
+against production after migration 006, including schema isolation and runtime role checks.
 
 **Cómo se aplicó la 005**, para la próxima: con `.azure/migrar-entra.mjs` (modos `probe`,
 `verify`, `migrate`) sobre `dist-api` recompilado, y un token de Entra en `CH_AZ_SQL_TOKEN`

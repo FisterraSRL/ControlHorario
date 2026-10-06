@@ -1,0 +1,6 @@
+.envios { display: grid; gap: 1rem; }
+.envios__acciones { display: flex; flex-wrap: wrap; align-items: center; gap: .65rem; }
+.envios__sub { display: block; opacity: .7; }
+.envios__detalle { padding-left: 1rem; max-width: 35rem; }
+.envios__detalle li { margin-block: .5rem; }
+.envios details summary { cursor: pointer; }

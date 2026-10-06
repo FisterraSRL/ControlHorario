@@ -1,8 +1,41 @@
 # Azure Deployment Plan
 
-> **Status:** Validated
+> **Status:** Deployed — notification panels API and SQL migration
 
 Generated: 2026-09-16
+
+## Notification panels release — 2026-10-06
+
+The authorized release includes additive migration `006_panel_envios.sql`, the precompiled
+API, and the Vercel frontend. Existing target infrastructure and app settings are unchanged.
+Do not deploy either application until migration verification, application and schema
+inspection succeed. Earlier validated sections below describe previous releases only.
+
+### Preparation evidence
+
+- Implementation handoff: 657 tests in 46 files, typecheck, frontend build and API build passed.
+- API rebuilt from a clean, explicitly checked `dist-api` directory for packaging.
+- Changed-file secret pattern scan passed across 22 feature/documentation files;
+  `git diff --check` passed. Existing untracked local deployment files are preserved.
+- Linux argon2 archive integrity matches package-lock; packaged native binary matches the
+  archive. Existing production dependency lock is byte-identical to the current lock.
+- ZIP `controlhorario-20261006-paneles.zip`: 24,093,099 bytes, 10,273 entries, six migrations;
+  readback verified all entries byte-for-byte, the new API modules, safe paths and no env files.
+  SHA256: `2c21e9c3740848f5fc61e453194c0f104fb4ccbc6553ec1e11c831f2e22354df`.
+- Initial SQL preflight was blocked by the firewall. The user added exact-IP temporary
+  access manually; the previously authorized administrative configuration was then loaded
+  only into process memory. No credential values were printed or persisted.
+- The compiled `db:verify` runner validated migration 006 with rollback (287 ms), then the
+  `db:migrate` runner applied it (237 ms). `db:inspect` confirmed 19 tables, six migrations,
+  zero external foreign keys/dependencies, and only schema-scoped SELECT/INSERT/UPDATE/DELETE.
+- Temporary rule `ClientIPAddress_2026-10-6_9-35-42` was removed in `finally`; absence was
+  confirmed and all five pre-existing firewall rules remain.
+- API deployment `3b2573f4-b0ee-4f82-8e9b-439e6b1058d0` completed with `RuntimeSuccessful`,
+  one successful instance and zero failures. Kudu reports status 4 and active.
+- Remote compiled `repositorioEnvios.js`, `rutasEnvios.js` and `servidor.js` each match
+  local SHA256. Health confirms database connectivity and six migrations.
+- The release commit publishes the frontend through Vercel. Authenticated UI verification
+  must avoid creating test business data; mutation smoke testing remains explicitly pending.
 
 ## Application-only update — 2026-10-06
 

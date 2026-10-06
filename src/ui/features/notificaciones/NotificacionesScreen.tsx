@@ -1,16 +1,6 @@
-/**
- * Presentational. Who has faltas in the period, and the three ways to turn that into a Word:
- * one letter for one person, one letter for one day of one person (from the row's detail),
- * or one file with each person's selected days in their letter.
- *
- * The chips carry the same labels and the same three colours the letter is printed with
- * (`META_FALTAS`), so the screen and the document read as one thing rather than two.
- *
- * Each open day also says whether it was already notified: «Notificada» when every falta of
- * the day is on record, «N de M notificadas» when only some are. Generating a Word is what
- * records them, so the buttons are disabled while a record is in flight.
+/** Presentational selection of people and specific days to add to the shared queue.
+ * Preparing never generates a document or changes notified marks.
  */
-
 import { Fragment } from 'react';
 
 import {
@@ -98,20 +88,20 @@ export function NotificacionesScreen({
 
   return (
     <Card
-      titulo="Notificaciones a generar"
-      bajada="Fichadas incompletas, exceso de descanso y llegadas tarde del período, agrupadas por sector y persona. El Word se arma en esta misma pantalla, y al generarlo sus faltas quedan registradas como notificadas."
+      titulo="Preparar notificaciones"
+      bajada="Fichadas incompletas, exceso de descanso y llegadas tarde del período, agrupadas por sector y persona. Agregá los documentos al panel de envío para revisarlos y generarlos juntos. Prepararlos no marca las faltas como notificadas."
       acciones={
         <Button
           variante="primary"
           onClick={onGenerarSeleccionadas}
           disabled={seleccionadas.size === 0 || registrando}
         >
-          Generar seleccionadas ({seleccionadas.size})
+          Agregar seleccionadas al panel ({seleccionadas.size})
         </Button>
       }
     >
       <p className="notificaciones__ayuda">
-        El detalle permite seleccionar días específicos, incluso no consecutivos. Generar
+        El detalle permite seleccionar días específicos, incluso no consecutivos. Agregar
         seleccionadas incluye sólo esos días en una carta por persona.
       </p>
       {error && (
@@ -200,11 +190,11 @@ export function NotificacionesScreen({
                     <Button
                       variante="ghost"
                       tamano="sm"
-                      aria-label={`Generar el Word de ${persona.usuario} con todos los días del período`}
+                      aria-label={`Preparar documento de ${persona.usuario} con todos los días del período`}
                       disabled={registrando}
                       onClick={() => onGenerarPersona(persona.dni)}
                     >
-                      Generar Word completo
+                      Agregar persona al panel
                     </Button>
                   </td>
                 </tr>
@@ -236,11 +226,11 @@ export function NotificacionesScreen({
                               <Button
                                 variante="ghost"
                                 tamano="sm"
-                                aria-label={`Generar el Word de ${persona.usuario} del ${dia.fecha}`}
+                                aria-label={`Preparar documento de ${persona.usuario} del ${dia.fecha}`}
                                 disabled={registrando}
                                 onClick={() => onGenerarDia(persona.dni, dia.fecha)}
                               >
-                                Generar Word
+                                Agregar día al panel
                               </Button>
                             </li>
                           );

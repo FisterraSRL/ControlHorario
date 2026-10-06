@@ -1,3 +1,5 @@
+import { crearRepositorioEnvios } from './repositorioEnvios.js';
+import { registrarRutasEnvios } from './rutasEnvios.js';
 /**
  * Building the Fastify instance: logging, validation defaults, routes, static SPA.
  *
@@ -200,6 +202,7 @@ export async function construirServidor(
   registrarRutasAdjuntos(app, { config, pool, repositorio: adjuntos });
   registrarRutasUsuarios(app, pool);
   registrarRutasNotificaciones(app, { repositorio: crearRepositorioNotificaciones(pool) });
+  registrarRutasEnvios(app, crearRepositorioEnvios(pool));
 
   if (await existeSpa(config.directorioEstatico)) {
     await registrarEstatico(app, config.directorioEstatico);

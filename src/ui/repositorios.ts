@@ -24,7 +24,9 @@ import { crearRepositorioConfiguracionLocal } from './configuracion/repositorioC
 import type { RepositorioConfiguracion } from './configuracion/RepositorioConfiguracion.js';
 import { modoServidor } from './entorno.js';
 import { crearRepositorioNotificacionesHttp } from './notificaciones/repositorioNotificacionesHttp.js';
-import { crearRepositorioNotificacionesLocal } from './notificaciones/repositorioNotificacionesLocal.js';
+import { crearRepositoriosEnviosLocal } from './notificaciones/repositorioEnviosLocal.js';
+import { crearRepositorioEnviosHttp } from './notificaciones/repositorioEnviosHttp.js';
+import type { RepositorioEnvios } from '../notificaciones/envios.js';
 import type { RepositorioNotificaciones } from './notificaciones/RepositorioNotificaciones.js';
 import { crearRepositorioHttp } from './historial/repositorioHttp.js';
 import { crearRepositorioLocal } from './historial/repositorioLocal.js';
@@ -43,6 +45,7 @@ export interface Repositorios {
   readonly configuracion: RepositorioConfiguracion;
   readonly adjuntos: RepositorioAdjuntos;
   readonly notificaciones: RepositorioNotificaciones;
+  readonly envios: RepositorioEnvios;
   readonly usuarios: RepositorioUsuarios | null;
 }
 
@@ -62,6 +65,7 @@ export function crearRepositorios(): Repositorios {
       configuracion: crearRepositorioConfiguracionHttp(servidor.base),
       adjuntos: crearRepositorioAdjuntosHttp(servidor.base),
       notificaciones: crearRepositorioNotificacionesHttp(servidor.base),
+      envios: crearRepositorioEnviosHttp(servidor.base),
       usuarios: crearRepositorioUsuariosHttp(servidor.base),
     };
   }
@@ -71,6 +75,7 @@ export function crearRepositorios(): Repositorios {
       'comparten con nadie y se pierden si se borran los datos del sitio.',
   );
   const fichadas = crearRepositorioLocal();
+  const notificacionesLocales = crearRepositoriosEnviosLocal();
   const configuracion = crearRepositorioConfiguracionLocal();
   return {
     conServidor: false,
@@ -87,7 +92,8 @@ export function crearRepositorios(): Repositorios {
     ),
     configuracion,
     adjuntos: crearRepositorioAdjuntosLocal(),
-    notificaciones: crearRepositorioNotificacionesLocal(),
+    notificaciones: notificacionesLocales.notificaciones,
+    envios: notificacionesLocales.envios,
     usuarios: null,
   };
 }
