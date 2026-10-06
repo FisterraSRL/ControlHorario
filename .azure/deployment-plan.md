@@ -4,6 +4,43 @@
 
 Generated: 2026-09-16
 
+## Application-only update — 2026-10-06
+
+Status: Validated for the retired absence reason fix. The current deployment recipe is
+Azure CLI ZIP with a precompiled application, superseding the historical Oryx recipe below.
+No infrastructure, permissions, app settings or SQL migration changes are included.
+The existing subscription, resource group and application remain the authorized target.
+
+### Validation proof — 2026-10-06, 08:03 America/Buenos_Aires
+
+- `npm.cmd run typecheck`: passed; `npm.cmd test`: 628 tests in 44 files passed.
+- `npm.cmd run build`: passed; `npm.cmd run build:api`: passed again after removing only
+  the verified workspace `dist-api` build directory.
+- Azure CLI readback: existing App Service is Running, Linux `NODE|24-lts`, startup
+  `npm run api`; `ENABLE_ORYX_BUILD` and `SCM_DO_BUILD_DURING_DEPLOYMENT` are both false.
+- Existing target subscription matches the originally approved subscription below.
+- Package-lock matches the previously deployed production dependency tree. Linux argon2
+  archive SHA512 matches package-lock integrity; packaged binary matches that archive.
+- ZIP readback verified all 10,248 entries byte-for-byte, five migrations, forward slash
+  paths, no environment files and the compiled reactivation branch.
+- Package: `controlhorario-20261006-motivo.zip`, 24,054,250 bytes, SHA256
+  `093a57bf57b4279e87bdfdc3057970bb9f57b22bf25463082c256671bb2eeeda`.
+- Live preflight `/health`: `ok: true`, database reachable over TLS, five applied migrations.
+- No Bicep, Docker, policy, role or schema changes: provisioning validation and migration
+  execution do not apply to this application-only update. Real SQL mutation and
+  authenticated UI smoke testing have not been performed; the browser has no active session.
+
+### Deployment proof — 2026-10-06
+
+- `az webapp deploy --type zip --clean true --restart true --async true` completed with
+  `RuntimeSuccessful`, one successful instance and zero failed instances.
+- Deployment id: `d6d1a2e2-d477-49b8-8b12-53d2a00d2ce3`; Kudu reports status 4 and active.
+- Remote compiled configuration repository matches local SHA256
+  `1D79ACEE1ED71A1D2A69A71D9BA9F49D2AE6360E4255D8DB131C513744849213`.
+- API health after restart reports 42 seconds of uptime, database reachable and five
+  migrations. Unauthenticated configuration returns 401; authenticated behavior still
+  requires a user session. No app settings or shared database objects were changed.
+
 ---
 
 ## 1. Project Overview

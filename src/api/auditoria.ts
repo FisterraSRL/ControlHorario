@@ -45,6 +45,7 @@ export type AccionAuditada =
   | 'config_actualizada'
   | 'sector_regla_actualizada'
   | 'motivo_creado'
+  | 'motivo_reactivado'
   | 'motivo_editado'
   | 'motivo_retirado'
   | 'exclusion_agregada'

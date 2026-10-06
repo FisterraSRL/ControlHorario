@@ -266,6 +266,27 @@ export function crearRepositorioConfiguracion(pool: Pool): RepositorioConfigurac
           `SELECT ISNULL(MAX([id]), 0) + 1 AS [siguiente]
              FROM [controlhorario].[motivos] WITH (UPDLOCK, HOLDLOCK)`,
         );
+        // Retired labels still own their unique key. Reuse their identity so historical
+        // decisions keep pointing to the same reason; active duplicates still fail INSERT.
+        // Take the allocation lock first on both paths to preserve a single lock order.
+        const { rows: reactivados } = await cliente.query<Motivo>(
+          `UPDATE [controlhorario].[motivos]
+              SET [activo] = 1, [worked] = $2
+           OUTPUT inserted.[id], inserted.[label], inserted.[worked]
+            WHERE [label] = $1 AND [activo] = 0`,
+          [label.trim(), worked],
+        );
+        const reactivado = reactivados[0];
+        if (reactivado) {
+          await auditar(cliente, {
+            actor,
+            accion: 'motivo_reactivado',
+            entidad: 'motivos',
+            entidadId: String(reactivado.id),
+            datos: { worked },
+          });
+          return reactivado;
+        }
         const id = maximos[0]?.siguiente ?? 1;
         const { rows } = await cliente.query<{ id: number; label: string; worked: boolean }>(
           `INSERT INTO [controlhorario].[motivos] ([id], [label], [worked], [activo])

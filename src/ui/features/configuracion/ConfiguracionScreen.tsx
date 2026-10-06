@@ -383,6 +383,7 @@ function SeccionMotivos({
       </Table>
 
       <p className="config__nota">
+        Para recuperar un motivo retirado, agregalo de nuevo con el mismo nombre.
         Retirar un motivo lo saca de la lista para elegir, pero no borra nada: los días que ya
         fueron clasificados con él siguen diciendo lo mismo.
       </p>

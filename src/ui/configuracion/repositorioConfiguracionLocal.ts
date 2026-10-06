@@ -29,6 +29,11 @@ import type {
 
 const CLAVE_ALMACEN = 'controlhorario.configuracion.v1';
 
+/** Private storage metadata; retired identities must never be allocated again. */
+interface ConfiguracionLocal extends ConfiguracionGuardada {
+  readonly motivosRetirados?: readonly Motivo[];
+}
+
 function reglasPorDefecto(): Record<string, number> {
   const reglas: Record<string, number> = {};
   for (const sector of SECTORES_2_FICHADAS) reglas[sector] = 2;
@@ -64,9 +69,9 @@ function almacenDisponible(): Storage | null {
 export function crearRepositorioConfiguracionLocal(
   storage: Storage | null = almacenDisponible(),
 ): RepositorioConfiguracion {
-  let memoria: ConfiguracionGuardada = configuracionInicial();
+  let memoria: ConfiguracionLocal = configuracionInicial();
 
-  function leer(): ConfiguracionGuardada {
+  function leer(): ConfiguracionLocal {
     if (!storage) return memoria;
     let crudo: string | null;
     try {
@@ -99,7 +104,7 @@ export function crearRepositorioConfiguracionLocal(
     }
   }
 
-  function escribir(cfg: ConfiguracionGuardada): void {
+  function escribir(cfg: ConfiguracionLocal): void {
     memoria = cfg;
     if (!storage) return;
     try {
@@ -111,7 +116,8 @@ export function crearRepositorioConfiguracionLocal(
 
   return {
     async leer() {
-      return leer();
+      const { motivosRetirados: _retirados, ...configuracion } = leer();
+      return configuracion;
     },
 
     async guardarParametros(cambios) {
@@ -130,12 +136,25 @@ export function crearRepositorioConfiguracionLocal(
 
     async crearMotivo(label, worked) {
       const cfg = leer();
+      const etiqueta = label.trim();
+      const mismaEtiqueta = (m: Motivo): boolean =>
+        m.label.localeCompare(etiqueta, 'es', { sensitivity: 'accent' }) === 0;
+      if (cfg.motivos.some(mismaEtiqueta)) {
+        throw new ErrorRepositorio('Ya existe ese motivo.');
+      }
+      const retirados = cfg.motivosRetirados ?? [];
+      const retirado = retirados.find(mismaEtiqueta);
       // Same rule as the server: the next id after the highest one in use. Motivo ids are
       // printed into notifications and referenced by the engine, so they are assigned, not
       // generated.
-      const id = cfg.motivos.reduce((mayor, m) => Math.max(mayor, m.id), 0) + 1;
-      const motivo: Motivo = { id, label: label.trim(), worked };
-      escribir({ ...cfg, motivos: [...cfg.motivos, motivo] });
+      const id = retirado?.id ?? [...cfg.motivos, ...retirados]
+        .reduce((mayor, m) => Math.max(mayor, m.id), 0) + 1;
+      const motivo: Motivo = { id, label: retirado?.label ?? etiqueta, worked };
+      escribir({
+        ...cfg,
+        motivos: [...cfg.motivos, motivo].sort((a, b) => a.id - b.id),
+        motivosRetirados: retirados.filter((m) => m.id !== id),
+      });
       return motivo;
     },
 
@@ -153,7 +172,13 @@ export function crearRepositorioConfiguracionLocal(
 
     async retirarMotivo(id) {
       const cfg = leer();
-      escribir({ ...cfg, motivos: cfg.motivos.filter((m) => m.id !== id) });
+      const motivo = cfg.motivos.find((m) => m.id === id);
+      if (!motivo) throw new ErrorRepositorio('Ese motivo ya no existe.');
+      escribir({
+        ...cfg,
+        motivos: cfg.motivos.filter((m) => m.id !== id),
+        motivosRetirados: [...(cfg.motivosRetirados ?? []), motivo],
+      });
     },
 
     async agregarExclusion(dni, motivoTexto) {

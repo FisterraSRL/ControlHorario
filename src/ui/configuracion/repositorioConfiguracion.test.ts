@@ -48,6 +48,47 @@ describe('parámetros que devuelve el servidor', () => {
 });
 
 describe('configuración local', () => {
+  it.each([true, false])('reactivates a retired reason across reloads with worked=%s', async (worked) => {
+    const storage = almacen();
+    const repo = crearRepositorioConfiguracionLocal(storage);
+    const original = await repo.crearMotivo('Trámite', !worked);
+    await repo.retirarMotivo(original.id);
+    expect((await repo.leer()).motivos.some((m) => m.id === original.id)).toBe(false);
+
+    const reopened = crearRepositorioConfiguracionLocal(storage);
+    await reopened.guardarParametros({ toleranciaMin: 5 });
+    const restored = await reopened.crearMotivo(' Trámite ', worked);
+    expect(restored).toEqual({ ...original, worked });
+    expect((await reopened.leer()).motivos.filter((m) => m.id === original.id)).toEqual([restored]);
+    expect(await reopened.leer()).not.toHaveProperty('motivosRetirados');
+  });
+
+  it('never reuses a retired identity for a different label', async () => {
+    const repo = crearRepositorioConfiguracionLocal(null);
+    const original = await repo.crearMotivo('Trámite', true);
+    await repo.retirarMotivo(original.id);
+    const other = await repo.crearMotivo('Otro', false);
+    expect(other.id).toBeGreaterThan(original.id);
+    expect((await repo.crearMotivo('Trámite', true)).id).toBe(original.id);
+  });
+
+  it('rejects active duplicates without changing the original worked flag', async () => {
+    const repo = crearRepositorioConfiguracionLocal(null);
+    const original = await repo.crearMotivo('Trámite', true);
+    await expect(repo.crearMotivo(' trámite ', false)).rejects.toThrow('Ya existe ese motivo.');
+    expect((await repo.leer()).motivos.filter((m) => m.id === original.id)).toEqual([original]);
+  });
+
+  it('preserves existing browser configuration without retirement metadata', async () => {
+    const storage = almacen({
+      [CLAVE]: JSON.stringify({ motivos: [{ id: 20, label: 'Anterior', worked: true }] }),
+    });
+    const repo = crearRepositorioConfiguracionLocal(storage);
+    expect((await repo.crearMotivo('Nuevo', false)).id).toBe(21);
+    await repo.retirarMotivo(20);
+    expect(await repo.crearMotivo('Anterior', false)).toEqual({ id: 20, label: 'Anterior', worked: false });
+  });
+
   it('arranca con una tardanza perdonada por semana', async () => {
     const repo = crearRepositorioConfiguracionLocal(almacen());
     expect((await repo.leer()).parametros.tardanzasPerdonadasSemana).toBe(1);

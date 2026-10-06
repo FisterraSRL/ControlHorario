@@ -1,6 +1,6 @@
 # Estado del proyecto y continuidad
 
-Actualizado: 5 de octubre de 2026.
+Actualizado: 6 de octubre de 2026.
 
 Este documento permite continuar el trabajo sin depender del historial de una conversación.
 Antes de actuar, comprobar siempre `git status`, `git log -5` y el estado real de producción.
@@ -440,6 +440,35 @@ clasificar) o si supera los 500 días.
 `Checkbox` ganó dos props opcionales: `indeterminado` y `etiquetaOculta` (etiqueta sólo para
 lectores de pantalla). Las pantallas que ya lo usaban no cambian.
 
+## Reactivating a retired absence reason
+
+Adding a retired reason's label now reactivates its existing row and preserves its id and
+historical references. The selected `worked` flag is applied, just as when editing an active
+reason. Previously, retirement set `activo = 0` but creation always inserted a row, violating
+the label's unique constraint even though the reason was hidden from Configuración.
+
+`crearMotivo` takes the existing allocation lock before updating a matching inactive label;
+if no retired row matches, it follows the existing insert path. Active duplicates remain
+rejected. Reactivation and its `motivo_reactivado` audit share one transaction. The existing
+POST route still refreshes inferred absences and returns the restored reason to the UI.
+No migration is needed. Configuration now explains that adding the same name restores it.
+
+The local adapter retains retired reasons as private `motivosRetirados` storage metadata;
+new ids include that history, and public configuration only exposes active reasons. Existing
+browser configuration without that field remains readable. Reasons physically removed by
+an older local version cannot have their former identity recovered.
+
+Regression coverage includes reactivation with the original id, the selected `worked` flag,
+new labels, active duplicate rejection, audit rollback, browser reloads and older storage.
+SQL tests record statements and transaction boundaries; they do not execute Azure SQL.
+API publication completed on 2026-10-06 with deployment
+`d6d1a2e2-d477-49b8-8b12-53d2a00d2ce3`: Azure reported `RuntimeSuccessful`, one successful
+instance and zero failures. Kudu's compiled configuration repository SHA256 matches the
+local build. Public health reports the database reachable with five migrations; unauthenticated
+configuration requests still return 401. The same commit publishes the frontend through
+Vercel. An authenticated create/retire/recreate smoke check remains pending because the
+available browser session shows the login screen.
+
 ## Motivo tomado de la nota QUICKPASS
 
 Cuando nadie fichó, `clasificarPartes` (`src/domain/fichadas/motivos.ts`) infiere el motivo de
@@ -553,7 +582,7 @@ flotando 50px a la derecha del resto. En el login va centrado arriba del panel.
 
 ## Pruebas
 
-El baseline esperado es **619 pruebas en 43 archivos**. La selección de días específicos
+El baseline esperado es **628 pruebas en 44 archivos**. La selección de días específicos
 sumó 8 en `src/ui/features/notificaciones/notificaciones.test.ts`: fechas no consecutivas
 excluidas tanto del XML del Word como del registro, casillas de persona completa/parcial,
 último día destildado, independencia por persona y cambios de período con el mismo DNI.

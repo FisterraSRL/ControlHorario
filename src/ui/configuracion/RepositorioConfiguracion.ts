@@ -50,6 +50,7 @@ export interface RepositorioConfiguracion {
     sector: string,
     fichadasRequeridas: number,
   ): Promise<Readonly<Record<string, number>>>;
+  /** Reuses a retired reason's identity when its label is added again. */
   crearMotivo(label: string, worked: boolean): Promise<Motivo>;
   editarMotivo(id: number, worked: boolean): Promise<Motivo>;
   /**
