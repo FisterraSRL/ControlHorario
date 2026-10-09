@@ -21,6 +21,7 @@ import { useAusencias } from '../../ausencias/AusenciasProvider.js';
 import { avisoMotivo } from '../../ausencias/opcionesMotivo.js';
 import { MAX_DIAS_POR_LOTE, type ClaveRegistro } from '../../ausencias/RepositorioAusencias.js';
 import { useConfiguracion } from '../../configuracion/ConfiguracionProvider.js';
+import { EstadoHistorial } from '../../historial/EstadoHistorial.js';
 import { useHistorial } from '../../historial/HistorialProvider.js';
 import { ErrorNoAutenticado } from '../../http.js';
 import { usePeriodo } from '../../periodo/PeriodoProvider.js';
@@ -66,7 +67,7 @@ function guardarComo(blob: Blob, nombre: string): void {
 export function AusenciasContainer() {
   const { repositorios, expirar } = useSesion();
   const { rango } = usePeriodo();
-  const { registros, cargando: cargandoHistorial } = useHistorial();
+  const { registros, cargando: cargandoHistorial, error: errorHistorial, recargar } = useHistorial();
   const { configuracion } = useConfiguracion();
   const {
     ausencias,
@@ -255,6 +256,8 @@ export function AusenciasContainer() {
     },
     [repoAdjuntos, recargarAdjuntos, manejar],
   );
+
+  if (errorHistorial || cargandoHistorial) return <EstadoHistorial cargando={cargandoHistorial} error={errorHistorial} onReintentar={recargar} />;
 
   return (
     <AusenciasScreen

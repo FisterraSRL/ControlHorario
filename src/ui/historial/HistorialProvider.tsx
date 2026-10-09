@@ -41,6 +41,7 @@ interface ContextoHistorial {
   readonly cargando: boolean;
   /** A repository failure. Rendered by whoever is on screen; never only logged. */
   readonly error: string | null;
+  readonly recargar: () => void;
   readonly guardar: (filas: readonly FilaQuickpass[]) => Promise<ResultadoGuardado>;
 }
 
@@ -67,6 +68,13 @@ export function HistorialProvider({
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const [revision, setRevision] = useState(0);
+  const recargar = useCallback(() => {
+    setCargando(true);
+    setError(null);
+    setRevision(v => v + 1);
+  }, []);
+
   useEffect(() => {
     let vigente = true;
     repo
@@ -88,23 +96,32 @@ export function HistorialProvider({
     return () => {
       vigente = false;
     };
-  }, [repo, expirar]);
+  }, [repo, expirar, revision]);
 
   const guardar = useCallback(
     async (nuevas: readonly FilaQuickpass[]) => {
       setError(null);
-      const resultado = await repo.upsert(nuevas);
-      setFilas(await repo.listar());
-      /**
-       * The upload re-derived the absence registry on the server — `sincronizar` in
-       * `src/api/rutas.ts`, the port of the legacy `recompute()`. Without this the Ausencias
-       * screen and the sidebar count would keep showing the registry as it was before the
-       * spreadsheet that just changed it.
-       */
-      await recargarAusencias();
-      return resultado;
+      setCargando(true);
+      try {
+        const resultado = await repo.upsert(nuevas);
+        setFilas(await repo.listar());
+        /**
+         * The upload re-derived the absence registry on the server — `sincronizar` in
+         * `src/api/rutas.ts`, the port of the legacy `recompute()`. Without this the Ausencias
+         * screen and the sidebar count would keep showing the registry as it was before the
+         * spreadsheet that just changed it.
+         */
+        await recargarAusencias();
+        return resultado;
+      } catch (e: unknown) {
+        if (e instanceof ErrorNoAutenticado) expirar();
+        else setError(mensajeDeError(e));
+        throw e;
+      } finally {
+        setCargando(false);
+      }
     },
-    [repo, recargarAusencias],
+    [repo, recargarAusencias, expirar],
   );
 
   const cfg = useMemo(
@@ -140,8 +157,9 @@ export function HistorialProvider({
       cargando: cargando || cargandoConfiguracion,
       error,
       guardar,
+      recargar,
     }),
-    [filas, registros, sectores, cargando, cargandoConfiguracion, error, guardar],
+    [filas, registros, sectores, cargando, cargandoConfiguracion, error, guardar, recargar],
   );
 
   return <HistorialContext.Provider value={valor}>{children}</HistorialContext.Provider>;

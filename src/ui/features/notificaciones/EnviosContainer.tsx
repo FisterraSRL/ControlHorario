@@ -82,31 +82,31 @@ export function EnviosContainer({ historial = false }: { readonly historial?: bo
     descargar(doc);
     setAviso('Documentos generados. Podés volver a descargarlos desde el historial sin cambiar las marcas.');
   });
-  const descartar = (id: string) => accion(async () => { await repo.descartar(id); pedido.current = null; setRevision(v => v + 1); setAviso('Documento descartado del envío. Sus faltas no se marcaron como notificadas.'); });
+  const descartar = (id: string) => accion(async () => { await repo.descartar(id); pedido.current = null; setRevision(v => v + 1); setAviso('Documento descartado de los preparados. No se generó ningún Word ni se cambiaron las marcas.'); });
   const quitar = () => accion(async () => {
     if (!confirmar) return;
     await repo.quitar(confirmar); setConfirmar(null); recargarMarcas(); setRevision(v => v + 1);
-    setAviso('Se quitaron las marcas vigentes de la selección. El documento sigue en el historial. Las notificaciones posteriores se conservan.');
+    setAviso('Se quitaron las marcas vigentes de la selección. El documento sigue en el historial. Las marcas de documentos posteriores se conservan.');
   });
   const bloqueado = ocupado || cargando;
   return <section className="envios">
-    <div className="envios__acciones"><Link to={historial ? '/envios' : '/historial-notificaciones'}>{historial ? 'Ir al panel de envío' : 'Ver historial'}</Link><Button disabled={bloqueado} onClick={() => setRevision(v => v + 1)}>Actualizar</Button></div>
+    <div className="envios__acciones"><Link to={historial ? '/envios' : '/historial-notificaciones'}>{historial ? 'Ver documentos preparados' : 'Ver historial'}</Link><Button disabled={bloqueado} onClick={() => setRevision(v => v + 1)}>Actualizar</Button></div>
     {error && <Alert tono="error">{error}</Alert>}
     {aviso && <Alert tono="info">{aviso}</Alert>}
-    {confirmar && <Alert tono="aviso"><p>¿Quitar «Notificado» a {confirmar.length} falta(s)? Los documentos permanecerán en el historial.</p><div className="envios__acciones"><Button disabled={bloqueado} onClick={() => void quitar()}>Quitar Notificado</Button><Button disabled={ocupado} onClick={() => setConfirmar(null)}>Cancelar</Button></div></Alert>}
-    {!historial ? <Card titulo="Panel de envío" bajada="Revisá los documentos preparados y descartá los que no quieras emitir. Se conserva el contenido elegido al agregarlos, aunque cambien los datos o la configuración. Generar todo descarga un Word con todas las cartas y marca sus faltas como notificadas." acciones={<Button variante="primary" disabled={bloqueado || !!error || !pendientes.length} onClick={() => void emitir()}>Generar documentos ({pendientes.length})</Button>}>
+    {confirmar && <Alert tono="aviso"><p>¿Quitar «Documento generado» a {confirmar.length} falta(s)? Los documentos permanecerán en el historial.</p><div className="envios__acciones"><Button disabled={bloqueado} onClick={() => void quitar()}>Quitar marca de documento generado</Button><Button disabled={ocupado} onClick={() => setConfirmar(null)}>Cancelar</Button></div></Alert>}
+    {!historial ? <Card titulo="Documentos preparados" bajada="Revisá los documentos preparados y descartá los que no quieras emitir. Se conserva el contenido elegido al agregarlos, aunque cambien los datos o la configuración. Generar todo descarga un Word con todas las cartas y marca sus faltas con Documento generado. Esto no confirma la entrega al empleado." acciones={<Button variante="primary" disabled={bloqueado || !!error || !pendientes.length} onClick={() => void emitir()}>Generar documentos ({pendientes.length})</Button>}>
       <Table etiqueta="Documentos pendientes"><thead><tr><th>Persona</th><th>Sector</th><th>Días incluidos</th><th>Preparado</th><th>Acción</th></tr></thead><tbody>
         {!pendientes.length && <FilaVacia columnas={5}>{cargando ? 'Cargando…' : 'No hay documentos pendientes. Agregalos desde Notificaciones.'}</FilaVacia>}
         {pendientes.map(d => <tr key={d.id}><td>{d.snapshot.usuario}<small className="envios__sub">{d.snapshot.dni}</small></td><td>{d.snapshot.sector}</td><td><DetalleDocumento doc={d} /></td><td>{momento(d.creadoAt)}</td><td><Button variante="ghost" disabled={bloqueado} onClick={() => void descartar(d.id)}>Descartar</Button></td></tr>)}
       </tbody></Table>
     </Card> : <>
-      <Card titulo="Historial de notificaciones" bajada="Las descargas del historial conservan el contenido y la fecha de emisión. Quitar Notificado permite volver a preparar una falta y conserva el documento original.">
+      <Card titulo="Historial de notificaciones" bajada="Las descargas del historial conservan el contenido y la fecha de emisión. Quitar marca de documento generado permite volver a preparar una falta y conserva el documento original.">
         <Table etiqueta="Documentos emitidos"><thead><tr><th>Persona</th><th>Emisión</th><th>Días incluidos</th><th>Estado actual</th><th>Acciones</th></tr></thead><tbody>
           {!registro.documentos.length && <FilaVacia columnas={5}>{cargando ? 'Cargando…' : 'No hay documentos emitidos en esta página.'}</FilaVacia>}
-          {registro.documentos.map(d => <tr key={d.id}><td>{d.snapshot.usuario}<small className="envios__sub">{d.snapshot.dni}</small></td><td>{momento(d.emitidoAt)}</td><td><DetalleDocumento doc={d} /></td><td>{d.activas.length} de {clavesSnapshot(d.snapshot).length} marcas vigentes<details><summary>Ver faltas</summary><ul className="envios__detalle">{clavesSnapshot(d.snapshot).map(c => {
+          {registro.documentos.map(d => <tr key={d.id}><td>{d.snapshot.usuario}<small className="envios__sub">{d.snapshot.dni}</small></td><td>{momento(d.emitidoAt)}</td><td><DetalleDocumento doc={d} /></td><td>{d.activas.length} de {clavesSnapshot(d.snapshot).length} faltas con marca de documento generado vigente<details><summary>Ver faltas</summary><ul className="envios__detalle">{clavesSnapshot(d.snapshot).map(c => {
             const activa = d.activas.find(m => idMarca(m) === idMarca(c));
-            return <li key={idMarca(c)}>{c.fechaIso} · {META_FALTAS[c.tipo].label} {activa ? <Button tamano="sm" variante="ghost" disabled={bloqueado} onClick={() => setConfirmar([activa])}>Quitar Notificado</Button> : '· Sin marca de esta emisión'}</li>;
-          })}</ul></details></td><td><div className="envios__acciones"><Button disabled={bloqueado} onClick={() => void accion(async () => descargar(generarDocumentos([d], d.fechaDocumento)))}>Descargar Word</Button><Button disabled={bloqueado || !d.activas.length} onClick={() => setConfirmar(d.activas)}>Quitar Notificado del documento</Button></div></td></tr>)}
+            return <li key={idMarca(c)}>{c.fechaIso} · {META_FALTAS[c.tipo].label} {activa ? <Button tamano="sm" variante="ghost" disabled={bloqueado} onClick={() => setConfirmar([activa])}>Quitar marca de documento generado</Button> : '· Sin marca de esta emisión'}</li>;
+          })}</ul></details></td><td><div className="envios__acciones"><Button disabled={bloqueado} onClick={() => void accion(async () => descargar(generarDocumentos([d], d.fechaDocumento)))}>Descargar Word</Button><Button disabled={bloqueado || !d.activas.length} onClick={() => setConfirmar(d.activas)}>Quitar todas las marcas</Button></div></td></tr>)}
         </tbody></Table>
       </Card>
       <div className="envios__acciones"><Button disabled={bloqueado || pagina === 0} onClick={() => { setConfirmar(null); setPagina(p => p - 1); }}>Anterior</Button><span>Página {pagina + 1}</span><Button disabled={bloqueado || !registro.hayMas} onClick={() => { setConfirmar(null); setPagina(p => p + 1); }}>Siguiente</Button></div>

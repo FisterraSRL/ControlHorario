@@ -89,7 +89,7 @@ export function NotificacionesScreen({
   return (
     <Card
       titulo="Preparar notificaciones"
-      bajada="Fichadas incompletas, exceso de descanso y llegadas tarde del período, agrupadas por sector y persona. Agregá los documentos al panel de envío para revisarlos y generarlos juntos. Prepararlos no marca las faltas como notificadas."
+      bajada="Fichadas incompletas, exceso de descanso y llegadas tarde del período, agrupadas por sector y persona. Agregá los documentos a Documentos preparados para revisarlos y generarlos juntos. Prepararlos no genera el Word ni acredita su entrega."
       acciones={
         <Button
           variante="primary"
@@ -190,11 +190,11 @@ export function NotificacionesScreen({
                     <Button
                       variante="ghost"
                       tamano="sm"
-                      aria-label={`Preparar documento de ${persona.usuario} con todos los días del período`}
-                      disabled={registrando}
+                      aria-label={`Preparar documento de ${persona.usuario} con ${cantidadSeleccionada} días seleccionados`}
+                      disabled={registrando || cantidadSeleccionada === 0}
                       onClick={() => onGenerarPersona(persona.dni)}
                     >
-                      Agregar persona al panel
+                      {cantidadSeleccionada === 0 ? 'Seleccioná días' : personaCompleta ? `Agregar todos (${cantidadSeleccionada} días)` : `Agregar ${cantidadSeleccionada} día(s)`}
                     </Button>
                   </td>
                 </tr>

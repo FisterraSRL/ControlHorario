@@ -31,11 +31,11 @@ export function HorasScreen({ semanas, motivos, cargando, abiertas, todasAbierta
     {aviso && <div className="horas__aviso"><Alert tono="ok">{aviso}</Alert></div>}
     {semanasParciales && <div className="horas__aviso"><Alert tono="info" titulo="Semanas incompletas">{semanasParciales}</Alert></div>}
     {pendientes > 0 && <div className="horas__aviso"><Alert tono="aviso" titulo={`${pluralizar(pendientes, 'día pendiente', 'días pendientes')} de clasificación`}>Clasificalos desplegando la semana o desde la pestaña Ausencias para incorporar las horas justificadas al cálculo.</Alert></div>}
-    <Card titulo="Horas trabajadas (semanal, lunes a domingo)" bajada="Comparación entre horas de turno, horas trabajadas, descansos y ausencias justificadas." acciones={<>
+    <Card titulo="Horas trabajadas (semanal, lunes a domingo)" bajada="Trabajadas + justificadas suma las horas de presencia y las ausencias justificadas. La diferencia compara ese total con el turno semanal." acciones={<>
       <Button variante="ghost" onClick={() => onAlternarTodas(!todasAbiertas)} disabled={semanas.length === 0}>{todasAbiertas ? 'Contraer todas' : 'Desplegar todas'}</Button>
       <Button onClick={onExportar} disabled={semanas.length === 0}>Exportar a Excel</Button>
     </>}>
-      <Table etiqueta="Reporte semanal de horas trabajadas"><thead><tr><th><span className="horas__sr">Detalle</span></th><th>Persona</th><th>DNI</th><th>Semana</th><th>Turno</th><th>Trabajadas</th><th>Descanso</th><th>Diferencia</th></tr></thead><tbody>
+      <Table etiqueta="Reporte semanal de horas trabajadas"><thead><tr><th><span className="horas__sr">Detalle</span></th><th>Persona</th><th>DNI</th><th>Semana</th><th>Turno</th><th>Trabajadas + justificadas</th><th>Descanso</th><th>Diferencia</th></tr></thead><tbody>
         {semanas.length === 0 && <FilaVacia columnas={8}>{cargando ? 'Calculando…' : 'Sin datos para este período.'}</FilaVacia>}
         {semanas.map((semana) => { const clave = claveSemana(semana); const abierta = abiertas.has(clave); const mostrarSector = sectorAnterior !== semana.sector; sectorAnterior = semana.sector; return <Fragment key={clave}>
           {mostrarSector && <tr className="tabla__grupo"><td colSpan={8}>{semana.sector || 'Sin sector'}</td></tr>}

@@ -1,9 +1,36 @@
 # Estado del proyecto y continuidad
 
-Actualizado: 6 de octubre de 2026.
+Actualizado: 9 de octubre de 2026.
 
 Este documento permite continuar el trabajo sin depender del historial de una conversación.
 Antes de actuar, comprobar siempre `git status`, `git log -5` y el estado real de producción.
+
+## Mejoras de usabilidad (preparadas para publicación, 2026-10-09)
+
+- Notificaciones, Horas, Indicador y Ausencias sustituyen las tablas por un estado de carga
+  o un error de consulta del historial con Reintentar. Los contadores del menú se ocultan
+  mientras no hay una lectura válida; no presentan un cero como resultado confirmado.
+  Un fallo al refrescar el historial tras una importación también bloquea estas vistas.
+- La columna semanal y el CSV dicen «Trabajadas + justificadas». El cálculo no cambió:
+  siguen sumando presencia y horas justificadas antes de compararlas con el turno semanal.
+- «Documentos preparados» reemplaza «Panel de envío». Los chips, Indicador y el historial
+  hablan de «Documento generado», y aclaran que generar el Word no confirma entrega al
+  empleado. Sólo cambian textos: contratos, marcas históricas y persistencia siguen iguales.
+- La acción individual de Notificaciones usa los días seleccionados de esa persona,
+  exactamente como la masiva. Sin días elegidos queda deshabilitada; con selección parcial
+  indica la cantidad, y con todos indica «Agregar todos». El botón de cada día sigue
+  preparando únicamente ese día.
+
+Esta entrega está preparada para publicación en Vercel mediante main. No requiere migración ni cambios de API.
+Las regresiones automatizadas cubren el bloqueo de tablas ante error/carga con registros
+anteriores, la recuperación a la vista vacía válida y la selección vacía/parcial/completa.
+La revisión posterior corrigió también el total de documentos generados en Indicador:
+si falla la lectura de marcas, tanto las filas como el total ocultan el cero o valor anterior.
+Cinco casos de renderizado cubren error, carga y lectura válida (incluido cero confirmado).
+Verificación final: typecheck, 681 pruebas (48 archivos) y build correctos. Smoke local con
+tres registros ficticios: seleccionar 15 y 17 de septiembre de 2026 prepara dos días y cinco
+faltas; generar Word y abrir el historial conserva sólo esas dos fechas. La comprobación
+de interfaz autenticada en producción sigue pendiente.
 
 ## Producción
 
@@ -518,7 +545,7 @@ flotando 50px a la derecha del resto. En el login va centrado arriba del panel.
 
 ## Pruebas
 
-El baseline esperado es **661 pruebas en 46 archivos**. La selección de días específicos
+El baseline esperado es **681 pruebas en 48 archivos**. Las mejoras de usabilidad sumaron 20 casos: 12 estados de lectura, 5 contadores de Indicador y 3 selecciones individuales. La selección de días específicos
 sumó 8 en `src/ui/features/notificaciones/notificaciones.test.ts`: fechas no consecutivas
 excluidas tanto del XML del Word como del registro, casillas de persona completa/parcial,
 último día destildado, independencia por persona y cambios de período con el mismo DNI.

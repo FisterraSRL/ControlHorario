@@ -9,6 +9,7 @@ import { Link } from 'react-router-dom';
 import { useConfiguracion } from '../../configuracion/ConfiguracionProvider.js';
 import { agruparFaltasPorPersona } from '../../faltas/agrupacion.js';
 import { separarPorDia } from '../../faltas/porDia.js';
+import { EstadoHistorial } from '../../historial/EstadoHistorial.js';
 import { useHistorial } from '../../historial/HistorialProvider.js';
 import { useNotificadas } from '../../notificaciones/NotificadasProvider.js';
 import { usePeriodo } from '../../periodo/PeriodoProvider.js';
@@ -29,7 +30,7 @@ function soloVisibles(
 }
 
 export function NotificacionesContainer() {
-  const { registros, cargando } = useHistorial();
+  const { registros, cargando, error: errorHistorial, recargar } = useHistorial();
   const { paraElMotor } = useConfiguracion();
   const { rango } = usePeriodo();
 
@@ -108,11 +109,9 @@ export function NotificacionesContainer() {
   }, [repositorios.envios, expirar]);
   const generarPersona = useCallback(
     (dni: string) => {
-      const persona = personas.find((p) => p.dni === dni);
-      if (!persona) return;
-      void preparar([persona]);
+      void preparar(personasSeleccionadas(personas, vigentes, dni));
     },
-    [personas, preparar],
+    [personas, vigentes, preparar],
   );
 
   // Prepare exactly the selected day from the existing grouping.
@@ -132,9 +131,11 @@ export function NotificacionesContainer() {
     void preparar(elegidas);
   }, [personas, vigentes, preparar]);
 
+  if (errorHistorial || cargando) return <EstadoHistorial cargando={cargando} error={errorHistorial} onReintentar={recargar} />;
+
   return (
     <>
-      {preparadas > 0 && <Alert tono="ok">{preparadas} documento(s) preparados. <Link to="/envios">Abrir panel de envío</Link></Alert>}
+      {preparadas > 0 && <Alert tono="ok">{preparadas} documento(s) preparados. <Link to="/envios">Ver documentos preparados</Link></Alert>}
     <NotificacionesScreen
       personas={personas}
       seleccionadas={vigentes}
@@ -143,7 +144,7 @@ export function NotificacionesContainer() {
       notificadas={notificadas}
       cargando={cargando}
       registrando={registrando}
-      error={errorRegistro ?? (errorLectura ? `No se pudo leer qué faltas ya están notificadas: ${errorLectura}` : null)}
+      error={errorRegistro ?? (errorLectura ? `No se pudo leer qué faltas tienen documento generado: ${errorLectura}` : null)}
       onAlternar={alternar}
       onAlternarDia={alternarDia}
       onAlternarTodas={alternarTodas}

@@ -88,8 +88,8 @@ export const SECCIONES: readonly Seccion[] = [
   {
     id: 'envios',
     path: '/envios',
-    label: 'Panel de envío',
-    titulo: 'Panel de envío',
+    label: 'Documentos preparados',
+    titulo: 'Documentos preparados',
     icono: 'notificaciones',
     contador: null,
     muestraPeriodo: false,

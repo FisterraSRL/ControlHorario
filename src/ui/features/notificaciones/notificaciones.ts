@@ -60,8 +60,10 @@ export function alternarPersonaSeleccionada(
 export function personasSeleccionadas(
   personas: readonly NotificacionPersona[],
   seleccion: SeleccionDias,
+  dni?: string,
 ): readonly NotificacionPersona[] {
   return personas.flatMap((persona) => {
+    if (dni !== undefined && persona.dni !== dni) return [];
     const fechas = seleccion.get(persona.dni);
     if (!fechas || fechas.size === 0) return [];
     const faltasPorTipo = {
@@ -106,6 +108,6 @@ export function etiquetaNotificacion(cuenta: {
   readonly total: number;
 }): string | null {
   if (cuenta.notificadas === 0 || cuenta.total === 0) return null;
-  if (cuenta.notificadas >= cuenta.total) return 'Notificada';
-  return `${cuenta.notificadas} de ${cuenta.total} notificadas`;
+  if (cuenta.notificadas >= cuenta.total) return 'Documento generado';
+  return `${cuenta.notificadas} de ${cuenta.total} con documento generado`;
 }

@@ -15,6 +15,7 @@ import { useMemo } from 'react';
 
 import { useConfiguracion } from '../../configuracion/ConfiguracionProvider.js';
 import { agruparFaltasPorPersona } from '../../faltas/agrupacion.js';
+import { EstadoHistorial } from '../../historial/EstadoHistorial.js';
 import { useHistorial } from '../../historial/HistorialProvider.js';
 import { useNotificadas } from '../../notificaciones/NotificadasProvider.js';
 import { usePeriodo } from '../../periodo/PeriodoProvider.js';
@@ -22,7 +23,7 @@ import { IndicadorScreen } from './IndicadorScreen.js';
 import { notificadasDelPeriodo, totalesDelPeriodo } from './indicador.js';
 
 export function IndicadorContainer() {
-  const { registros, cargando } = useHistorial();
+  const { registros, cargando, error: errorHistorial, recargar } = useHistorial();
   const { paraElMotor } = useConfiguracion();
   const { rango } = usePeriodo();
 
@@ -38,6 +39,8 @@ export function IndicadorContainer() {
     () => notificadasDelPeriodo(personas, notificadas),
     [personas, notificadas],
   );
+
+  if (errorHistorial || cargando) return <EstadoHistorial cargando={cargando} error={errorHistorial} onReintentar={recargar} />;
 
   return (
     <IndicadorScreen

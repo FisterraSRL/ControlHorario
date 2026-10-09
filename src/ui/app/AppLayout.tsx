@@ -45,7 +45,7 @@ function valorContador(contadores: ContadoresNav, tipo: TipoContador): number {
 export function AppLayout() {
   const { pathname } = useLocation();
   const { periodo, rango, cambiarModo, desplazar, fijarRango } = usePeriodo();
-  const { registros, cargando } = useHistorial();
+  const { registros, cargando, error } = useHistorial();
   const { sesion, repositorios, cerrar } = useSesion();
   // The engine config WITHOUT the decisions: `registros` already carries each day's motivo,
   // resolved by `HistorialProvider`, and the weekly report only needs the motivos list and
@@ -71,7 +71,7 @@ export function AppLayout() {
   const items = useMemo<readonly ItemSidebar[]>(
     () =>
       (rol === null ? [] : seccionesDeRol(rol)).map((s) => {
-        const n = s.contador ? valorContador(contadores, s.contador) : null;
+        const n = s.contador && !cargando && !error ? valorContador(contadores, s.contador) : null;
         return {
           path: s.path,
           label: s.label,
@@ -82,7 +82,7 @@ export function AppLayout() {
             : {}),
         };
       }),
-    [contadores, rol],
+    [contadores, rol, cargando, error],
   );
 
   const modos = useMemo(

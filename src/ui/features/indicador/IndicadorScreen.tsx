@@ -63,11 +63,11 @@ export function IndicadorScreen({
   return (
     <Card
       titulo="Indicador de notificaciones"
-      bajada="Cantidad de faltas detectadas por persona en el período seleccionado y cuántas ya fueron notificadas con un Word."
+      bajada="Cantidad de faltas detectadas por persona en el período seleccionado y cuántas tienen un documento generado. Esto no confirma su entrega al empleado."
     >
       {errorNotificadas && (
         <div className="indicador__aviso">
-          <Alert tono="aviso" titulo="No se pudo leer qué faltas ya están notificadas">
+          <Alert tono="aviso" titulo="No se pudo leer qué faltas tienen documento generado">
             {errorNotificadas}
           </Alert>
         </div>
@@ -83,7 +83,7 @@ export function IndicadorScreen({
               </th>
             ))}
             <th className="indicador__numero">Total faltas</th>
-            <th className="indicador__numero">Notificadas</th>
+            <th className="indicador__numero">Con documento generado</th>
           </tr>
         </thead>
         <tbody>
@@ -113,7 +113,7 @@ export function IndicadorScreen({
                   <Cuenta valor={totalDeFaltas(persona.faltasPorTipo)} />
                   <CuentaNotificadas
                     valor={notificadas.porDni.get(persona.dni) ?? 0}
-                    cargando={cargandoNotificadas}
+                    cargando={cargandoNotificadas || !!errorNotificadas}
                   />
                 </tr>
               </Fragment>
@@ -130,7 +130,7 @@ export function IndicadorScreen({
                 <Cuenta key={tipo} valor={totales.porTipo[tipo]} />
               ))}
               <Cuenta valor={totales.total} />
-              <CuentaNotificadas valor={notificadas.total} cargando={cargandoNotificadas} />
+              <CuentaNotificadas valor={notificadas.total} cargando={cargandoNotificadas || !!errorNotificadas} />
             </tr>
           )}
         </tbody>

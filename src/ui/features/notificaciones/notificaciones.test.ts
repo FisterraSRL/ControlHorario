@@ -60,8 +60,8 @@ describe('entrega de un Word', () => {
 
 describe('estado de notificación de un día', () => {
   it('dice «Notificada» con todas, «N de M» con algunas y nada sin ninguna', () => {
-    expect(etiquetaNotificacion({ notificadas: 2, total: 2 })).toBe('Notificada');
-    expect(etiquetaNotificacion({ notificadas: 1, total: 2 })).toBe('1 de 2 notificadas');
+    expect(etiquetaNotificacion({ notificadas: 2, total: 2 })).toBe('Documento generado');
+    expect(etiquetaNotificacion({ notificadas: 1, total: 2 })).toBe('1 de 2 con documento generado');
     expect(etiquetaNotificacion({ notificadas: 0, total: 2 })).toBeNull();
     expect(etiquetaNotificacion({ notificadas: 0, total: 0 })).toBeNull();
   });
@@ -188,5 +188,16 @@ describe('day selection for notifications', () => {
     expect(alternarDiaSeleccionado(siguiente, nuevosDias, dni, '15/09/2026')).toEqual(siguiente);
     expect(alternarPersonaSeleccionada(siguiente, nuevosDias, 'TEST-UNKNOWN')).toEqual(siguiente);
     expect(seleccionVisible(siguiente, new Map()).size).toBe(0);
+  });
+});
+
+describe('individual preparation uses the same explicit selection', () => {
+  it.each([{ dates: [] }, { dates: ['15/09/2026'] }, { dates: ['15/09/2026', '16/09/2026', '17/09/2026'] }])('includes only selected dates $dates for that person', ({ dates }) => {
+    const first = enPeriodo()[0]!;
+    const other = { ...first, dni: 'OTHER' };
+    const selection = new Map([[first.dni, new Set(dates)], [other.dni, new Set(['16/09/2026'])]]);
+    const result = personasSeleccionadas([first, other], selection, first.dni);
+    expect(result.map(p => p.dni)).toEqual(dates.length ? [first.dni] : []);
+    expect(result.flatMap(p => separarPorDia(p).map(d => d.fecha))).toEqual(dates);
   });
 });

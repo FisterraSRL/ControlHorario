@@ -15,6 +15,7 @@ import { MOTIVOS_POR_DEFECTO } from '../../../domain/fichadas/index.js';
 import { useAusencias } from '../../ausencias/AusenciasProvider.js';
 import { avisoMotivo } from '../../ausencias/opcionesMotivo.js';
 import { useConfiguracion } from '../../configuracion/ConfiguracionProvider.js';
+import { EstadoHistorial } from '../../historial/EstadoHistorial.js';
 import { useHistorial } from '../../historial/HistorialProvider.js';
 import { usePeriodo } from '../../periodo/PeriodoProvider.js';
 import { abiertasVisibles, alternarSemana, avisoSemanasParciales, construirReporteHoras, csvDeHoras, desplegarTodas, todasAbiertas } from './horas.js';
@@ -30,7 +31,7 @@ function descargarCsv(contenido: string): void {
 }
 
 export function HorasContainer() {
-  const { registros, cargando } = useHistorial();
+  const { registros, cargando, error: errorHistorial, recargar } = useHistorial();
   const { paraElMotor } = useConfiguracion();
   const { periodo, rango } = usePeriodo();
   const { asignarMotivo, error } = useAusencias();
@@ -47,6 +48,8 @@ export function HorasContainer() {
       if (await asignarMotivo(dni, fechaStr, motivoId)) setAviso(avisoMotivo(motivoId));
     })();
   }, [asignarMotivo]);
+
+  if (errorHistorial || cargando) return <EstadoHistorial cargando={cargando} error={errorHistorial} onReintentar={recargar} />;
 
   // Before the configuration arrives the dropdown still has to be usable, as in Ausencias.
   return <HorasScreen semanas={semanas} motivos={paraElMotor.motivos ?? MOTIVOS_POR_DEFECTO} cargando={cargando}
