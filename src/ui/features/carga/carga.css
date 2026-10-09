@@ -21,3 +21,5 @@
   color: var(--app-muted);
   max-width: 78ch;
 }
+
+.carga__acciones { display: flex; flex-wrap: wrap; gap: var(--app-space-3); margin-top: var(--app-space-4); }

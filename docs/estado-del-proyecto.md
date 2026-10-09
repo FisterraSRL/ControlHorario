@@ -5,7 +5,42 @@ Actualizado: 9 de octubre de 2026.
 Este documento permite continuar el trabajo sin depender del historial de una conversación.
 Antes de actuar, comprobar siempre `git status`, `git log -5` y el estado real de producción.
 
-## Búsqueda por persona y sector (preparada para publicación, 2026-10-09)
+## Vista previa de importación (entrega preparada, 2026-10-09)
+
+- Elegir el Excel sólo lo lee y lo compara con el historial disponible. La escritura se
+  ejecuta únicamente con «Confirmar importación». Cancelar o cambiar el archivo descarta
+  la vista previa; las lecturas anteriores que terminen tarde no pueden reemplazarla.
+- La vista previa muestra archivo, hoja, período, personas, filas, días únicos, nuevos,
+  reemplazos y sin cambios. Los conteos son estimaciones sobre el historial consultado;
+  el resultado del guardado sigue siendo autoritativo ante importaciones concurrentes.
+- DNI, Fecha, Turno y Movimientos son encabezados críticos. No se exige Legajo ni otros
+  encabezados opcionales al motor. Si falta una columna que eliminaría información no vacía
+  de un día ya guardado, se bloquea la importación y se identifica la fila afectada.
+- Se bloquean DNI vacíos, con espacios extremos o mayores a 32 caracteres; el DNI sigue
+  siendo texto, sin imponer una identidad exclusivamente numérica. Las fechas deben ser
+  días reales y canónicos DD/MM/AAAA, para evitar normalizaciones a otro día en SQL.
+- Las filas idénticas repetidas se importan una sola vez, con aviso del conteo omitido.
+  Dos contenidos distintos para la misma clave bloquean todo el archivo. Ninguna fila
+  inválida se descarta silenciosamente: se corrige el archivo y se vuelve a elegir.
+- El guardado bloquea cancelar/cambiar archivo y las confirmaciones repetidas. Un fallo de
+  escritura o de relectura posterior consume la vista previa y advierte que podría haberse
+  guardado; se ofrece actualizar el historial, sin repetir automáticamente la mutación.
+- No hay migración ni cambio de API. `combinarFichadas` extrae sin cambios semánticos el
+  merge local para reutilizarlo en el conteo de la vista previa. No cambia permisos ni roles.
+
+Verificación automatizada: 31 casos nuevos cubren lectura sin escritura, confirmación,
+cancelación, carreras entre archivos, doble click, fallos de guardado/relectura, historial
+no disponible, conteos contra el repositorio, duplicados, fechas, DNI, pérdida de evidencia,
+encabezados, archivos incompatibles y números de fila reales del Excel.
+
+Validación final: typecheck, 730 pruebas en 51 archivos y build correctos. Smoke local con
+datos ficticios: vista previa de dos días nuevos, cancelación sin escribir, confirmación
+con dos días reales guardados, siguiente archivo con un nuevo/un reemplazo/un día sin
+cambios y cambio a archivo con fecha inválida que bloquea la confirmación.
+
+Entrega: frontend preparado para publicación mediante push a `main`; confirmar el despliegue de Vercel contra el SHA publicado antes de declarar producción actualizada. Rollback: revertir esta unidad de vista previa (carga, merge local, pruebas y documentación) y volver a publicar; no hay cambios de API ni migraciones.
+
+## Búsqueda por persona y sector (publicada, 2026-10-09)
 
 - Notificaciones, Horas e Indicador comparten búsqueda por nombre o DNI y filtro por sector,
   combinados. La búsqueda ignora mayúsculas y acentos; el DNI admite puntos y guiones.
@@ -19,6 +54,8 @@ Antes de actuar, comprobar siempre `git status`, `git log -5` y el estado real d
   días que dejaron de estar disponibles para que no reaparezcan seleccionados al volver.
 - No cambia cálculos, contratos, API ni base de datos. El alcance reversible es la barra
   compartida `src/ui/personas`, su integración en estas tres vistas y las pruebas asociadas.
+
+Publicada en Vercel desde `main`, commit `d2cd183`. Se verificaron con sesión autenticada y datos reales los filtros por sector, búsqueda, sin coincidencias y limpieza; API y base operativas.
 
 Verificación: typecheck, 699 pruebas (50 archivos) y build correctos. Las 18 pruebas nuevas
 cubren normalización, combinación de filtros, limpieza, sector ausente en otro período,
@@ -569,7 +606,7 @@ flotando 50px a la derecha del resto. En el login va centrado arriba del panel.
 
 ## Pruebas
 
-El baseline esperado es **681 pruebas en 48 archivos**. Las mejoras de usabilidad sumaron 20 casos: 12 estados de lectura, 5 contadores de Indicador y 3 selecciones individuales. La selección de días específicos
+Esta entrega queda verificada con **730 pruebas en 51 archivos**; la vista previa agrega 31 casos al baseline publicado de 699. Las mejoras de usabilidad sumaron 20 casos: 12 estados de lectura, 5 contadores de Indicador y 3 selecciones individuales. La selección de días específicos
 sumó 8 en `src/ui/features/notificaciones/notificaciones.test.ts`: fechas no consecutivas
 excluidas tanto del XML del Word como del registro, casillas de persona completa/parcial,
 último día destildado, independencia por persona y cambios de período con el mismo DNI.

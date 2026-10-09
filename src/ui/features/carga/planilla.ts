@@ -48,6 +48,7 @@ export interface PlanillaLeida {
   readonly archivo: string;
   readonly filas: readonly FilaQuickpass[];
   readonly hoja: string;
+  readonly numerosFila?: readonly number[];
   /** Expected columns the sheet does not have. Not fatal; shown to the operator. */
   readonly columnasFaltantes: readonly string[];
 }
@@ -144,6 +145,7 @@ export async function leerPlanilla(archivo: File): Promise<PlanillaLeida> {
 
   return {
     archivo: archivo.name,
+    numerosFila: filas.map(f => Number((f as FilaQuickpass & { __rowNum__: number }).__rowNum__) + 1),
     filas,
     hoja,
     columnasFaltantes: COLUMNAS_ESPERADAS.filter((c) => !columnas.has(c)),

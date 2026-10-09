@@ -1,3 +1,4 @@
+import { combinarFichadas } from './combinarFichadas.js';
 /**
  * The only adapter for `RepositorioFichadas` in this slice: localStorage, with an in-memory
  * fallback for the cases where the browser refuses to give us any (private windows, storage
@@ -11,10 +12,10 @@
 import type { FilaQuickpass } from '../../domain/fichadas/index.js';
 import {
   ErrorRepositorio,
-  claveDeFila,
+
   type ClaveFichada,
   type RepositorioFichadas,
-  type ResultadoGuardado,
+
 } from './RepositorioFichadas.js';
 
 const CLAVE_ALMACEN = 'controlhorario.historial.v1';
@@ -86,43 +87,11 @@ export function crearRepositorioLocal(
     },
 
     async upsert(filas) {
-      const mapa = leerDesde(storage, memoria);
-      let nuevas = 0;
-      let actualizadas = 0;
-      let sinCambios = 0;
-      let descartadas = 0;
-
-      for (const fila of filas) {
-        const clave = claveDeFila(fila);
-        if (!clave) {
-          descartadas++;
-          continue;
-        }
-        const previa = mapa[clave];
-        if (!previa) {
-          mapa[clave] = fila;
-          nuevas++;
-        } else if (JSON.stringify(previa) !== JSON.stringify(fila)) {
-          mapa[clave] = fila;
-          actualizadas++;
-        } else {
-          sinCambios++;
-        }
-      }
-
-      if (nuevas > 0 || actualizadas > 0) {
+      const { mapa, resultado } = combinarFichadas(leerDesde(storage, memoria), filas);
+      if (resultado.nuevas > 0 || resultado.actualizadas > 0) {
         escribirEn(storage, mapa);
         if (!storage) memoria = mapa;
       }
-
-      const resultado: ResultadoGuardado = {
-        recibidas: filas.length,
-        descartadas,
-        nuevas,
-        actualizadas,
-        sinCambios,
-        totalHistorial: Object.keys(mapa).length,
-      };
       return resultado;
     },
 
