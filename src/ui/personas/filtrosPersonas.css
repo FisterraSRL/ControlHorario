@@ -1,0 +1,3 @@
+.filtros-personas { display: flex; flex-wrap: wrap; align-items: end; gap: 1rem; margin-bottom: 1rem; }
+.filtros-personas > .input-campo { flex: 1 1 15rem; }
+.filtros-personas > [role="status"] { align-self: center; font-size: .875rem; }

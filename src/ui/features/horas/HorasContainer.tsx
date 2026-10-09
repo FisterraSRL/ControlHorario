@@ -1,3 +1,5 @@
+import { FiltrosPersonas } from '../../personas/FiltrosPersonas.js';
+import { useFiltroPersonas } from '../../personas/filtro.js';
 /**
  * Container for Horas trabajadas. It owns which weeks are open and the confirmation after a
  * motivo write; `HorasScreen` takes both as props.
@@ -37,7 +39,9 @@ export function HorasContainer() {
   const { asignarMotivo, error } = useAusencias();
   const [abiertas, setAbiertas] = useState<ReadonlySet<string>>(() => new Set());
   const [aviso, setAviso] = useState<string | null>(null);
-  const semanas = useMemo(() => construirReporteHoras(registros, paraElMotor, rango), [registros, paraElMotor, rango]);
+  const todasLasSemanas = useMemo(() => construirReporteHoras(registros, paraElMotor, rango), [registros, paraElMotor, rango]);
+  const filtros = useFiltroPersonas(todasLasSemanas);
+  const semanas = filtros.personas;
   const visibles = useMemo(() => abiertasVisibles(abiertas, semanas), [abiertas, semanas]);
 
   const cambiarMotivo = useCallback((dni: string, fechaStr: string, motivoId: number | null) => {
@@ -52,7 +56,7 @@ export function HorasContainer() {
   if (errorHistorial || cargando) return <EstadoHistorial cargando={cargando} error={errorHistorial} onReintentar={recargar} />;
 
   // Before the configuration arrives the dropdown still has to be usable, as in Ausencias.
-  return <HorasScreen semanas={semanas} motivos={paraElMotor.motivos ?? MOTIVOS_POR_DEFECTO} cargando={cargando}
+  return <HorasScreen filtros={<FiltrosPersonas {...filtros} onCambio={filtros.setFiltro} />} sinCoincidencias={filtros.sinCoincidencias} semanas={semanas} motivos={paraElMotor.motivos ?? MOTIVOS_POR_DEFECTO} cargando={cargando}
     abiertas={visibles} todasAbiertas={todasAbiertas(visibles, semanas)}
     onAlternar={(clave) => setAbiertas(alternarSemana(visibles, clave))}
     onAlternarTodas={(abrir) => setAbiertas(desplegarTodas(semanas, abrir))}

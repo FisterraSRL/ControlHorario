@@ -1,7 +1,7 @@
 /** Presentational selection of people and specific days to add to the shared queue.
  * Preparing never generates a document or changes notified marks.
  */
-import { Fragment } from 'react';
+import { Fragment, type ReactNode } from 'react';
 
 import {
   META_FALTAS,
@@ -25,6 +25,8 @@ import './notificaciones.css';
 const COLUMNAS = 6;
 
 interface Props {
+  readonly filtros?: ReactNode;
+  readonly sinCoincidencias?: boolean;
   readonly personas: readonly NotificacionPersona[];
   readonly seleccionadas: SeleccionDias;
   /** The VISIBLE open rows, already intersected with `personas` by the container. */
@@ -65,6 +67,8 @@ function ChipsDeFaltas({ faltasPorTipo }: { readonly faltasPorTipo: FaltasPorTip
 }
 
 export function NotificacionesScreen({
+  filtros,
+  sinCoincidencias,
   personas,
   seleccionadas,
   abiertas,
@@ -102,13 +106,14 @@ export function NotificacionesScreen({
     >
       <p className="notificaciones__ayuda">
         El detalle permite seleccionar días específicos, incluso no consecutivos. Agregar
-        seleccionadas incluye sólo esos días en una carta por persona.
+        seleccionadas incluye sólo esos días en una carta por persona. Al cambiar los filtros se limpia la selección.
       </p>
       {error && (
         <div className="notificaciones__aviso">
           <Alert tono="error">{error}</Alert>
         </div>
       )}
+      {filtros}
       <Table etiqueta="Personas con faltas en el período">
         <thead>
           <tr>
@@ -134,7 +139,7 @@ export function NotificacionesScreen({
         <tbody>
           {personas.length === 0 && (
             <FilaVacia columnas={COLUMNAS}>
-              {cargando ? 'Calculando…' : 'Sin faltas para este período.'}
+              {cargando ? 'Calculando…' : sinCoincidencias ? 'No hay personas que coincidan con los filtros.' : 'Sin faltas para este período.'}
             </FilaVacia>
           )}
 

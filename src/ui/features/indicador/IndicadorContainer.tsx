@@ -1,10 +1,10 @@
+import { FiltrosPersonas } from '../../personas/FiltrosPersonas.js';
+import { useFiltroPersonas } from '../../personas/filtro.js';
 /**
  * Container for the Indicador screen.
  *
- * It owns nothing: no state, no effect, no request, nothing to download. The screen is a
- * pure reading of the period, so this file is only the wiring between the four providers
- * and the three pure functions that turn their data into a table. «Notificadas» reads the
- * set `NotificadasProvider` loaded for the period; Notificaciones is what fills it.
+ * Filters the current period before deriving row counts and visible totals.
+ * NotificadasProvider supplies the generated-document marks.
  *
  * `incluirSinFaltas` is the one decision here. Notificaciones asks the same grouping for the
  * people it has a letter to write about; a dashboard has to show the clean people too, or an
@@ -27,10 +27,13 @@ export function IndicadorContainer() {
   const { paraElMotor } = useConfiguracion();
   const { rango } = usePeriodo();
 
-  const personas = useMemo(
+  const todasLasPersonas = useMemo(
     () => agruparFaltasPorPersona(registros, paraElMotor, rango, { incluirSinFaltas: true }),
     [registros, paraElMotor, rango],
   );
+
+  const filtros = useFiltroPersonas(todasLasPersonas);
+  const personas = filtros.personas;
 
   const totales = useMemo(() => totalesDelPeriodo(personas), [personas]);
 
@@ -44,6 +47,8 @@ export function IndicadorContainer() {
 
   return (
     <IndicadorScreen
+      filtros={<FiltrosPersonas {...filtros} onCambio={filtros.setFiltro} />}
+      sinCoincidencias={filtros.sinCoincidencias}
       personas={personas}
       totales={totales}
       notificadas={notificadasPorPersona}

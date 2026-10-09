@@ -11,7 +11,7 @@
  * fix is not counted: the column only intersects with the faltas that exist now.
  */
 
-import { Fragment } from 'react';
+import { Fragment, type ReactNode } from 'react';
 
 import {
   META_FALTAS,
@@ -29,6 +29,8 @@ import './indicador.css';
 const COLUMNAS = 4 + ORDEN_FALTAS.length;
 
 interface Props {
+  readonly filtros?: ReactNode;
+  readonly sinCoincidencias?: boolean;
   readonly personas: readonly NotificacionPersona[];
   readonly totales: TotalesIndicador;
   readonly notificadas: NotificadasIndicador;
@@ -51,6 +53,8 @@ function CuentaNotificadas({ valor, cargando }: { readonly valor: number; readon
 }
 
 export function IndicadorScreen({
+  filtros,
+  sinCoincidencias,
   personas,
   totales,
   notificadas,
@@ -72,6 +76,7 @@ export function IndicadorScreen({
           </Alert>
         </div>
       )}
+      {filtros}
       <Table etiqueta="Faltas por persona en el período">
         <thead>
           <tr>
@@ -89,7 +94,7 @@ export function IndicadorScreen({
         <tbody>
           {personas.length === 0 && (
             <FilaVacia columnas={COLUMNAS}>
-              {cargando ? 'Calculando…' : 'Sin datos para este período.'}
+              {cargando ? 'Calculando…' : sinCoincidencias ? 'No hay personas que coincidan con los filtros.' : 'Sin datos para este período.'}
             </FilaVacia>
           )}
 
@@ -124,7 +129,7 @@ export function IndicadorScreen({
               zeros under "Sin datos para este período." would be noise, not information. */}
           {personas.length > 0 && (
             <tr className="tabla__grupo">
-              <td>Total período</td>
+              <td>Total visible</td>
               <td />
               {ORDEN_FALTAS.map((tipo) => (
                 <Cuenta key={tipo} valor={totales.porTipo[tipo]} />

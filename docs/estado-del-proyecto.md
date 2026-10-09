@@ -5,7 +5,29 @@ Actualizado: 9 de octubre de 2026.
 Este documento permite continuar el trabajo sin depender del historial de una conversación.
 Antes de actuar, comprobar siempre `git status`, `git log -5` y el estado real de producción.
 
-## Mejoras de usabilidad (preparadas para publicación, 2026-10-09)
+## Búsqueda por persona y sector (preparada para publicación, 2026-10-09)
+
+- Notificaciones, Horas e Indicador comparten búsqueda por nombre o DNI y filtro por sector,
+  combinados. La búsqueda ignora mayúsculas y acentos; el DNI admite puntos y guiones.
+- Los sectores corresponden a los datos disponibles del período; «Sin sector» es una opción
+  distinta de «Todos». Si el sector elegido desaparece al cambiar período, se identifica
+  como sin datos y se puede recuperar la vista con «Limpiar filtros».
+- Se muestra la cantidad de personas visibles sobre el total y se distingue una búsqueda
+  sin coincidencias de un período sin registros. Indicador suma únicamente lo visible.
+- Horas exporta y despliega únicamente las semanas visibles. Notificaciones prepara sólo
+  personas/días visibles: cambiar un filtro limpia la selección, y cambiar período descarta
+  días que dejaron de estar disponibles para que no reaparezcan seleccionados al volver.
+- No cambia cálculos, contratos, API ni base de datos. El alcance reversible es la barra
+  compartida `src/ui/personas`, su integración en estas tres vistas y las pruebas asociadas.
+
+Verificación: typecheck, 699 pruebas (50 archivos) y build correctos. Las 18 pruebas nuevas
+cubren normalización, combinación de filtros, limpieza, sector ausente en otro período,
+vistas vacías, operaciones visibles y totales. Smoke local con tres personas ficticias:
+búsqueda con/sin acentos y DNI sin separadores, filtros combinados sin coincidencias,
+selección masiva seguida de cambio de filtro sin selecciones ocultas, Limpiar, total de
+Indicador de 24 a 8 al filtrar Oficina, y CSV descargado con sólo la persona visible.
+
+## Mejoras de usabilidad (publicadas, 2026-10-09)
 
 - Notificaciones, Horas, Indicador y Ausencias sustituyen las tablas por un estado de carga
   o un error de consulta del historial con Reintentar. Los contadores del menú se ocultan
@@ -21,7 +43,7 @@ Antes de actuar, comprobar siempre `git status`, `git log -5` y el estado real d
   indica la cantidad, y con todos indica «Agregar todos». El botón de cada día sigue
   preparando únicamente ese día.
 
-Esta entrega está preparada para publicación en Vercel mediante main. No requiere migración ni cambios de API.
+Entrega publicada en Vercel desde main, commit `3fd9b7b`, con despliegue confirmado. No requiere migración ni cambios de API.
 Las regresiones automatizadas cubren el bloqueo de tablas ante error/carga con registros
 anteriores, la recuperación a la vista vacía válida y la selección vacía/parcial/completa.
 La revisión posterior corrigió también el total de documentos generados en Indicador:
@@ -30,7 +52,9 @@ Cinco casos de renderizado cubren error, carga y lectura válida (incluido cero 
 Verificación final: typecheck, 681 pruebas (48 archivos) y build correctos. Smoke local con
 tres registros ficticios: seleccionar 15 y 17 de septiembre de 2026 prepara dos días y cinco
 faltas; generar Word y abrir el historial conserva sólo esas dos fechas. La comprobación
-de interfaz autenticada en producción sigue pendiente.
+de interfaz autenticada en producción confirmó Horas con datos reales y «Trabajadas + justificadas»,
+e Indicador con «Con documento generado» sin alertas de lectura. No se emitieron documentos
+reales ni se validaron todos los recorridos de producción.
 
 ## Producción
 

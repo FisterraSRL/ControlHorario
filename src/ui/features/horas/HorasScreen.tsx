@@ -1,4 +1,4 @@
-import { Fragment } from 'react';
+import { Fragment, type ReactNode } from 'react';
 import { fmtFechaAR, fmtMinutos, type Motivo, type RegistroDia, type SemanaEmpleado } from '../../../domain/fichadas/index.js';
 import { opcionesMotivo, type OpcionMotivo } from '../../ausencias/opcionesMotivo.js';
 import { Button } from '../../components/atoms/Button/Button.js';
@@ -14,6 +14,8 @@ import './horas.css';
 type OnMotivo = (dni: string, fechaStr: string, motivoId: number | null) => void;
 
 interface Props {
+  readonly filtros?: ReactNode;
+  readonly sinCoincidencias?: boolean;
   readonly semanas: readonly SemanaEmpleado[]; readonly motivos: readonly Motivo[]; readonly cargando: boolean;
   /** The VISIBLE open rows, already intersected with `semanas` by the container. */
   readonly abiertas: ReadonlySet<string>; readonly todasAbiertas: boolean;
@@ -23,7 +25,7 @@ interface Props {
   readonly semanasParciales: string | null;
 }
 
-export function HorasScreen({ semanas, motivos, cargando, abiertas, todasAbiertas, onAlternar, onAlternarTodas, onMotivo, error, aviso, onExportar, semanasParciales }: Props) {
+export function HorasScreen({ filtros, sinCoincidencias, semanas, motivos, cargando, abiertas, todasAbiertas, onAlternar, onAlternarTodas, onMotivo, error, aviso, onExportar, semanasParciales }: Props) {
   const pendientes = semanas.reduce((n, s) => n + s.diasAusenciaSinClasificar, 0); let sectorAnterior = '';
   const opciones = opcionesMotivo(motivos);
   return <>
@@ -35,8 +37,9 @@ export function HorasScreen({ semanas, motivos, cargando, abiertas, todasAbierta
       <Button variante="ghost" onClick={() => onAlternarTodas(!todasAbiertas)} disabled={semanas.length === 0}>{todasAbiertas ? 'Contraer todas' : 'Desplegar todas'}</Button>
       <Button onClick={onExportar} disabled={semanas.length === 0}>Exportar a Excel</Button>
     </>}>
+      {filtros}
       <Table etiqueta="Reporte semanal de horas trabajadas"><thead><tr><th><span className="horas__sr">Detalle</span></th><th>Persona</th><th>DNI</th><th>Semana</th><th>Turno</th><th>Trabajadas + justificadas</th><th>Descanso</th><th>Diferencia</th></tr></thead><tbody>
-        {semanas.length === 0 && <FilaVacia columnas={8}>{cargando ? 'Calculando…' : 'Sin datos para este período.'}</FilaVacia>}
+        {semanas.length === 0 && <FilaVacia columnas={8}>{cargando ? 'Calculando…' : sinCoincidencias ? 'No hay personas que coincidan con los filtros.' : 'Sin datos para este período.'}</FilaVacia>}
         {semanas.map((semana) => { const clave = claveSemana(semana); const abierta = abiertas.has(clave); const mostrarSector = sectorAnterior !== semana.sector; sectorAnterior = semana.sector; return <Fragment key={clave}>
           {mostrarSector && <tr className="tabla__grupo"><td colSpan={8}>{semana.sector || 'Sin sector'}</td></tr>}
           <tr><td><Button tamano="sm" variante="ghost" aria-expanded={abierta} aria-label={`${abierta ? 'Ocultar' : 'Mostrar'} detalle de ${semana.usuario}`} onClick={() => onAlternar(clave)}>{abierta ? '−' : '+'}</Button></td>

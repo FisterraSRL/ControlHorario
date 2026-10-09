@@ -1,4 +1,6 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { FiltrosPersonas } from '../../personas/FiltrosPersonas.js';
+import { useFiltroPersonas } from '../../personas/filtro.js';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import type { NotificacionPersona } from '../../../notificaciones/index.js';
 import { snapshotDe } from '../../../notificaciones/envios.js';
@@ -34,10 +36,13 @@ export function NotificacionesContainer() {
   const { paraElMotor } = useConfiguracion();
   const { rango } = usePeriodo();
 
-  const personas = useMemo(
+  const todasLasPersonas = useMemo(
     () => agruparFaltasPorPersona(registros, paraElMotor, rango),
     [registros, paraElMotor, rango],
   );
+
+  const filtros = useFiltroPersonas(todasLasPersonas);
+  const personas = filtros.personas;
 
   // All current days are needed for selection, including when a person's detail is closed.
   const dias = useMemo(
@@ -45,6 +50,7 @@ export function NotificacionesContainer() {
     [personas],
   );
   const [seleccionadas, setSeleccionadas] = useState<SeleccionDias>(() => new Map());
+  useEffect(() => { setSeleccionadas(previas => seleccionVisible(previas, dias)); }, [dias]);
   const vigentes = useMemo(() => seleccionVisible(seleccionadas, dias), [dias, seleccionadas]);
 
   // Raw, like Horas: the screen only ever sees `abiertas`, and every toggle starts from that
@@ -137,6 +143,8 @@ export function NotificacionesContainer() {
     <>
       {preparadas > 0 && <Alert tono="ok">{preparadas} documento(s) preparados. <Link to="/envios">Ver documentos preparados</Link></Alert>}
     <NotificacionesScreen
+      filtros={<FiltrosPersonas {...filtros} onCambio={(filtro) => { filtros.setFiltro(filtro); setSeleccionadas(new Map()); }} />}
+      sinCoincidencias={filtros.sinCoincidencias}
       personas={personas}
       seleccionadas={vigentes}
       abiertas={abiertas}
