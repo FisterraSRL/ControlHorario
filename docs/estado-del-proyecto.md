@@ -101,9 +101,14 @@ two PNG attachments (68 and 70 bytes). Counts and SHA256 fingerprints of all six
 tables matched the pre-test baseline after excluding only the fictional row, its related
 records, and its exclusive import. Temporary exact-IP firewall rules were removed and
 their removal was verified. No real absence was selected or classified.
-Removal of the two test attachments and the fictional import is pending confirmation
-for permanent deletion through the browser. The exact-key SQL cleanup refuses to proceed
-while synthetic attachments remain, and preserves audit events.
+Cleanup completed after explicit confirmation: both test attachments were removed through
+the application, then a guarded transaction deleted only the fictional day and its exclusive
+import; its classification was removed by cascade. No synthetic records remain. All six
+complete tables, without exclusions, match their original counts and SHA256 fingerprints:
+1,194 stored days, 100 classifications, three original attachments, seven imports, zero
+employees, and one notified-absence record. Audit events were retained. The temporary
+exact-IP firewall rule was removed and its removal verified. Authenticated UI reload
+confirmed the fictional identity disappeared and the history returned to 1,194 days.
 
 Rollback: revert this frontend unit and republish. Saved classifications and attachments
 remain compatible with the existing API.
