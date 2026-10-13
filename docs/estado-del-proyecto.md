@@ -5,7 +5,7 @@ Actualizado: 13 de octubre de 2026.
 Este documento permite continuar el trabajo sin depender del historial de una conversación.
 Antes de actuar, comprobar siempre `git status`, `git log -5` y el estado real de producción.
 
-## Explicit parameter saving (implemented locally, 2026-10-13)
+## Explicit parameter saving (published and safely verified, 2026-10-13)
 
 The four numerical settings in Configuración now share a draft with explicit «Guardar»
 and «Cancelar» actions. Editing or leaving a field never writes. Cancel restores the
@@ -45,12 +45,49 @@ the parameter form. At 390px, fractional count validation, cancellation, and a s
 fictional save passed; the two actions had 44px targets and the page had no horizontal
 overflow. Screenshots were saved outside the repository and the fixture server was stopped.
 
-Authenticated production verification was read-only: fresh page reads before and after
-the local checks showed unchanged real parameters (51 weekly hours, 35 break minutes,
-5 tolerance minutes, and one forgiven tardiness). No production field, save action, API
-write, or SQL operation was exercised. The original route and browser viewport were
-restored. This unit is committed on `codex/configuracion-guardado-explicito` and has not
-been published; its new save path has only been exercised locally with fictional values.
+The initial authenticated production check used only fresh reads before and after the
+local checks; real parameters remained 51 weekly hours, 35 break minutes, 5 tolerance
+minutes, and one forgiven tardiness. The implementation commit
+`34fc86d1626d6233d4a2a5e3848275dba9850999` was subsequently published by successful
+Production deployment `7041003052`.
+
+The production smoke uncovered an existing 320px minimum width in the sector-card grid.
+At an actual CSS viewport width of 312px it forced document scrolling to 361px. The
+one-line responsive correction caps that minimum at the available container width;
+desktop columns retain their original 320px threshold. Commit
+`593ca3751ec654291c937d45facad2e00a4246ea` published this correction through successful
+Production deployment `7041120732`. Typecheck, all 786 tests in 56 files, and the
+production build passed again after the correction. The public assets match the build
+using the production API base byte for byte:
+
+- `/assets/index-DDfb_ECy.js`: 786,406 bytes, SHA256
+  `F5F0FECC0400B6196E36A6D3D087B863ED7F069CFE20C87EB9069240A1C6A765`.
+- `/assets/index-DJu9q8FX.css`: 32,597 bytes, SHA256
+  `11470EF72FFAF95AFFDE93A9A8FC3262047685CB3F2D9BB7C28E97093E554497`.
+
+Authenticated production verification exercised only drafts, cancellation, client-side
+validation, and a numerically unchanged save that does not call the repository. Initial
+Guardar/Cancelar actions were disabled. Editing weekly hours and break minutes and then
+leaving a field displayed unsaved changes; Cancel restored all four persisted values.
+Empty input, fractional whole-number settings, negative minutes, excess forgiven
+tardiness, and nonnumeric text displayed their linked field errors with `aria-invalid`
+and `aria-describedby`. Clicking Guardar with invalid values retained the draft and
+errors without a success acknowledgement; Cancel cleared them. A `51,0` weekly-hours
+draft normalized to `51` and returned to the unchanged state without a write or success
+acknowledgement.
+
+Final responsive checks passed at measured CSS widths of 312px, 390px, and 1440px. The
+narrow layouts had no document-level horizontal overflow after the sector-card fix;
+the parameter actions remained usable with 44px targets. Mobile invalid-save blocking
+and cancellation passed; at 390px an edited valid draft was cancelled without saving.
+Desktop simultaneously displayed four linked errors, blocked the invalid save, and
+restored the persisted values through Cancel. Fresh reloads returned the original
+51/35/5/1 values before and after these checks. No valid changed draft was submitted,
+no production parameter write or SQL operation occurred, and no API deployment was
+needed. API health returned `ok: true`. Successful persistence, rejection/retry, and
+success confirmations were verified only by the automated checks and the isolated
+local fixture with fictional values described above. Production screenshots were saved
+outside the repository; the viewport and original notification route were restored.
 
 ## Collapsible navigation for narrow screens (published and verified, 2026-10-13)
 
