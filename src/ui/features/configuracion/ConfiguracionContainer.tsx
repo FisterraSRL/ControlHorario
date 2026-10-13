@@ -4,13 +4,13 @@
  * and hands plain rows to the screen.
  */
 
-import { useCallback, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useSyncExternalStore } from 'react';
 
 import { useAusencias } from '../../ausencias/AusenciasProvider.js';
 import { useConfiguracion } from '../../configuracion/ConfiguracionProvider.js';
-import type { ParametrosConfiguracion } from '../../configuracion/RepositorioConfiguracion.js';
 import { useHistorial } from '../../historial/HistorialProvider.js';
 import { ConfiguracionScreen } from './ConfiguracionScreen.js';
+import { crearEditorParametros } from './editorParametros.js';
 import {
   filasDeExclusion,
   filasDeSector,
@@ -34,6 +34,11 @@ export function ConfiguracionContainer() {
   } = useConfiguracion();
 
   const { recargar: recargarAusencias } = useAusencias();
+  const editor = useMemo(() => crearEditorParametros(guardarParametros), [guardarParametros]);
+  const estadoParametros = useSyncExternalStore(editor.suscribir, editor.leer, editor.leer);
+  useEffect(() => {
+    editor.recibir(configuracion?.parametros ?? null);
+  }, [editor, configuracion?.parametros]);
 
   /**
    * Creating or retiring a motivo re-derives the absence registry on the server, because the
@@ -69,7 +74,7 @@ export function ConfiguracionContainer() {
     <ConfiguracionScreen
       cargando={cargando}
       error={error}
-      parametros={configuracion?.parametros ?? null}
+      estadoParametros={estadoParametros}
       sectores={sectores}
       motivos={configuracion?.motivos ?? []}
       exclusiones={exclusiones}
@@ -77,9 +82,9 @@ export function ConfiguracionContainer() {
       onSector={(sector, fichadasRequeridas) => {
         void guardarReglaSector(sector, fichadasRequeridas);
       }}
-      onParametro={(campo: keyof ParametrosConfiguracion, valor: number) => {
-        void guardarParametros({ [campo]: valor });
-      }}
+      onParametro={editor.editar}
+      onGuardarParametros={() => { void editor.guardar(); }}
+      onCancelarParametros={editor.cancelar}
       onMotivoWorked={(id, worked) => {
         void editarMotivo(id, worked);
       }}

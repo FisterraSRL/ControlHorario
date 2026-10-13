@@ -12,7 +12,7 @@
  * decide who gets a disciplinary letter.
  */
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 
 import type { ConfiguracionFichadas, Motivo } from '../../domain/fichadas/index.js';
@@ -21,7 +21,9 @@ import { useSesion } from '../sesion/SesionProvider.js';
 import type {
   ConfiguracionGuardada,
   ParametrosConfiguracion,
+  ResultadoParametros,
 } from './RepositorioConfiguracion.js';
+import { guardarParametrosConfirmados } from './guardarParametros.js';
 
 interface ContextoConfiguracion {
   readonly configuracion: ConfiguracionGuardada | null;
@@ -29,7 +31,7 @@ interface ContextoConfiguracion {
   readonly paraElMotor: ConfiguracionFichadas;
   readonly cargando: boolean;
   readonly error: string | null;
-  guardarParametros(cambios: Partial<ParametrosConfiguracion>): Promise<void>;
+  guardarParametros(cambios: Partial<ParametrosConfiguracion>): Promise<ResultadoParametros>;
   guardarReglaSector(sector: string, fichadasRequeridas: number): Promise<void>;
   /**
    * `true` when the motivo was created. Reported rather than thrown, like
@@ -58,6 +60,8 @@ const MOTOR_VACIO: ConfiguracionFichadas = {};
 export function ConfiguracionProvider({ children }: { readonly children: ReactNode }) {
   const { repositorios, expirar } = useSesion();
   const repo = repositorios.configuracion;
+  const repositorioVigente = useRef(repo);
+  repositorioVigente.current = repo;
 
   const [configuracion, setConfiguracion] = useState<ConfiguracionGuardada | null>(null);
   const [cargando, setCargando] = useState(true);
@@ -83,6 +87,9 @@ export function ConfiguracionProvider({ children }: { readonly children: ReactNo
 
   useEffect(() => {
     let vigente = true;
+    setConfiguracion(null);
+    setCargando(true);
+    setError(null);
     repo
       .leer()
       .then((c) => {
@@ -113,15 +120,16 @@ export function ConfiguracionProvider({ children }: { readonly children: ReactNo
 
   const guardarParametros = useCallback(
     async (cambios: Partial<ParametrosConfiguracion>) => {
-      setError(null);
-      try {
-        const parametros = await repo.guardarParametros(cambios);
-        aplicar((previa) => ({ ...previa, parametros }));
-      } catch (e: unknown) {
-        manejar(e);
+      const resultado = await guardarParametrosConfirmados(repo, cambios, (e) => {
+        if (repo === repositorioVigente.current && e instanceof ErrorNoAutenticado) expirar();
+      });
+      if (repo !== repositorioVigente.current) {
+        return { ok: false, error: 'La sesión cambió. Volvé a cargar los parámetros.' } as const;
       }
+      if (resultado.ok) aplicar((previa) => ({ ...previa, parametros: resultado.parametros }));
+      return resultado;
     },
-    [repo, aplicar, manejar],
+    [repo, aplicar, expirar],
   );
 
   const guardarReglaSector = useCallback(

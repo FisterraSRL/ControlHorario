@@ -57,9 +57,37 @@
 
 .config__parametros {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
   gap: var(--app-space-4);
   align-items: start;
+}
+
+.config__ayuda {
+  margin: var(--app-space-1) 0 0;
+  color: var(--app-muted);
+  font-size: var(--app-text-sm);
+}
+
+.config__error-campo {
+  margin: var(--app-space-1) 0 0;
+  color: var(--app-danger);
+  font-size: var(--app-text-sm);
+}
+
+.config__acciones-parametros {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--app-space-3);
+  margin-top: var(--app-space-4);
+}
+
+.config__acciones-parametros .btn {
+  min-height: 44px;
+}
+
+.config__resultado-parametros {
+  margin-top: var(--app-space-3);
 }
 
 /* --- Exclusions ------------------------------------------------------------- */

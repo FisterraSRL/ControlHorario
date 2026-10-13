@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useId, useState } from 'react';
 
 import type { Motivo } from '../../../domain/fichadas/index.js';
 import { Button } from '../../components/atoms/Button/Button.js';
@@ -10,20 +10,22 @@ import { Alert } from '../../components/molecules/Alert/Alert.js';
 import { Card } from '../../components/molecules/Card/Card.js';
 import { SegmentedControl } from '../../components/molecules/SegmentedControl/SegmentedControl.js';
 import { FilaVacia, Table } from '../../components/molecules/Table/Table.js';
-import type { ParametrosConfiguracion } from '../../configuracion/RepositorioConfiguracion.js';
+import { CAMPOS_PARAMETROS, parametrosModificados, type CampoParametro, type EstadoEditorParametros } from './editorParametros.js';
 import type { FilaExclusion, FilaSector, OpcionPersona } from './configuracion.js';
 import './configuracion.css';
 
 export interface ConfiguracionScreenProps {
   readonly cargando: boolean;
   readonly error: string | null;
-  readonly parametros: ParametrosConfiguracion | null;
+  readonly estadoParametros: EstadoEditorParametros;
   readonly sectores: readonly FilaSector[];
   readonly motivos: readonly Motivo[];
   readonly exclusiones: readonly FilaExclusion[];
   readonly excluibles: readonly OpcionPersona[];
   readonly onSector: (sector: string, fichadasRequeridas: number) => void;
-  readonly onParametro: (campo: keyof ParametrosConfiguracion, valor: number) => void;
+  readonly onParametro: (campo: CampoParametro, valor: string) => void;
+  readonly onGuardarParametros: () => void;
+  readonly onCancelarParametros: () => void;
   readonly onMotivoWorked: (id: number, worked: boolean) => void;
   readonly onMotivoNuevo: (label: string, worked: boolean) => void;
   readonly onMotivoRetirar: (id: number) => void;
@@ -35,13 +37,15 @@ export interface ConfiguracionScreenProps {
 export function ConfiguracionScreen({
   cargando,
   error,
-  parametros,
+  estadoParametros,
   sectores,
   motivos,
   exclusiones,
   excluibles,
   onSector,
   onParametro,
+  onGuardarParametros,
+  onCancelarParametros,
   onMotivoWorked,
   onMotivoNuevo,
   onMotivoRetirar,
@@ -52,7 +56,7 @@ export function ConfiguracionScreen({
     <>
       {error && (
         <div className="config__aviso">
-          <Alert tono="error" titulo="No se pudo guardar el cambio">
+          <Alert tono="error" titulo={estadoParametros.guardados ? "No se pudo guardar el cambio" : "No se pudo leer la configuración"}>
             {error}
           </Alert>
         </div>
@@ -62,7 +66,13 @@ export function ConfiguracionScreen({
           administrative setting, and every role needs it — including the ones that never
           get to open this screen. */}
       <SeccionSectores cargando={cargando} sectores={sectores} onSector={onSector} />
-      <SeccionParametros parametros={parametros} onParametro={onParametro} />
+      <SeccionParametros
+        estado={estadoParametros}
+        cargando={cargando}
+        onParametro={onParametro}
+        onGuardar={onGuardarParametros}
+        onCancelar={onCancelarParametros}
+      />
       <SeccionExclusiones
         exclusiones={exclusiones}
         excluibles={excluibles}
@@ -131,126 +141,79 @@ function SeccionSectores({
   );
 }
 
-interface CampoParametro {
-  readonly campo: keyof ParametrosConfiguracion;
-  readonly etiqueta: string;
-  readonly ayuda: string;
-  readonly maximo: number;
-  readonly paso: string;
-  /** Only whole numbers are committed; a decimal is discarded like any invalid value. */
-  readonly entero?: boolean;
-}
-
-const CAMPOS: readonly CampoParametro[] = [
-  {
-    campo: 'horasTurnoSemanales',
-    etiqueta: 'Horas de turno por semana',
-    ayuda: 'Las horas contractuales, iguales para todos. El legacy lo llamaba horasTurnoFixed.',
-    maximo: 168,
-    paso: '0.5',
-  },
-  {
-    campo: 'descansoMaxMin',
-    etiqueta: 'Descanso máximo (minutos)',
-    ayuda: 'Pasado este tiempo entre la salida y el reingreso, el día genera una falta de descanso.',
-    maximo: 24 * 60,
-    paso: '1',
-  },
-  {
-    campo: 'toleranciaMin',
-    etiqueta: 'Tolerancia de tardanza (minutos)',
-    ayuda: 'Minutos de demora que no generan una tardanza. Cero es tolerancia nula.',
-    maximo: 24 * 60,
-    paso: '1',
-  },
-  {
-    campo: 'tardanzasPerdonadasSemana',
-    etiqueta: 'Tardanzas perdonadas por semana',
-    ayuda: 'Las primeras tardanzas de cada persona en la semana (lunes a domingo) no cuentan como falta. Cero no perdona ninguna.',
-    maximo: 7,
-    paso: '1',
-    entero: true,
-  },
-];
-
 function SeccionParametros({
-  parametros,
+  estado,
+  cargando,
   onParametro,
+  onGuardar,
+  onCancelar,
 }: {
-  readonly parametros: ParametrosConfiguracion | null;
-  readonly onParametro: (campo: keyof ParametrosConfiguracion, valor: number) => void;
+  readonly estado: EstadoEditorParametros;
+  readonly cargando: boolean;
+  readonly onParametro: (campo: CampoParametro, valor: string) => void;
+  readonly onGuardar: () => void;
+  readonly onCancelar: () => void;
 }) {
+  const id = useId();
+  const modificado = parametrosModificados(estado);
   return (
     <Card
       titulo="Parámetros"
-      bajada="Los cuatro parámetros con los que el motor deriva las faltas y las horas. Cambiarlos vuelve a calcular todo el historial: las faltas nunca se guardan, se derivan en cada lectura."
+      bajada="Estos cuatro valores definen las faltas y las horas. Los cambios se aplican al historial sólo al guardar. Guardar y Cancelar corresponden a esta sección."
     >
-      {!parametros ? (
-        <p className="config__vacio">Leyendo la configuración…</p>
+      {!estado.borrador ? (
+        <p className="config__vacio">
+          {cargando ? 'Leyendo la configuración…' : 'No se pudieron cargar los parámetros. Recargá la página para volver a intentarlo.'}
+        </p>
       ) : (
-        <div className="config__parametros">
-          {CAMPOS.map((campo) => (
-            <CampoNumerico
-              key={campo.campo}
-              definicion={campo}
-              valor={parametros[campo.campo]}
-              onGuardar={(valor) => onParametro(campo.campo, valor)}
-            />
-          ))}
-        </div>
+        <form
+          noValidate
+          onSubmit={(e) => {
+            e.preventDefault();
+            onGuardar();
+          }}
+        >
+          <div className="config__parametros">
+            {CAMPOS_PARAMETROS.map((campo) => {
+              const error = estado.errores[campo.campo];
+              const ayudaId = `${id}-${campo.campo}-ayuda`;
+              const errorId = `${id}-${campo.campo}-error`;
+              return (
+                <div key={campo.campo}>
+                  <Input
+                    etiqueta={campo.etiqueta}
+                    mostrarEtiqueta
+                    valor={estado.borrador![campo.campo]}
+                    onCambio={(valor) => onParametro(campo.campo, valor)}
+                    disabled={estado.guardando}
+                    type="text"
+                    inputMode={campo.entero ? 'numeric' : 'decimal'}
+                    aria-invalid={!!error}
+                    aria-describedby={error ? `${ayudaId} ${errorId}` : ayudaId}
+                  />
+                  <p id={ayudaId} className="config__ayuda">{campo.ayuda}</p>
+                  {error && <p id={errorId} className="config__error-campo" role="alert">{error}</p>}
+                </div>
+              );
+            })}
+          </div>
+          <div className="config__acciones-parametros" aria-busy={estado.guardando}>
+            <Button type="submit" variante="primary" disabled={!modificado || estado.guardando}>
+              {estado.guardando ? 'Guardando…' : 'Guardar'}
+            </Button>
+            <Button onClick={onCancelar} disabled={!modificado || estado.guardando}>Cancelar</Button>
+            <span className="config__vacio" role="status">
+              {estado.guardando ? 'Esperá a que termine el guardado.' : modificado ? 'Cambios sin guardar.' : 'Sin cambios pendientes.'}
+            </span>
+          </div>
+          {estado.aviso && (
+            <div className="config__resultado-parametros">
+              <Alert tono={estado.aviso.tono}>{estado.aviso.texto}</Alert>
+            </div>
+          )}
+        </form>
       )}
     </Card>
-  );
-}
-
-/**
- * A number field that only writes when the value is valid and different.
- *
- * It keeps its own draft while it is being typed — a controlled field wired straight to the
- * server would fire a write per keystroke and fight the caret — and commits on blur or
- * Enter. An unparseable value never reaches the server and never silently becomes a
- * default, which is what the legacy `parseFloat(...) || 51` did.
- */
-function CampoNumerico({
-  definicion,
-  valor,
-  onGuardar,
-}: {
-  readonly definicion: CampoParametro;
-  readonly valor: number;
-  readonly onGuardar: (valor: number) => void;
-}) {
-  const [borrador, setBorrador] = useState<string | null>(null);
-  const mostrado = borrador ?? String(valor);
-
-  const confirmar = (): void => {
-    if (borrador === null) return;
-    const limpio = borrador.trim().replace(',', '.');
-    const n = Number(limpio);
-    setBorrador(null);
-    if (limpio === '' || !Number.isFinite(n) || n < 0 || n > definicion.maximo) return;
-    if (definicion.entero && !Number.isInteger(n)) return;
-    if (n !== valor) onGuardar(n);
-  };
-
-  return (
-    <Input
-      etiqueta={definicion.etiqueta}
-      mostrarEtiqueta
-      ayuda={definicion.ayuda}
-      valor={mostrado}
-      onCambio={setBorrador}
-      onBlur={confirmar}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter') e.currentTarget.blur();
-        if (e.key === 'Escape') setBorrador(null);
-      }}
-      type="number"
-      min={0}
-      max={definicion.maximo}
-      step={definicion.paso}
-      inputMode={definicion.entero ? 'numeric' : 'decimal'}
-    />
   );
 }
 

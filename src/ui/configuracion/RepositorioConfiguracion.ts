@@ -28,6 +28,10 @@ export interface ParametrosConfiguracion {
   readonly tardanzasPerdonadasSemana: number;
 }
 
+export type ResultadoParametros =
+  | { readonly ok: true; readonly parametros: ParametrosConfiguracion }
+  | { readonly ok: false; readonly error: string };
+
 export interface Exclusion {
   readonly dni: string;
   readonly motivoTexto: string | null;

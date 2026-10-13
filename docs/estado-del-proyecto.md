@@ -5,6 +5,53 @@ Actualizado: 13 de octubre de 2026.
 Este documento permite continuar el trabajo sin depender del historial de una conversación.
 Antes de actuar, comprobar siempre `git status`, `git log -5` y el estado real de producción.
 
+## Explicit parameter saving (implemented locally, 2026-10-13)
+
+The four numerical settings in Configuración now share a draft with explicit «Guardar»
+and «Cancelar» actions. Editing or leaving a field never writes. Cancel restores the
+latest persisted values and clears field errors. The screen explains that these actions
+apply to Parámetros; sector rules, exclusions, and absence reasons retain their existing
+behavior. Weekly hours accept decimal values and a decimal comma; the three count/minute
+settings require whole numbers, matching the existing API contract. Every field reports
+required, invalid, out-of-range, or fractional-count errors beside the input through
+`aria-invalid`, `aria-describedby`, and an alert. Invalid input remains available to fix.
+
+One explicit save sends only changed fields in the existing parameter PATCH. Inputs and
+both actions are disabled while it is pending, and repeat submissions cannot write again.
+Success appears only after the repository returns its authoritative values. A rejected
+save retains the draft and provides an explicit retry; editing clears an old success
+message. Numerically unchanged drafts cause no write or success acknowledgement. A failed
+initial read provides no parameter form or save action, preventing writes of guessed
+defaults. Fresh reads preserve edited fields, and stale save completions cannot revive a
+configuration that became unavailable. No API changes, migrations, or dependencies are
+required. Rollback is a frontend revert and republish.
+
+Typecheck, all 786 tests in 56 files, and the production build passed. The 23 new regressions
+cover draft ownership, cancellation, validation and limits, one changed-field write,
+authoritative responses, no-op saves, failure/retry, pending controls and duplicate saves,
+unavailable reads, fresh reads, stale completions, accessible error markup, and persistence
+acknowledgements. `git diff --check` passed.
+
+Browser verification used the real screen, responsive shell, draft controller, and
+persistence acknowledgement with fictional parameters in an isolated local fixture. Its
+Content Security Policy blocked external connections; persistence used only that fixture's
+browser storage. At 1440px, editing and blur caused zero writes; cancellation restored all
+four fictional values. Four simultaneous invalid values produced linked field errors and
+blocked saving. A simulated rejection retained the draft. A held retry disabled inputs and
+both buttons without announcing success, then saved the returned fictional values exactly
+once when released. A new edit cleared success, cancellation restored the saved values,
+and browser reload read back only those fictional settings. A simulated read failure hid
+the parameter form. At 390px, fractional count validation, cancellation, and a successful
+fictional save passed; the two actions had 44px targets and the page had no horizontal
+overflow. Screenshots were saved outside the repository and the fixture server was stopped.
+
+Authenticated production verification was read-only: fresh page reads before and after
+the local checks showed unchanged real parameters (51 weekly hours, 35 break minutes,
+5 tolerance minutes, and one forgiven tardiness). No production field, save action, API
+write, or SQL operation was exercised. The original route and browser viewport were
+restored. This unit is committed on `codex/configuracion-guardado-explicito` and has not
+been published; its new save path has only been exercised locally with fictional values.
+
 ## Collapsible navigation for narrow screens (published and verified, 2026-10-13)
 
 At widths up to and including 900px, a compact Fisterra bar exposes a «Menú» disclosure.
