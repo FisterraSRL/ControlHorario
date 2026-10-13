@@ -18,13 +18,14 @@ export interface ItemSidebar {
 export interface SidebarProps {
   readonly items: readonly ItemSidebar[];
   readonly rutaActiva: string;
+  readonly onNavigate?: () => void;
 }
 
 /**
  * Presentational. It is handed the items and the active route; it does not know what a
  * fichada is and it does not compute a count.
  */
-export function Sidebar({ items, rutaActiva }: SidebarProps) {
+export function Sidebar({ items, rutaActiva, onNavigate }: SidebarProps) {
   return (
     <nav className="sidebar" aria-label="Secciones">
       <div className="sidebar__brand">
@@ -41,6 +42,11 @@ export function Sidebar({ items, rutaActiva }: SidebarProps) {
                 to={item.path}
                 className={`sidebar__item${activo ? ' sidebar__item--activo' : ''}`}
                 aria-current={activo ? 'page' : undefined}
+                onClick={(event) => {
+                  if (event.button === 0 && !event.ctrlKey && !event.metaKey && !event.shiftKey && !event.altKey) {
+                    onNavigate?.();
+                  }
+                }}
               >
                 <Icon nombre={item.icono} />
                 <span className="sidebar__label">{item.label}</span>

@@ -128,3 +128,68 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+@media (max-width: 900px) {
+  .topbar {
+    padding: var(--app-space-3) var(--app-space-4);
+    gap: var(--app-space-2) var(--app-space-3);
+  }
+
+  .topbar__titulo {
+    flex: 1 1 auto;
+    overflow-wrap: anywhere;
+  }
+
+  .topbar__cuenta {
+    flex: 0 1 auto;
+    min-width: 0;
+  }
+
+  .topbar__operador {
+    max-width: 14ch;
+  }
+
+  .topbar__cuenta .btn {
+    min-height: 44px;
+  }
+
+  .topbar__periodo {
+    order: 1;
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .topbar__periodo .segmented__opcion {
+    min-height: 44px;
+  }
+
+  .topbar__navegacion {
+    max-width: 100%;
+    gap: var(--app-space-1);
+  }
+
+  .topbar__paso {
+    width: 44px;
+    height: 44px;
+    flex-shrink: 0;
+  }
+
+  .topbar__selector {
+    min-width: 0;
+  }
+
+  .topbar__ancla {
+    height: auto;
+    min-height: 44px;
+    min-width: 0;
+    white-space: normal;
+  }
+
+  .topbar__ancla .icon {
+    flex-shrink: 0;
+  }
+
+  .topbar__rango {
+    white-space: normal;
+  }
+}

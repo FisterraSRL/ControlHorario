@@ -5,6 +5,42 @@ Actualizado: 13 de octubre de 2026.
 Este documento permite continuar el trabajo sin depender del historial de una conversación.
 Antes de actuar, comprobar siempre `git status`, `git log -5` y el estado real de producción.
 
+## Collapsible navigation for narrow screens (implemented locally, 2026-10-13)
+
+At widths up to and including 900px, a compact Fisterra bar exposes a «Menú» disclosure.
+The existing section list starts closed and expands inline, keeping current-page state,
+role restrictions, and pending counts. Selecting a section (including the current one),
+changing the route, or pressing Escape closes it. Native `hidden` removes closed links
+from keyboard and accessibility traversal; closing and breakpoint changes move focus out
+of controls that become hidden. Modified clicks retain normal link behavior.
+
+Above 900px the existing 248px sidebar remains visible. Narrow-screen section links,
+period controls, and logout have 44px touch targets. The date selector and range label wrap
+within the available width, and the account remains usable. This unit changes only the
+frontend shell and responsive styles; repositories, roles, counts, and business data are
+unchanged. No new dependencies, API deployment, or migration are required.
+
+Four component regressions cover closed/open disclosure semantics, a persistent desktop
+rail, and restricted role navigation. Typecheck, all 763 tests in 54 files, and the production
+build passed.
+
+Local browser verification passed at 390×844 and 360×740: initial disclosure state,
+opening all permitted sections, 44px navigation targets, Escape with focus restoration,
+Tab skipping hidden links, closing after a route choice or choosing the current section,
+and a calendar contained within the viewport. The full application had no document-level
+horizontal overflow. At 1440×900 the 248px sidebar remained visible, the menu toggle was
+absent, and navigation still worked. The 900px boundary switches to compact navigation;
+crossing it in both directions preserves usable focus.
+
+A separate local fixture bundled the real shell, sidebar, and topbar with a fictional
+74-character account name and a long selected date range. At 360px its account, logout,
+44px period controls, and calendar stayed within the viewport. Date arrows changed the
+fictional range, and logout closed only that fixture's fictional session. Desktop layout
+and focus restoration at the breakpoint also passed in this fixture. Neither local smoke
+connected to production or changed real data. Screenshots were saved outside the repository.
+This unit has not been published.
+Rollback is a frontend revert and republish.
+
 ## Vista previa de importación (publicada; verificación de vista previa 2026-10-13)
 
 - Elegir el Excel sólo lo lee y lo compara con el historial disponible. La escritura se

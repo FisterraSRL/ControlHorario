@@ -11,6 +11,48 @@
   min-width: 0;
 }
 
+.shell__mobile-bar {
+  display: none;
+}
+
+.shell__navigation[hidden],
+.shell__mobile-bar[hidden] {
+  display: none;
+}
+
+.shell__navigation > .sidebar {
+  min-height: 100%;
+}
+
+.shell__menu-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--app-space-2);
+  min-height: 44px;
+  padding: var(--app-space-2) var(--app-space-3);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius);
+  background: var(--app-surface);
+  color: var(--app-ink);
+  font: inherit;
+  font-weight: var(--fs-weight-semibold);
+  cursor: pointer;
+}
+
+.shell__menu-toggle:hover {
+  background: var(--app-surface-2);
+}
+
+.shell__menu-toggle svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+}
+
 .shell__content {
   display: flex;
   flex-direction: column;
@@ -21,11 +63,26 @@
   margin: 0 auto;
 }
 
-/* This is a desktop operational tool. The single-column fallback exists so a narrow window
-   stays usable, not because anyone runs it on a phone. */
+/* Keep the full desktop rail; narrow viewports opt into a compact disclosure. */
 @media (max-width: 900px) {
   .shell {
     grid-template-columns: minmax(0, 1fr);
+    align-content: start;
+  }
+
+  .shell__mobile-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--app-space-3);
+    padding: var(--app-space-2) var(--app-space-4);
+    background: var(--app-surface);
+    border-bottom: 1px solid var(--app-border);
+  }
+
+  .shell__mobile-brand {
+    width: 132px;
+    align-self: center;
   }
 
   .shell__content {

@@ -64,7 +64,7 @@
   white-space: nowrap;
 }
 
-/* Below a laptop width the sidebar becomes a horizontal strip above the content. */
+/* The shell controls disclosure; a vertical list keeps touch targets predictable. */
 @media (max-width: 900px) {
   .sidebar {
     border-right: none;
@@ -73,15 +73,11 @@
   }
 
   .sidebar__brand {
-    padding-bottom: var(--app-space-3);
-  }
-
-  .sidebar__lista {
-    flex-direction: row;
-    flex-wrap: wrap;
+    display: none;
   }
 
   .sidebar__item {
-    padding: var(--app-space-2);
+    min-height: 44px;
+    padding: var(--app-space-2) var(--app-space-3);
   }
 }

@@ -92,7 +92,10 @@ export function AppLayout() {
 
   return (
     <AppShell
-      sidebar={<Sidebar items={items} rutaActiva={seccion?.path ?? pathname} />}
+      navigationKey={pathname}
+      sidebar={(onNavigate) => (
+        <Sidebar items={items} rutaActiva={seccion?.path ?? pathname} onNavigate={onNavigate} />
+      )}
       topbar={
         <Topbar<ModoPreset>
           titulo={seccion?.titulo ?? 'Control de Fichadas'}
