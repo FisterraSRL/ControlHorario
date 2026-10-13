@@ -16,7 +16,8 @@
  */
 
 export interface Adjunto {
-  readonly id: number;
+  /** Azure SQL `bigint`, preserved as text across JSON and UI boundaries. */
+  readonly id: string;
   readonly dni: string;
   /** `YYYY-MM-DD`. */
   readonly fecha: string;
@@ -35,6 +36,6 @@ export interface RepositorioAdjuntos {
   listar(): Promise<readonly Adjunto[]>;
   /** `fechaStr` is the raw `DD/MM/YYYY` cell, which is what the screen has in hand. */
   subir(dni: string, fechaStr: string, archivo: File): Promise<Adjunto>;
-  descargar(id: number): Promise<Blob>;
-  eliminar(id: number): Promise<void>;
+  descargar(id: string): Promise<Blob>;
+  eliminar(id: string): Promise<void>;
 }

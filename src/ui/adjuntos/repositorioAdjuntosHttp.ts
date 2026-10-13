@@ -1,15 +1,22 @@
 import { esObjeto, pedir, pedirJson } from '../http.js';
 import type { Adjunto, RepositorioAdjuntos } from './RepositorioAdjuntos.js';
 
-function esAdjunto(valor: unknown): valor is Adjunto {
+function esDatosAdjunto(valor: unknown): valor is Omit<Adjunto, 'id'> & { id: unknown } {
   return (
     esObjeto(valor) &&
-    typeof valor['id'] === 'number' &&
     typeof valor['dni'] === 'string' &&
     typeof valor['fecha'] === 'string' &&
     typeof valor['nombre'] === 'string' &&
     typeof valor['bytes'] === 'number'
   );
+}
+
+function leerAdjunto(valor: unknown): Adjunto | null {
+  if (!esDatosAdjunto(valor)) return null;
+  const id = typeof valor.id === 'string' ? valor.id :
+    typeof valor.id === 'number' && Number.isSafeInteger(valor.id) ? String(valor.id) : null;
+  // Never pass a bigint through Number: attachment URLs must preserve every digit.
+  return id !== null && /^[1-9][0-9]{0,18}$/.test(id) ? { ...valor, id } : null;
 }
 
 export function crearRepositorioAdjuntosHttp(base: string): RepositorioAdjuntos {
@@ -23,7 +30,7 @@ export function crearRepositorioAdjuntosHttp(base: string): RepositorioAdjuntos 
       if (!esObjeto(cuerpo) || !Array.isArray(cuerpo['adjuntos'])) {
         throw new Error('El servidor devolvió los adjuntos en un formato inesperado.');
       }
-      return cuerpo['adjuntos'].filter(esAdjunto);
+      return cuerpo['adjuntos'].map(leerAdjunto).filter((adjunto): adjunto is Adjunto => adjunto !== null);
     },
 
     async subir(dni, fechaStr, archivo) {
@@ -36,10 +43,11 @@ export function crearRepositorioAdjuntosHttp(base: string): RepositorioAdjuntos 
       // No `content-type` header: the browser has to set it, because only the browser knows
       // the multipart boundary it just generated.
       const cuerpo = await pedirJson(raiz, { method: 'POST', body: formulario });
-      if (!esObjeto(cuerpo) || !esAdjunto(cuerpo['adjunto'])) {
+      const adjunto = esObjeto(cuerpo) ? leerAdjunto(cuerpo['adjunto']) : null;
+      if (adjunto === null) {
         throw new Error('El archivo se envió pero el servidor no informó cómo lo guardó.');
       }
-      return cuerpo['adjunto'];
+      return adjunto;
     },
 
     async descargar(id) {

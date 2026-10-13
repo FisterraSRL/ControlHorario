@@ -70,7 +70,8 @@ access for retry. Dismissal and reason changes are disabled while that row's att
 are being written. Existing repository, session, upload and error handling are reused;
 there are no API changes, database migrations, or new dependencies.
 
-Automated checks: typecheck, 742 tests in 52 files, and production build. Twelve new
+Automated checks for the recent-classifications unit: typecheck, 742 tests in 52 files,
+and production build. Twelve new
 regressions cover retention, batches, failures, stale completions, live attachment lists,
 busy controls, and avoiding duplicate panels in the all-absences view. Publication and
 authenticated production validation are still pending.
@@ -80,6 +81,16 @@ classification (three pending to two), «Listo» dismissal, batch classification
 zero, both recent panels retained), unclassification (back to one pending), and clearing
 recent panels on a person-filter change. Attachment uploads were not executed: the local
 adapter intentionally disables them. Production data was not modified.
+
+The first authenticated production upload with a fictional absence saved the file but
+revealed that the frontend rejected Azure SQL's string `bigint` attachment identifier.
+The attachment port now uses string identifiers, and the HTTP adapter preserves them on
+upload and list responses. Safe numeric legacy identifiers are normalized at that boundary;
+malformed and unsafe numeric identifiers are rejected. Download and delete URLs retain
+large identifiers without rounding. Seventeen HTTP regressions cover this contract;
+typecheck, all 759 tests in 53 files, and the production build passed.
+This frontend correction requires no API deployment or migration. Publication and the
+repeat production smoke check are pending.
 
 Rollback: revert this frontend unit and republish. Saved classifications and attachments
 remain compatible with the existing API.

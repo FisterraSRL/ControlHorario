@@ -56,7 +56,7 @@ describe('attachments after classification', () => {
   });
 
   it('shows uploaded attachments in the retained panel with download and removal actions', () => {
-    const adjunto = { id: 1, dni: 'TEST', fecha: '2026-10-12', nombre: 'prueba.pdf', bytes: 20, tipoMime: 'application/pdf', subidoPor: null, subidoAt: '2026-10-12T10:00:00Z' };
+    const adjunto = { id: '1', dni: 'TEST', fecha: '2026-10-12', nombre: 'prueba.pdf', bytes: 20, tipoMime: 'application/pdf', subidoPor: null, subidoAt: '2026-10-12T10:00:00Z' };
     const html = render({ recientes: [{ ...clasificada, adjuntos: [adjunto] }] });
     expect(html).toContain('prueba.pdf');
     expect(html).toContain('Descargar');

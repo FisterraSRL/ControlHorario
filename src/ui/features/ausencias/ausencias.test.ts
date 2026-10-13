@@ -71,7 +71,7 @@ describe('recent classification context', () => {
   });
 
   it('derives current classified records and attachments without including pending or filtered days', () => {
-    const adjunto = { id: 1, dni: '1', fecha: '2026-01-05', nombre: 'prueba.pdf', bytes: 20, tipoMime: 'application/pdf', subidoPor: null, subidoAt: '2026-01-05T10:00:00Z' };
+    const adjunto = { id: '1', dni: '1', fecha: '2026-01-05', nombre: 'prueba.pdf', bytes: 20, tipoMime: 'application/pdf', subidoPor: null, subidoAt: '2026-01-05T10:00:00Z' };
     const actualizada = { ...A, motivoId: 4, adjuntos: [adjunto] };
     const recientes = filasRecientes(new Set([A.clave, B.clave, C.clave]), [actualizada, B]);
     expect(recientes).toEqual([actualizada]);
