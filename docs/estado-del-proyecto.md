@@ -5,7 +5,7 @@ Actualizado: 13 de octubre de 2026.
 Este documento permite continuar el trabajo sin depender del historial de una conversación.
 Antes de actuar, comprobar siempre `git status`, `git log -5` y el estado real de producción.
 
-## Confirming sensitive user actions (implemented locally, 2026-10-13)
+## Confirming sensitive user actions (published and safely verified, 2026-10-13)
 
 Desactivar and Restablecer contraseña now open a native modal dialog identifying the
 chosen account and the exact effect. Cancel is initially focused; Cancel or Escape causes
@@ -36,21 +36,49 @@ cancellation a fresh successful reset invoked once. All operations affected fict
 only. Screenshots were saved outside the repository. Rollback is a frontend revert and
 republish of this unit; existing account data and credentials need no conversion.
 
-## Next release and optional work
+Authenticated production verification opened deactivation and password-reset confirmations
+without confirming any action. The dialogs identified the selected account and effect,
+initially focused Cancel, and closed through Cancel or Escape with trigger-focus restoration.
+Other-account reset explained session revocation; own-account reset explained preservation
+of the current administrator's sessions. Mobile deactivation cancellation also passed.
+The same five accounts and their states were present after a fresh reload. No account was
+deactivated, no password was reset, and no temporary credential was generated. Confirmed
+actions, failure/retry and pending-operation behavior remain verified through automated
+checks and the isolated fictional fixture above.
 
-The branch codex/mejoras-horas-historial-usuarios contains the three recommended usable
-units: separate hour components, complete-history filtering, and user-action confirmation.
-They are implemented and locally verified; none is published. Existing production hour
-samples were reconciled through authenticated reads, with no production data changes.
-The immediate remaining step is publication and safe production verification. Release the
-history API first, then the frontend; check new history predicates through real authenticated
-reads, and exercise user confirmations by cancellation only. Do not classify absences,
-remove marks, reset passwords, or change real account states during that smoke.
+## Production release and optional work
 
-After those publication checks, the legacy estimated-hours mode remains optional product
+The three units from `codex/mejoras-horas-historial-usuarios` are published: separate hour
+components (`78f83bc`), complete-history filtering (`0aac4dc`), and user-action confirmation
+(`309ee3d`). The API was released first, without migrations, schema changes, app-setting
+changes, or real business-data writes. Azure deployment
+`7e535c5b-20c7-4ec3-b90a-811d1a64e68b` reached `RuntimeSuccessful`, with one successful
+instance and zero failures; Kudu confirmed active/status 4. Readback of the three packaged
+API modules matched the fresh compilation, including the new history SQL predicates.
+API health confirmed database connectivity with TLS and the same six applied migrations.
+
+Only after the API succeeded, `main` was fast-forwarded and pushed. Vercel Production
+deployment `7042592770` successfully published release commit
+`22984e2d26c4e98ba37431654bc3cebf4da63444`. Public assets match the production-base build:
+
+- `/assets/index-D5iUIYxQ.js`: 792,559 bytes, SHA256
+  `9114A6320CC35F76091050B51B2653EB5381A4886431D870B7571D7C74C52318`.
+- `/assets/index-B2e9c4Az.css`: 33,332 bytes, SHA256
+  `29CCEF00B099A95C3F48B265BD0D9B500EFCD67897AF9C145FC4DC5069B11F17`.
+
+Authenticated browser verification covered the live history predicates, real hour reports
+and CSV, and user confirmations through cancellation only. All three screens passed at
+measured CSS widths of 390px and 1440px without document-level horizontal overflow;
+wide tables retained local scrolling, and the user dialog remained inside the viewport.
+No import, classification, configuration update, document emission, mark removal, account
+state change, or password reset occurred. Existing document/CSV downloads were read-only.
+Production screenshots were saved outside the repository. The browser viewport and original
+notification route were restored, with its default period after a fresh reload.
+
+The legacy estimated-hours mode remains optional product
 work, requiring an explicit definition of how missing punches should be estimated.
 
-## Whole document-history filters (implemented locally, 2026-10-13)
+## Whole document-history filters (published and verified, 2026-10-13)
 
 The notification history now searches original snapshot person/DNI and sector, with
 inclusive document-date bounds and optional current-mark filters (Con faltas marcadas /
@@ -82,12 +110,21 @@ first 50 documents. Explicit failure/retry and a held obsolete response arriving
 new search passed. The table scrolled locally at 390px without document overflow, and
 1440px layout remained usable. Screenshots were saved outside the repository.
 
-This unit is not published. Publish the API before the frontend because the previous API
-rejects unknown filter fields. Rollback removes this unit's filter form/contract and read
+The API was published before the frontend because the previous API rejects unknown filter
+fields. Authenticated production reads executed the new Azure SQL predicates successfully.
+The existing immutable history had one document before and after the smoke. Searching by
+snapshot person and sector returned that same document. Reading the existing Word confirmed
+its original document date of 9 October 2026, independently of its emission date of 19 October.
+Inclusive bounds of 9 October through 9 October returned it. Sin faltas marcadas returned
+one result; Con faltas marcadas returned none. An inverted date range displayed validation
+instead of requesting results. Clearing filters restored the identical original document.
+No document was emitted and no mark was written or removed.
+
+Rollback removes this unit's filter form/contract and read
 predicates; publish a compatible frontend before reverting the API. Existing immutable
 snapshots, document downloads, and historical marks require no conversion.
 
-## Separate weekly hour components (implemented locally, 2026-10-13)
+## Separate weekly hour components (published and verified, 2026-10-13)
 
 Horas and its Excel-compatible CSV now show Trabajadas, Justificadas, and Total computable
 separately, in hours:minutes. Total computable remains worked plus justified minutes;
@@ -107,9 +144,16 @@ Authenticated production reads independently reconciled one existing full week:
 9:00 + 8:48 + 9:02 + 9:24 + 9:15 = 45:29 worked, against 51:00 turno, difference -5:31.
 A second existing week had no punches and a configured reason marked as computing hours:
 5 x 9:00 + 6:00 = 51:00 justified, total 51:00, difference 0:00. No classification,
-configuration, import, document generation, or SQL operation occurred. The production
-CSV download was not confirmed, and the new presentation has not been published.
-Screenshots were saved outside the repository. Rollback is a frontend revert and republish.
+configuration, import, document generation, or SQL operation occurred in that initial
+reconciliation. After publication, the authenticated September report contained 171 weekly
+records. Every original total, turno, break value and difference matched the pre-release
+read-only baseline. Every new worked-plus-justified sum matched its total, and every total
+minus turno matched its difference. The two worked/justified samples above retained their
+expected results. The actual production CSV download contained the same 171 records in
+the same person/week order; all six numeric columns matched the rendered report. CSV
+positive differences retain their existing format without a leading plus sign. These checks
+only read and downloaded existing data. Screenshots were saved outside the repository.
+Rollback is a frontend revert and republish.
 
 ## Explicit parameter saving (published and safely verified, 2026-10-13)
 
