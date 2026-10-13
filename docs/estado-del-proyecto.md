@@ -5,7 +5,7 @@ Actualizado: 13 de octubre de 2026.
 Este documento permite continuar el trabajo sin depender del historial de una conversación.
 Antes de actuar, comprobar siempre `git status`, `git log -5` y el estado real de producción.
 
-## Collapsible navigation for narrow screens (implemented locally, 2026-10-13)
+## Collapsible navigation for narrow screens (published and verified, 2026-10-13)
 
 At widths up to and including 900px, a compact Fisterra bar exposes a «Menú» disclosure.
 The existing section list starts closed and expands inline, keeping current-page state,
@@ -38,7 +38,29 @@ A separate local fixture bundled the real shell, sidebar, and topbar with a fict
 fictional range, and logout closed only that fixture's fictional session. Desktop layout
 and focus restoration at the breakpoint also passed in this fixture. Neither local smoke
 connected to production or changed real data. Screenshots were saved outside the repository.
-This unit has not been published.
+
+Production deployment `7039964454` successfully published commit
+`7eb1008eec162cc1695d1681aff2296f1e70ec7b`. The public asset
+`/assets/index-DoNZfedD.js` matches the build using the production API base byte for byte
+(782,878 bytes; SHA256 `7E593264F25EA39EC11E9DC2FF86142668D30BAB70E6B8EE81CEBFE5A844AA5B`).
+The API health endpoint returned `ok: true`; no API deployment or database operation was needed.
+
+Authenticated production verification passed at 390×844 and 360×740. The disclosure
+started closed, opened all ten permitted administrator sections with 44px targets, and
+closed on Escape, route selection, and selecting the current route. Escape and navigation
+restored focus to «Menú». Tab reached the first section while open and skipped hidden
+sections while closed. Logout remained visible with a 44px target; it was not activated.
+The 300px calendar remained inside the 360px viewport. Neither viewport had document-level
+horizontal overflow. A read-only September date selection showed real data in Horas.
+At 1440×900 the 248px sidebar remained visible, the menu toggle was absent, and navigation
+to Indicador worked. Crossing the 900px boundary in both directions restored focus to a
+visible control: «Menú» on compact layout and the active section on desktop.
+
+The Cargar history showed 1,194 stored days before and after the production smoke.
+Only navigation, disclosure, focus, viewport, and read-only date controls were exercised:
+no import, upload, classification, settings change, logout, deletion, or SQL operation was
+performed. Production screenshots were saved outside the repository, and the browser
+viewport and original route were restored after the check.
 Rollback is a frontend revert and republish.
 
 ## Vista previa de importación (publicada; verificación de vista previa 2026-10-13)
