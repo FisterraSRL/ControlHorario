@@ -1,8 +1,61 @@
 # Azure Deployment Plan
 
-> **Status:** Deployed — document-only notification history API update
+> **Status:** Deployed — application-only complete-history filters API release
 
 Generated: 2026-09-16
+
+## Complete-history filters application release — 2026-10-13
+
+Release the compatible history API before publishing the frontend units for separate hour
+components, history filtering, and sensitive-user-action confirmations. The user authorized
+this incremental release on the existing target; authenticated production checks must be
+read-only and account confirmations must be cancelled. No real classifications, settings,
+marks, account states, or passwords may be changed.
+
+### Validation proof
+
+- The final source candidate passed typecheck, 811 tests in 62 files, frontend build and
+  API build. Source unchanged since those checks; whitespace validation passed.
+- Fresh API compilation used `npm.cmd run build:api -- --outDir` into an initially absent
+  temporary release directory, excluding stale build files without deleting local files.
+- The frontend build used the existing production API base. Packaging verifies compiled
+  `CHARINDEX` predicates and the new route filter contract.
+- Azure CLI readback confirms the approved subscription and existing App Service target:
+  `controlhorario-fisterra`, `fisterrasrl_group`, original B1 plan, Running, Linux
+  `NODE|24-lts`, startup `npm run api`. Both remote-build flags remain false.
+- Preflight health reports `ok: true`, database reachable with TLS, and six migrations.
+- No IaC, Azure RBAC, policy, app-setting, dependency, or migration change is in scope;
+  provisioning, firewall changes and mutating SQL verification are inapplicable.
+- Existing production dependency lock is byte-identical to the current lock. Linux argon2
+  archive SHA512 matches package-lock integrity; the runtime binary matches that archive.
+- ZIP `controlhorario-20261013-historial-filtros.zip` contains 24,103,791 bytes and 10,275
+  entries, six migrations, production dependencies, frontend, and fresh compiled API.
+  SHA256: `a0aeedca29c1428b1dfce1e99fd8235305b8c210354bb7db61b2337f506941bb`.
+  Every entry was reopened and verified byte for byte; paths use forward slashes and no
+  environment files are included.
+
+### Deployment sequence
+
+1. Deploy the validated precompiled ZIP to the existing App Service.
+2. Wait for `RuntimeSuccessful`, confirm `/health`, and read back changed API module hashes.
+3. Only then fast-forward and push `main` to trigger Vercel.
+4. Confirm successful Vercel publication and matching public assets before authenticated
+   read-only browser verification. Record its actual scope separately from local fixtures.
+
+### API deployment proof
+
+- Deployment `7e535c5b-20c7-4ec3-b90a-811d1a64e68b` reached `RuntimeSuccessful`, with
+  one successful instance, zero failed instances, and no reported errors. Kudu confirms
+  complete, active, status 4. The deployment did not change app settings or infrastructure.
+- Restarted API health reports `ok: true`, database reachable with TLS, six applied
+  migrations and a reset uptime. No SQL migration or business-data write was performed.
+- Authorized readback of the deployed compiled modules matches the fresh package:
+  `repositorioEnvios.js` SHA256
+  `43EB83C4C8110D41C051A9E66B2DA151284685FA7A30C21D1C6F958911EE74C0`;
+  `rutasEnvios.js` SHA256
+  `4DEC0AC0BE5EF095E726415E7CFAF07DDFE7FA13EE612A81D64DA3D4EB09D783`;
+  `servidor.js` SHA256
+  `F235BFD6F4DF129EFDF88EF47EEF2B5939800994A8E945FE8EDB60C7336E59AF`.
 
 ## Document-only history update — 2026-10-06
 
