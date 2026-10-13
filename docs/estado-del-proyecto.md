@@ -54,7 +54,7 @@ exercised in this smoke check; automated and local checks above cover those beha
 Rollback: revert the import-preview unit and republish the frontend. No API changes or
 database migrations are required.
 
-## Attachments after classifying absences (implemented locally, 2026-10-13)
+## Attachments after classifying absences (published and verified, 2026-10-13)
 
 Successful single and batch classifications retain the affected days in a separate
 «Recién clasificadas» section while the pending-only filter is active. Each day keeps its
@@ -73,8 +73,7 @@ there are no API changes, database migrations, or new dependencies.
 Automated checks for the recent-classifications unit: typecheck, 742 tests in 52 files,
 and production build. Twelve new
 regressions cover retention, batches, failures, stale completions, live attachment lists,
-busy controls, and avoiding duplicate panels in the all-absences view. Publication and
-authenticated production validation are still pending.
+busy controls, and avoiding duplicate panels in the all-absences view.
 
 Browser smoke on the isolated local adapter with three fictional days passed single
 classification (three pending to two), «Listo» dismissal, batch classification (two to
@@ -89,8 +88,22 @@ upload and list responses. Safe numeric legacy identifiers are normalized at tha
 malformed and unsafe numeric identifiers are rejected. Download and delete URLs retain
 large identifiers without rounding. Seventeen HTTP regressions cover this contract;
 typecheck, all 759 tests in 53 files, and the production build passed.
-This frontend correction requires no API deployment or migration. Publication and the
-repeat production smoke check are pending.
+This frontend correction requires no API deployment or migration. Production deployment
+`7038957147` successfully published commit `519961d74519a595067e30a21eeefd9d5394c89c`.
+The public asset `index-PijQGhTa.js` matches the build, and API health returned `ok: true`.
+
+Authenticated production smoke used only one fictional identity on 22 September 2026.
+Classification changed its pending count from one to zero while retaining its attachment
+panel. The corrected upload displayed «Archivo adjuntado» and both test PNGs appeared in
+the list. «Listo» closed the recent panel; opening the saved absence in the all-absences
+view retained both attachments. SQL readback confirmed one fictional classification and
+two PNG attachments (68 and 70 bytes). Counts and SHA256 fingerprints of all six original
+tables matched the pre-test baseline after excluding only the fictional row, its related
+records, and its exclusive import. Temporary exact-IP firewall rules were removed and
+their removal was verified. No real absence was selected or classified.
+Removal of the two test attachments and the fictional import is pending confirmation
+for permanent deletion through the browser. The exact-key SQL cleanup refuses to proceed
+while synthetic attachments remain, and preserves audit events.
 
 Rollback: revert this frontend unit and republish. Saved classifications and attachments
 remain compatible with the existing API.
