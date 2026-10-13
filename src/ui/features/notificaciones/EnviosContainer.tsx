@@ -10,6 +10,8 @@ import { ErrorNoAutenticado } from '../../http.js';
 import { useNotificadas } from '../../notificaciones/NotificadasProvider.js';
 import { useSesion } from '../../sesion/SesionProvider.js';
 import './envios.css';
+import type { FiltrosHistorial } from '../../../notificaciones/filtrosHistorial.js';
+import { FiltrosHistorialForm } from './FiltrosHistorial.js';
 
 function descargar(doc: DocumentoGenerado): void {
   const url = URL.createObjectURL(new Blob([doc.bytes as Uint8Array<ArrayBuffer>], { type: MIME_DOCX }));
@@ -37,7 +39,9 @@ export function EnviosContainer({ historial = false }: { readonly historial?: bo
   const repo = repositorios.envios;
   const [pendientes, setPendientes] = useState<readonly DocumentoPendiente[]>([]);
   const [registro, setRegistro] = useState<HistorialEnvios>({ documentos: [], anteriores: [], hayMas: false });
-  const [pagina, setPagina] = useState(0);
+  // One query state prevents a filter change from loading the previous page first.
+  const [consulta, setConsulta] = useState<{ pagina: number; filtros: FiltrosHistorial }>({ pagina: 0, filtros: {} });
+  const { pagina, filtros } = consulta;
   const [revision, setRevision] = useState(0);
   const [cargando, setCargando] = useState(true);
   const [ocupado, setOcupado] = useState(false);
@@ -53,16 +57,17 @@ export function EnviosContainer({ historial = false }: { readonly historial?: bo
   useEffect(() => {
     let vigente = true;
     setCargando(true); setError(null);
+    if (historial) setRegistro({ documentos: [], anteriores: [], hayMas: false });
     const cargar = async () => {
       try {
-        if (historial) { const datos = await repo.historial(pagina); if (vigente) setRegistro(datos); }
+        if (historial) { const datos = await repo.historial(pagina, filtros); if (vigente) setRegistro(datos); }
         else { const datos = await repo.pendientes(); if (vigente) setPendientes(datos); }
       } catch (e) { if (vigente) fallo(e); }
       finally { if (vigente) setCargando(false); }
     };
     void cargar();
     return () => { vigente = false; };
-  }, [repo, historial, pagina, revision, fallo]);
+  }, [repo, historial, pagina, filtros, revision, fallo]);
   const accion = async (fn: () => Promise<void>) => {
     if (enVuelo.current) return;
     enVuelo.current = true; setOcupado(true); setError(null); setAviso(null);
@@ -101,15 +106,16 @@ export function EnviosContainer({ historial = false }: { readonly historial?: bo
       </tbody></Table>
     </Card> : <>
       <Card titulo="Historial de notificaciones" bajada="Las descargas del historial conservan el contenido y la fecha de emisión. Quitar marca de documento generado permite volver a preparar una falta y conserva el documento original.">
+        <FiltrosHistorialForm ocupado={ocupado} onAplicar={filtros => { setConfirmar(null); setConsulta({ pagina: 0, filtros }); }} />
         <Table etiqueta="Documentos emitidos"><thead><tr><th>Persona</th><th>Emisión</th><th>Días incluidos</th><th>Estado actual</th><th>Acciones</th></tr></thead><tbody>
-          {!registro.documentos.length && <FilaVacia columnas={5}>{cargando ? 'Cargando…' : 'No hay documentos emitidos en esta página.'}</FilaVacia>}
+          {!registro.documentos.length && <FilaVacia columnas={5}>{cargando ? 'Cargando…' : error ? 'No se pudo consultar el historial. Usá Actualizar para reintentar.' : Object.keys(filtros).length ? 'No hay documentos que coincidan con los filtros en esta página.' : 'No hay documentos emitidos en esta página.'}</FilaVacia>}
           {registro.documentos.map(d => <tr key={d.id}><td>{d.snapshot.usuario}<small className="envios__sub">{d.snapshot.dni}</small></td><td>{momento(d.emitidoAt)}</td><td><DetalleDocumento doc={d} /></td><td>{d.activas.length} de {clavesSnapshot(d.snapshot).length} faltas con marca de documento generado vigente<details><summary>Ver faltas</summary><ul className="envios__detalle">{clavesSnapshot(d.snapshot).map(c => {
             const activa = d.activas.find(m => idMarca(m) === idMarca(c));
             return <li key={idMarca(c)}>{c.fechaIso} · {META_FALTAS[c.tipo].label} {activa ? <Button tamano="sm" variante="ghost" disabled={bloqueado} onClick={() => setConfirmar([activa])}>Quitar marca de documento generado</Button> : '· Sin marca de esta emisión'}</li>;
           })}</ul></details></td><td><div className="envios__acciones"><Button disabled={bloqueado} onClick={() => void accion(async () => descargar(generarDocumentos([d], d.fechaDocumento)))}>Descargar Word</Button><Button disabled={bloqueado || !d.activas.length} onClick={() => setConfirmar(d.activas)}>Quitar todas las marcas</Button></div></td></tr>)}
         </tbody></Table>
       </Card>
-      <div className="envios__acciones"><Button disabled={bloqueado || pagina === 0} onClick={() => { setConfirmar(null); setPagina(p => p - 1); }}>Anterior</Button><span>Página {pagina + 1}</span><Button disabled={bloqueado || !registro.hayMas} onClick={() => { setConfirmar(null); setPagina(p => p + 1); }}>Siguiente</Button></div>
+      <div className="envios__acciones"><Button disabled={bloqueado || pagina === 0} onClick={() => { setConfirmar(null); setConsulta(q => ({ ...q, pagina: q.pagina - 1 })); }}>Anterior</Button><span>Página {pagina + 1}</span><Button disabled={bloqueado || !registro.hayMas} onClick={() => { setConfirmar(null); setConsulta(q => ({ ...q, pagina: q.pagina + 1 })); }}>Siguiente</Button></div>
     </>}
   </section>;
 }

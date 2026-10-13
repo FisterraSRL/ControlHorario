@@ -23,6 +23,14 @@ const rutas = [
   { method: 'POST' as const, url: '/api/envios/quitar-notificado', payload: { marcas: [] } },
 ];
 describe('queue routes', () => {
+  it('passes bounded history filters to the repository and rejects invalid ranges before reading', async () => {
+    const repo=espia(); app=await appConSesion(sesionDePrueba(),a=>registrarRutasEnvios(a,repo));
+    expect((await app.inject({method:'GET',url:'/api/envios/historial?pagina=2&busqueda=Persona&sector=Test&desde=2026-10-01&hasta=2026-10-02&marcas=sin'})).statusCode).toBe(200);
+    expect(repo.historial).toHaveBeenCalledWith(2,{busqueda:'Persona',sector:'Test',desde:'2026-10-01',hasta:'2026-10-02',marcas:'sin'});
+    vi.mocked(repo.historial).mockClear();
+    for(const query of ['desde=2026-02-30','desde=2026-10-02&hasta=2026-10-01','marcas=invalid','pagina=-1',`busqueda=${'x'.repeat(301)}`]) expect((await app.inject({method:'GET',url:`/api/envios/historial?${query}`})).statusCode).toBe(400);
+    expect(repo.historial).not.toHaveBeenCalled();
+  });
   it.each(rutas)('denies encargado before persistence: $method $url', async ruta => {
     const repo = espia(); app = await appConSesion(sesionDePrueba({ rol: 'encargado' }), a => registrarRutasEnvios(a, repo));
     expect((await app.inject(ruta)).statusCode).toBe(403);
@@ -56,6 +64,18 @@ describe('queue routes', () => {
   });
 });
 describe('SQL orchestration (doubles, not SQL execution)', () => {
+  it('filters snapshots and current mark ownership before bounded pagination with literal parameters', async () => {
+    const pool=crearPoolFalso();
+    await crearRepositorioEnvios(pool).historial(2,{busqueda:"%' OR 1=1 --",sector:'Prueba',desde:'2026-10-01',hasta:'2026-10-02',marcas:'sin'});
+    const call=pool.llamadas[0]!;
+    expect(call.valores).toEqual([100,51,"%' OR 1=1 --",'Prueba','2026-10-01','2026-10-02']);
+    expect(call.texto).not.toContain("%' OR 1=1 --");
+    expect(call.texto).toContain('CHARINDEX($3');
+    expect(call.texto).toContain('NOT EXISTS (SELECT 1 FROM [controlhorario].[faltas_notificadas]');
+    expect(call.texto.indexOf('JSON_VALUE')).toBeLessThan(call.texto.indexOf('OFFSET'));
+    expect(call.texto).toContain('e.[fecha_documento] <= CONVERT(date, $6)');
+    expect(call.texto).not.toMatch(/INSERT|DELETE|UPDATE/);
+  });
   const fila = { id, snapshot: JSON.stringify(snapshot), creado_at: '2026-10-06T12:00:00Z', emision_id: null };
   it.each([0, 50, 51])('paginates only emitted documents (%i rows), without reading legacy marks', async cantidad => {
     const pool = crearPoolFalso(sql => sql.includes('d.[emision_id] IS NOT NULL') ? {

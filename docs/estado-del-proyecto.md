@@ -5,6 +5,42 @@ Actualizado: 13 de octubre de 2026.
 Este documento permite continuar el trabajo sin depender del historial de una conversación.
 Antes de actuar, comprobar siempre `git status`, `git log -5` y el estado real de producción.
 
+## Whole document-history filters (implemented locally, 2026-10-13)
+
+The notification history now searches original snapshot person/DNI and sector, with
+inclusive document-date bounds and optional current-mark filters (Con faltas marcadas /
+Sin faltas marcadas). These refer to saved letter contents and their document date,
+independently of the global period. Current marks do not establish delivery or invalidate
+a document. Applying or clearing filters atomically returns to page one. Invalid dates,
+inverted ranges, and text over 300 characters are rejected before a read. Loading clears
+previous results, obsolete responses are ignored, and read failures show an explicit retry
+state rather than an empty-history claim.
+
+The repository port, HTTP adapter, offline adapter, route schema, and SQL adapter share
+these filters. SQL applies parameterized literal CHARINDEX searches over snapshot fields,
+inclusive date comparisons, and current-mark EXISTS predicates before OFFSET/FETCH.
+All tables remain explicitly qualified under [controlhorario], authorization is unchanged,
+and request logging already strips query strings. Page size remains 50. There is no schema
+change, migration, new dependency, or write operation in filtering.
+
+Eleven new regressions cover filter semantics and boundaries, searches beyond row fifty,
+mark ownership, validation without network/persistence, literal query encoding, SQL
+parameter separation, and accessible form copy. The combined final working candidate
+passed typecheck, 811 tests in 62 files, frontend build, API build, and diff whitespace checks.
+SQL checks exercised orchestration doubles; these do not prove live Azure SQL execution.
+
+Browser checks used the real EnviosContainer and injected fictional repositories with 55
+saved documents; a CSP blocked external connections and history writes were disabled.
+Searching the target on page two returned it on page one. Inclusive date bounds and sector
+filters worked; inverted bounds caused an alert and zero new reads. Clearing restored the
+first 50 documents. Explicit failure/retry and a held obsolete response arriving after a
+new search passed. The table scrolled locally at 390px without document overflow, and
+1440px layout remained usable. Screenshots were saved outside the repository.
+
+This unit is not published. Publish the API before the frontend because the previous API
+rejects unknown filter fields. Rollback removes this unit's filter form/contract and read
+predicates; publish a compatible frontend before reverting the API. Existing immutable
+snapshots, document downloads, and historical marks require no conversion.
 ## Separate weekly hour components (implemented locally, 2026-10-13)
 
 Horas and its Excel-compatible CSV now show Trabajadas, Justificadas, and Total computable

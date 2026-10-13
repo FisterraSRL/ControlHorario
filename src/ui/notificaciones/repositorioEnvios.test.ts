@@ -14,6 +14,18 @@ function almacen(): Storage {
 }
 const todas = (r: ReturnType<typeof crearRepositoriosEnviosLocal>) => r.notificaciones.listar('2000-01-01', '2099-12-31');
 describe('notification queue and history', () => {
+  it('searches beyond the first fifty documents before pagination and recalculates mark filters', async () => {
+    const store=almacen(); const docs=Array.from({length:51},(_,i)=>({id:`doc-${i}`,snapshot:{...snapshot,dni:`TEST-${i}`,usuario:i===50?'Target person':'Other person',sector:'Fictional'},creadoAt:'2026-10-01',emisionId:'issue',emitidoAt:'2026-10-02',fechaDocumento:'2026-10-02'}));
+    store.setItem(CLAVE_ENVIOS,JSON.stringify({pendientes:[],documentos:docs,marcas:{},emisiones:{},descartados:[]}));
+    const r=crearRepositoriosEnviosLocal(store);
+    expect((await r.envios.historial(0)).hayMas).toBe(true);
+    const filtered=await r.envios.historial(0,{busqueda:'Target',desde:'2026-10-02',hasta:'2026-10-02',marcas:'sin'});
+    expect(filtered.documentos.map(d=>d.id)).toEqual(['doc-50']); expect(filtered.hayMas).toBe(false);
+    expect((await r.envios.historial(0,{marcas:'con'})).documentos).toEqual([]);
+    expect((await r.envios.historial(1)).documentos.map(d=>d.id)).toEqual(['doc-50']);
+    expect((await r.envios.historial(0,{busqueda:'Missing'})).documentos).toEqual([]);
+    await expect(r.envios.historial(0,{desde:'2026-02-30'})).rejects.toThrow('fechas válidas');
+  });
   it('enqueue and discard never mark faults; queue survives reload', async () => {
     const storage = almacen(); const r = crearRepositoriosEnviosLocal(storage);
     await r.envios.encolar([{ id, snapshot }]);

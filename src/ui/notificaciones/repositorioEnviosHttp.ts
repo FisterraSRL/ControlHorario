@@ -1,5 +1,6 @@
 import { esSnapshot, type DocumentoPendiente, type DocumentoEmitido, type HistorialEnvios, type RepositorioEnvios } from '../../notificaciones/envios.js';
 import { conJson, esObjeto, pedirJson } from '../http.js';
+import { normalizarFiltros, problemaFiltros } from '../../notificaciones/filtrosHistorial.js';
 function documentos(v: unknown): readonly DocumentoPendiente[] {
   if (!esObjeto(v) || !Array.isArray(v['documentos']) || !v['documentos'].every(d => esObjeto(d) && typeof d['id'] === 'string' && typeof d['creadoAt'] === 'string' && esSnapshot(d['snapshot']))) throw new Error('El servidor devolvió documentos que no se pueden leer. Recargá la página.');
   return v['documentos'] as DocumentoPendiente[];
@@ -16,8 +17,11 @@ export function crearRepositorioEnviosHttp(base: string): RepositorioEnvios {
       if (!docs.every(d => 'emisionId' in d && 'fechaDocumento' in d && 'activas' in d)) throw new Error('La emisión no se confirmó. Revisá el historial antes de reintentar.');
       return docs as readonly DocumentoEmitido[];
     },
-    async historial(pagina) {
-      const cuerpo = await pedirJson(`${raiz}/historial?pagina=${pagina}`);
+    async historial(pagina, filtros = {}) {
+      const problema = problemaFiltros(filtros);
+      if (problema) throw new Error(problema);
+      const query = new URLSearchParams({ pagina: String(pagina), ...normalizarFiltros(filtros) });
+      const cuerpo = await pedirJson(`${raiz}/historial?${query}`);
       documentos(cuerpo);
       if (!esObjeto(cuerpo) || !Array.isArray(cuerpo['anteriores']) || typeof cuerpo['hayMas'] !== 'boolean') throw new Error('No se pudo leer el historial.');
       return cuerpo as unknown as HistorialEnvios;

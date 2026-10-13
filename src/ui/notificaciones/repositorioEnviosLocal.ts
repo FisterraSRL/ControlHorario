@@ -1,6 +1,7 @@
 import { comprobarCola, clavesSnapshot, ConflictoEnvio, idMarca, TAMANO_HISTORIAL, type DocumentoPendiente, type DocumentoEmitido, type MarcaVersionada, type PedidoEmision, type RepositorioEnvios } from '../../notificaciones/envios.js';
 import type { RepositorioNotificaciones } from './RepositorioNotificaciones.js';
 import { CLAVE_ALMACEN_NOTIFICADAS } from './repositorioNotificacionesLocal.js';
+import { coincideDocumento, problemaFiltros } from '../../notificaciones/filtrosHistorial.js';
 
 export const CLAVE_ENVIOS = 'controlhorario.envios.v1';
 interface Estado {
@@ -90,9 +91,12 @@ export function crearRepositoriosEnviosLocal(storage: Storage | null = storageDe
           return e.documentos.filter(d => d.emisionId === pedido.id).map(d => conMarcas(e, d));
         });
       },
-      async historial(pagina) {
+      async historial(pagina, filtros = {}) {
+        const problema = problemaFiltros(filtros);
+        if (problema) throw new Error(problema);
         const e = leer(); const inicio = pagina * TAMANO_HISTORIAL;
-        return { documentos: e.documentos.slice(inicio, inicio + TAMANO_HISTORIAL).map(d => conMarcas(e, d)), anteriores: [], hayMas: e.documentos.length > inicio + TAMANO_HISTORIAL };
+        const documentos = e.documentos.map(d => conMarcas(e, d)).filter(d => coincideDocumento(d, filtros));
+        return { documentos: documentos.slice(inicio, inicio + TAMANO_HISTORIAL), anteriores: [], hayMas: documentos.length > inicio + TAMANO_HISTORIAL };
       },
       async quitar(marcas) {
         await escribir(e => { for (const m of marcas) if (e.marcas[idMarca(m)]?.version === m.version) delete e.marcas[idMarca(m)]; });

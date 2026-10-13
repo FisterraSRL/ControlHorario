@@ -1,6 +1,10 @@
-.envios { display: grid; gap: 1rem; }
+.envios { display: grid; grid-template-columns: minmax(0, 1fr); min-width: 0; gap: 1rem; }
 .envios__acciones { display: flex; flex-wrap: wrap; align-items: center; gap: .65rem; }
 .envios__sub { display: block; opacity: .7; }
 .envios__detalle { padding-left: 1rem; max-width: 35rem; }
 .envios__detalle li { margin-block: .5rem; }
 .envios details summary { cursor: pointer; }
+.envios__filtros { display: flex; flex-wrap: wrap; align-items: end; gap: 1rem; margin-bottom: 1rem; }
+.envios__filtros > * { min-width: 0; max-width: 100%; }
+.envios__ayuda { flex-basis: 100%; margin: 0; color: var(--app-muted); }
+@media (max-width: 600px) { .envios__filtros > label { flex-basis: 100%; } .envios__filtros button { min-height: 44px; } }

@@ -4,6 +4,7 @@ import { operadorDe, SOLO_RRHH } from './autenticacion.js';
 import type { RepositorioEnviosSql } from './repositorioEnvios.js';
 import { responderErrorDb } from './respuestas.js';
 import { numeroSql, NUMERO_SQL } from './errores.js';
+import { problemaFiltros, type FiltrosHistorial } from '../notificaciones/filtrosHistorial.js';
 
 const id = { type: 'string', pattern: UUID.source };
 const objeto = (properties: Record<string, unknown>) => ({ type: 'object', properties, required: Object.keys(properties), additionalProperties: false });
@@ -34,8 +35,11 @@ export function registrarRutasEnvios(app: FastifyInstance, repo: RepositorioEnvi
     if (!fechaValida(req.body.fechaDocumento)) return res.code(400).send({ mensaje: 'La fecha del documento no es válida.' });
     try { return { documentos: await repo.emitir(req.body, operadorDe(req).email) }; } catch (e) { return error(e, req, res); }
   });
-  app.get<{ Querystring: { pagina?: string } }>('/api/envios/historial', { onRequest: SOLO_RRHH, schema: { querystring: { type: 'object', additionalProperties: false, properties: { pagina: { type: 'string', pattern: '^\\d{1,6}$' } } } } }, async (req, res) => {
-    try { return await repo.historial(Number(req.query.pagina ?? '0')); } catch (e) { return error(e, req, res); }
+  app.get<{ Querystring: FiltrosHistorial & { pagina?: string } }>('/api/envios/historial', { onRequest: SOLO_RRHH, schema: { querystring: { type: 'object', additionalProperties: false, properties: { pagina: { type: 'string', pattern: '^\\d{1,6}$' }, busqueda: { type: 'string', maxLength: 300 }, sector: { type: 'string', maxLength: 300 }, desde: { type: 'string', maxLength: 10 }, hasta: { type: 'string', maxLength: 10 }, marcas: { enum: ['con', 'sin'] } } } } }, async (req, res) => {
+    const { pagina, ...filtros } = req.query;
+    const problema = problemaFiltros(filtros);
+    if (problema) return res.code(400).send({ mensaje: problema });
+    try { return await repo.historial(Number(pagina ?? '0'), filtros); } catch (e) { return error(e, req, res); }
   });
   app.post<{ Body: { marcas: MarcaVersionada[] } }>('/api/envios/quitar-notificado', { onRequest: SOLO_RRHH, schema: { body: objeto({ marcas: { type: 'array', minItems: 1, maxItems: 500, items: marca } }) } }, async (req, res) => {
     if (!req.body.marcas.every(m => fechaValida(m.fechaIso))) return res.code(400).send({ mensaje: 'Una fecha no es válida.' });

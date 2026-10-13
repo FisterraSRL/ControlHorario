@@ -1,5 +1,6 @@
 /** Versioned, immutable letter snapshots shared by both persistence adapters. */
 import type { ItemsPorTipo, NotificacionPersona } from './tipos.js';
+import type { FiltrosHistorial } from './filtrosHistorial.js';
 import { clavesNotificadas, type ClaveNotificada } from '../ui/faltas/porDia.js';
 
 export type SnapshotPersona = Omit<NotificacionPersona, 'faltasPorTipo'> & {
@@ -35,7 +36,7 @@ export interface RepositorioEnvios {
   encolar(documentos: readonly { readonly id: string; readonly snapshot: SnapshotPersona }[]): Promise<void>;
   descartar(id: string): Promise<void>;
   emitir(pedido: PedidoEmision): Promise<readonly DocumentoEmitido[]>;
-  historial(pagina: number): Promise<HistorialEnvios>;
+  historial(pagina: number, filtros?: FiltrosHistorial): Promise<HistorialEnvios>;
   quitar(marcas: readonly MarcaVersionada[]): Promise<void>;
 }
 export class ConflictoEnvio extends Error {}

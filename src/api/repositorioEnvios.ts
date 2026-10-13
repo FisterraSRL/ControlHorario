@@ -5,6 +5,7 @@ import {
   type RepositorioEnvios, type SnapshotPersona,
 } from '../notificaciones/envios.js';
 import { auditar } from './auditoria.js';
+import { normalizarFiltros, problemaFiltros } from '../notificaciones/filtrosHistorial.js';
 import { enTransaccion, type Consultable, type Pool, type PoolClient } from './db.js';
 
 interface FilaDocumento { id: string; snapshot: string; creado_at: Date | string; emision_id: string; emitido_at: Date | string; fecha_documento: string }
@@ -96,8 +97,22 @@ export function crearRepositorioEnvios(pool: Pool): RepositorioEnviosSql {
         return emitidos(c, rows);
       });
     },
-    async historial(pagina) {
-      const { rows } = await pool.query<FilaDocumento>(`${SELECT_DOCUMENTOS} WHERE d.[emision_id] IS NOT NULL ORDER BY e.[emitido_at] DESC, d.[id] OFFSET $1 ROWS FETCH NEXT $2 ROWS ONLY`, [pagina * TAMANO_HISTORIAL, TAMANO_HISTORIAL + 1]);
+    async historial(pagina, filtros = {}) {
+      const problema = problemaFiltros(filtros);
+      if (problema) throw new Error(problema);
+      const f = normalizarFiltros(filtros);
+      const valores: unknown[] = [pagina * TAMANO_HISTORIAL, TAMANO_HISTORIAL + 1];
+      const condiciones = ['d.[emision_id] IS NOT NULL'];
+      const parametro = (valor: string) => { valores.push(valor); return `$${valores.length}`; };
+      if (f.busqueda) {
+        const p = parametro(f.busqueda);
+        condiciones.push(`(CHARINDEX(${p}, JSON_VALUE(d.[snapshot], '$.usuario') COLLATE Latin1_General_100_CI_AS) > 0 OR CHARINDEX(${p}, JSON_VALUE(d.[snapshot], '$.dni') COLLATE Latin1_General_100_CI_AS) > 0)`);
+      }
+      if (f.sector) condiciones.push(`CHARINDEX(${parametro(f.sector)}, JSON_VALUE(d.[snapshot], '$.sector') COLLATE Latin1_General_100_CI_AS) > 0`);
+      if (f.desde) condiciones.push(`e.[fecha_documento] >= CONVERT(date, ${parametro(f.desde)})`);
+      if (f.hasta) condiciones.push(`e.[fecha_documento] <= CONVERT(date, ${parametro(f.hasta)})`);
+      if (f.marcas) condiciones.push(`${f.marcas === 'sin' ? 'NOT ' : ''}EXISTS (SELECT 1 FROM [controlhorario].[faltas_notificadas] n WHERE n.[documento_id] = d.[id])`);
+      const { rows } = await pool.query<FilaDocumento>(`${SELECT_DOCUMENTOS} WHERE ${condiciones.join(' AND ')} ORDER BY e.[emitido_at] DESC, d.[id] OFFSET $1 ROWS FETCH NEXT $2 ROWS ONLY`, valores);
       // Preserve the response shape while history and pagination contain only documents.
       return { documentos: await emitidos(pool, rows.slice(0, TAMANO_HISTORIAL)), anteriores: [], hayMas: rows.length > TAMANO_HISTORIAL };
     },
