@@ -1,11 +1,11 @@
 # Estado del proyecto y continuidad
 
-Actualizado: 9 de octubre de 2026.
+Actualizado: 13 de octubre de 2026.
 
 Este documento permite continuar el trabajo sin depender del historial de una conversación.
 Antes de actuar, comprobar siempre `git status`, `git log -5` y el estado real de producción.
 
-## Vista previa de importación (entrega preparada, 2026-10-09)
+## Vista previa de importación (publicada; verificación de vista previa 2026-10-13)
 
 - Elegir el Excel sólo lo lee y lo compara con el historial disponible. La escritura se
   ejecuta únicamente con «Confirmar importación». Cancelar o cambiar el archivo descarta
@@ -38,7 +38,51 @@ datos ficticios: vista previa de dos días nuevos, cancelación sin escribir, co
 con dos días reales guardados, siguiente archivo con un nuevo/un reemplazo/un día sin
 cambios y cambio a archivo con fecha inválida que bloquea la confirmación.
 
-Entrega: frontend preparado para publicación mediante push a `main`; confirmar el despliegue de Vercel contra el SHA publicado antes de declarar producción actualizada. Rollback: revertir esta unidad de vista previa (carga, merge local, pruebas y documentación) y volver a publicar; no hay cambios de API ni migraciones.
+Production publication verified on 2026-10-13: remote `main` and the successful Vercel
+Production deployment `6962184754` reference commit `985f19fbb8932983876076911c06c5d356b4e8d5`.
+The public site's `/assets/index-DsRAEnD1.js` matches the build of that commit byte for byte.
+The API health endpoint returned `ok: true`.
+
+Authenticated production smoke checks passed for preview counts (three rows, two unique
+new days, one identical duplicate), cancellation, invalid-date rejection, conflicting
+duplicate rejection, and recovery after choosing a valid file. Invalid files disabled
+confirmation. Cancellation followed by a page reload preserved the 1,194 stored days.
+No import was confirmed and no fictional records were saved. The production save path,
+replacement counts, concurrent imports, and save/readback failure recovery were not
+exercised in this smoke check; automated and local checks above cover those behaviors.
+
+Rollback: revert the import-preview unit and republish the frontend. No API changes or
+database migrations are required.
+
+## Attachments after classifying absences (implemented locally, 2026-10-13)
+
+Successful single and batch classifications retain the affected days in a separate
+«Recién clasificadas» section while the pending-only filter is active. Each day keeps its
+existing attachment panel, current reason, and «Listo» dismissal. Closing a panel does not
+remove the saved reason or attachments. Pending rows, counts, and effective selection keep
+their original meaning; the all-absences view uses its existing expandable attachment rows.
+
+The section uses current records and attachments from the selected period. Changing any
+filter or the period discards this transient context, and late classification responses
+cannot reopen it. Successful unclassification removes the recent panel and restores the
+normal pending row. Failed classification does not add panels; failed uploads preserve
+access for retry. Dismissal and reason changes are disabled while that row's attachments
+are being written. Existing repository, session, upload and error handling are reused;
+there are no API changes, database migrations, or new dependencies.
+
+Automated checks: typecheck, 742 tests in 52 files, and production build. Twelve new
+regressions cover retention, batches, failures, stale completions, live attachment lists,
+busy controls, and avoiding duplicate panels in the all-absences view. Publication and
+authenticated production validation are still pending.
+
+Browser smoke on the isolated local adapter with three fictional days passed single
+classification (three pending to two), «Listo» dismissal, batch classification (two to
+zero, both recent panels retained), unclassification (back to one pending), and clearing
+recent panels on a person-filter change. Attachment uploads were not executed: the local
+adapter intentionally disables them. Production data was not modified.
+
+Rollback: revert this frontend unit and republish. Saved classifications and attachments
+remain compatible with the existing API.
 
 ## Búsqueda por persona y sector (publicada, 2026-10-09)
 

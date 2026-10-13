@@ -6,6 +6,8 @@ import {
   estadoSeleccionGeneral,
   loteSinCambios,
   seleccionEfectiva,
+  registrarClasificacionReciente,
+  filasRecientes,
   type FilaAusencia,
 } from './ausencias.js';
 
@@ -32,6 +34,51 @@ function fila(dni: string, fechaIso: string, motivoId: number | null = null): Fi
 const A = fila('1', '2026-01-05');
 const B = fila('2', '2026-01-06');
 const C = fila('3', '2026-01-07');
+
+describe('recent classification context', () => {
+  const contexto = {};
+  const inicial = { contexto, claves: new Set<string>() };
+
+  it('adds a successful single classification without changing the original selection', () => {
+    const siguiente = registrarClasificacionReciente(inicial, contexto, [{ dni: '1', fechaStr: '05/01/2026' }], 4, true);
+    expect([...siguiente.claves]).toEqual(['1|2026-01-05']);
+    expect([...inicial.claves]).toEqual([]);
+  });
+
+  it('retains every successful batch day, merging without duplicate panels', () => {
+    const previa = { contexto, claves: new Set(['1|2026-01-05']) };
+    const siguiente = registrarClasificacionReciente(previa, contexto, [
+      { dni: '1', fechaStr: '05/01/2026' }, { dni: '2', fechaStr: '06/01/2026' },
+    ], 4, true);
+    expect([...siguiente.claves]).toEqual(['1|2026-01-05', '2|2026-01-06']);
+  });
+
+  it('does not retain a failed classification or lose earlier panels', () => {
+    const previa = { contexto, claves: new Set(['2|2026-01-06']) };
+    const siguiente = registrarClasificacionReciente(previa, contexto, [{ dni: '1', fechaStr: '05/01/2026' }], 4, false);
+    expect([...siguiente.claves]).toEqual(['2|2026-01-06']);
+  });
+
+  it('removes an unclassified day while preserving other recent days', () => {
+    const previa = { contexto, claves: new Set(['1|2026-01-05', '2|2026-01-06']) };
+    const siguiente = registrarClasificacionReciente(previa, contexto, [{ dni: '1', fechaStr: '05/01/2026' }], null, true);
+    expect([...siguiente.claves]).toEqual(['2|2026-01-06']);
+  });
+
+  it('ignores completion from a period/filter context that has been discarded', () => {
+    const siguiente = registrarClasificacionReciente(inicial, {}, [{ dni: '1', fechaStr: '05/01/2026' }], 4, true);
+    expect([...siguiente.claves]).toEqual([]);
+  });
+
+  it('derives current classified records and attachments without including pending or filtered days', () => {
+    const adjunto = { id: 1, dni: '1', fecha: '2026-01-05', nombre: 'prueba.pdf', bytes: 20, tipoMime: 'application/pdf', subidoPor: null, subidoAt: '2026-01-05T10:00:00Z' };
+    const actualizada = { ...A, motivoId: 4, adjuntos: [adjunto] };
+    const recientes = filasRecientes(new Set([A.clave, B.clave, C.clave]), [actualizada, B]);
+    expect(recientes).toEqual([actualizada]);
+    expect(recientes[0]?.adjuntos).toEqual([adjunto]);
+    expect(seleccionEfectiva(new Set([A.clave, B.clave]), [B])).toEqual(new Set(['2|2026-01-06']));
+  });
+});
 
 describe('selección efectiva', () => {
   it('es lo tildado que además está en pantalla', () => {

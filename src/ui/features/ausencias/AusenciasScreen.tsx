@@ -16,6 +16,7 @@ import {
   etiquetaFecha,
   type EstadoSeleccionGeneral,
   type FiltroAusencias,
+  type FilaAusencia,
   type VistaAusencias,
 } from './ausencias.js';
 import { PanelAdjuntos } from './PanelAdjuntos.js';
@@ -26,6 +27,8 @@ const COLUMNAS = 9;
 
 export interface AusenciasScreenProps {
   readonly vista: VistaAusencias;
+  readonly recientes: readonly FilaAusencia[];
+  readonly onCerrarReciente: (clave: string) => void;
   readonly filtro: FiltroAusencias;
   readonly onFiltro: (filtro: FiltroAusencias) => void;
   readonly motivos: readonly Motivo[];
@@ -70,6 +73,8 @@ export interface AusenciasScreenProps {
  */
 export function AusenciasScreen({
   vista,
+  recientes,
+  onCerrarReciente,
   filtro,
   onFiltro,
   motivos,
@@ -148,6 +153,49 @@ export function AusenciasScreen({
         <div className="ausencias__aviso">
           <Alert tono="ok">{aviso}</Alert>
         </div>
+      )}
+
+      {!cargando && filtro.soloPendientes && recientes.length > 0 && (
+        <section className="ausencias__recientes" aria-label="Recién clasificadas">
+          <h3>Recién clasificadas</h3>
+          <p className="ausencias__recientes-ayuda">
+            Podés adjuntar el respaldo antes de continuar. «Listo» cierra este panel; la
+            clasificación y los adjuntos quedan guardados.
+          </p>
+          {recientes.map((fila) => (
+            <div className="ausencias__reciente" key={fila.clave}>
+              <div className="ausencias__reciente-cabecera">
+                <h4>{fila.usuario || fila.dni} — {etiquetaFecha(fila)}</h4>
+                <Select
+                  etiqueta={`Motivo de ${fila.usuario || fila.dni} el ${etiquetaFecha(fila)}`}
+                  tamano="sm"
+                  valor={String(fila.motivoId)}
+                  opciones={opciones}
+                  disabled={claveOcupada === fila.clave}
+                  onCambio={(valor) =>
+                    onMotivo(fila.dni, fila.fechaStr, valor === '' ? null : Number(valor))
+                  }
+                />
+                <Button
+                  tamano="sm"
+                  variante="ghost"
+                  disabled={claveOcupada === fila.clave}
+                  onClick={() => onCerrarReciente(fila.clave)}
+                >
+                  Listo<span className="ausencias__sr"> para {fila.usuario || fila.dni} el {etiquetaFecha(fila)}</span>
+                </Button>
+              </div>
+              <PanelAdjuntos
+                adjuntos={fila.adjuntos}
+                disponible={adjuntosDisponibles}
+                ocupado={claveOcupada === fila.clave}
+                onSubir={(archivos) => onSubir(fila.clave, fila.dni, fila.fechaStr, archivos)}
+                onDescargar={onDescargar}
+                onEliminar={(adjunto) => onEliminar(fila.clave, adjunto)}
+              />
+            </div>
+          ))}
+        </section>
       )}
 
       {seleccion.size > 0 && (

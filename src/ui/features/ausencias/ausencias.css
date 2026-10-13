@@ -19,6 +19,40 @@
   margin-bottom: var(--app-space-4);
 }
 
+.ausencias__recientes {
+  margin-bottom: var(--app-space-4);
+}
+
+.ausencias__recientes h3,
+.ausencias__reciente h4 {
+  margin: 0;
+  font-size: var(--app-text-sm);
+}
+
+.ausencias__recientes-ayuda {
+  margin: var(--app-space-2) 0 var(--app-space-3);
+  font-size: var(--app-text-sm);
+  color: var(--app-muted);
+}
+
+.ausencias__reciente {
+  margin-top: var(--app-space-2);
+  padding: var(--app-space-3);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-sm);
+}
+
+.ausencias__reciente-cabecera {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--app-space-3);
+}
+
+.ausencias__reciente-cabecera h4 {
+  flex: 1 1 16rem;
+}
+
 /* The batch bar: only rendered while something is ticked, so it never takes room from an
    operator who classifies one row at a time. */
 .ausencias__lote {

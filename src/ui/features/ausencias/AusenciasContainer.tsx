@@ -34,9 +34,12 @@ import {
   construirVista,
   diasSeleccionados,
   estadoSeleccionGeneral,
+  filasRecientes,
   FILTRO_INICIAL,
   loteSinCambios,
   seleccionEfectiva,
+  registrarClasificacionReciente,
+  type EstadoRecientes,
   type FiltroAusencias,
 } from './ausencias.js';
 
@@ -92,6 +95,18 @@ export function AusenciasContainer() {
   const [motivoLote, setMotivoLote] = useState('');
   const [aplicando, setAplicando] = useState(false);
 
+  const contextoRecientes = useMemo(() => ({}), [
+    rango.desde.getTime(), rango.hasta.getTime(), filtro.sector, filtro.dni, filtro.soloPendientes,
+  ]);
+  const [recientes, setRecientes] = useState<EstadoRecientes>(
+    () => ({ contexto: contextoRecientes, claves: new Set() }),
+  );
+  // Clear in the same render, before children see stale panels. Identity also rejects a
+  // late response after leaving this context and subsequently returning to the same filter.
+  if (recientes.contexto !== contextoRecientes) {
+    setRecientes({ contexto: contextoRecientes, claves: new Set() });
+  }
+
   /** A 401 anywhere is the session ending, not a message for this screen. */
   const manejar = useCallback(
     (e: unknown, porDefecto: string) => {
@@ -127,6 +142,18 @@ export function AusenciasContainer() {
     [seleccionadas, vista.filas],
   );
   const motivoIdLote = motivoLote === '' ? null : Number(motivoLote);
+  const recientesVisibles = recientes.contexto === contextoRecientes
+    ? filasRecientes(recientes.claves, vista.enPeriodo)
+    : [];
+
+  const cerrarReciente = useCallback((clave: string) => {
+    if (claveOcupada === clave) return;
+    setRecientes((previas) => {
+      const claves = new Set(previas.claves);
+      claves.delete(clave);
+      return { ...previas, claves };
+    });
+  }, [claveOcupada]);
 
   const alternarSeleccion = useCallback((clave: ClaveRegistro) => {
     setSeleccionadas((previas) => {
@@ -155,6 +182,9 @@ export function AusenciasContainer() {
     void (async () => {
       try {
         const guardado = await asignarMotivos(dias, motivoIdLote);
+        setRecientes((previas) => registrarClasificacionReciente(
+          previas, contextoRecientes, dias, motivoIdLote, guardado,
+        ));
         if (!guardado) return; // The provider already put the reason on screen; keep the ticks.
         setSeleccionadas(new Set());
         const cuantas = pluralizar(dias.length, 'ausencia', 'ausencias');
@@ -167,7 +197,7 @@ export function AusenciasContainer() {
         setAplicando(false);
       }
     })();
-  }, [efectiva, vista.filas, motivoIdLote, asignarMotivos]);
+  }, [efectiva, vista.filas, motivoIdLote, asignarMotivos, contextoRecientes]);
 
   const alternar = useCallback((clave: string) => {
     setAbiertas((previas) => {
@@ -186,10 +216,13 @@ export function AusenciasContainer() {
         // The provider reports rather than throws, and it puts its own failure on screen.
         // Confirming a change that did not happen is worse than not confirming one.
         const guardado = await asignarMotivo(dni, fechaStr, motivoId);
+        setRecientes((previas) => registrarClasificacionReciente(
+          previas, contextoRecientes, [{ dni, fechaStr }], motivoId, guardado,
+        ));
         if (guardado) setAviso(avisoMotivo(motivoId));
       })();
     },
-    [asignarMotivo],
+    [asignarMotivo, contextoRecientes],
   );
 
   const subir = useCallback(
@@ -262,6 +295,8 @@ export function AusenciasContainer() {
   return (
     <AusenciasScreen
       vista={vista}
+      recientes={recientesVisibles}
+      onCerrarReciente={cerrarReciente}
       filtro={filtro}
       onFiltro={setFiltro}
       // Before the configuration arrives, the dropdown still has to be usable: the engine's

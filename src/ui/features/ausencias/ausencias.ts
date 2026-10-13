@@ -186,6 +186,40 @@ function comparar(a: FilaAusencia, b: FilaAusencia): number {
   );
 }
 
+/** Transient attachment access, owned by one period/filter context, never persisted. */
+export interface EstadoRecientes {
+  readonly contexto: object;
+  readonly claves: ReadonlySet<ClaveRegistro>;
+}
+
+/** Failed writes and completions from a discarded context cannot open new panels. */
+export function registrarClasificacionReciente(
+  previas: EstadoRecientes,
+  contexto: object,
+  dias: readonly DiaAClasificar[],
+  motivoId: number | null,
+  guardado: boolean,
+): EstadoRecientes {
+  if (!guardado || previas.contexto !== contexto) return previas;
+  const claves = new Set(previas.claves);
+  for (const dia of dias) {
+    const fecha = fechaIsoDesdeAR(dia.fechaStr);
+    if (!fecha) continue;
+    const clave = claveRegistro(dia.dni, fecha);
+    if (motivoId === null) claves.delete(clave);
+    else claves.add(clave);
+  }
+  return { contexto, claves };
+}
+
+/** Read live decisions and attachment lists, including rows hidden by pending-only mode. */
+export function filasRecientes(
+  claves: ReadonlySet<ClaveRegistro>,
+  enPeriodo: readonly FilaAusencia[],
+): readonly FilaAusencia[] {
+  return enPeriodo.filter((fila) => claves.has(fila.clave) && fila.motivoId !== null).sort(comparar);
+}
+
 /* --- Batch classification: which rows are ticked ----------------------------------- */
 
 /**
