@@ -15,7 +15,21 @@ describe('vista de horas trabajadas', () => {
   it('muestra la semana de lunes a domingo', () => { expect(rangoSemana('2026-09-14')).toBe('14/09/2026 – 20/09/2026'); });
   it('exporta un CSV compatible con Excel en español', () => {
     const [semana] = construirReporteHoras([dia(new Date('2026-09-14T00:00:00Z'))], {horasTurnoSemanales:8}, {desde:new Date('2026-09-14T00:00:00Z'),hasta:new Date('2026-09-20T00:00:00Z')});
-    const csv = csvDeHoras(semana ? [semana] : []); expect(csv.startsWith('\ufeffSector;Persona;DNI')).toBe(true); expect(csv).toContain('Administración;Persona;20-00000000-0;1;14/09/2026;20/09/2026;8:00;8:00;0:00;+0:00;0');
+    const csv = csvDeHoras(semana ? [semana] : []); expect(csv.startsWith('\ufeffSector;Persona;DNI')).toBe(true); expect(csv).toContain('Administración;Persona;20-00000000-0;1;14/09/2026;20/09/2026;8:00;8:00;0:00;8:00;0:00;+0:00;0');
+  });
+  it('exports distinct worked, justified and total minutes without changing the difference', () => {
+    const base = dia(new Date('2026-09-14T00:00:00Z'), 455);
+    const absence = { ...base, fecha: new Date('2026-09-15T00:00:00Z'), fechaStr: '15/09/2026', tipoDia: 'ausencia' as const, motivoId: 1, horasTurno: 480, horasBrutas: 0 };
+    const report = construirReporteHoras([base, absence], { horasTurnoSemanales: 16, motivos: [{ id: 1, label: 'Licencia', worked: true }] }, { desde: new Date('2026-09-14T00:00:00Z'), hasta: new Date('2026-09-20T00:00:00Z') });
+    expect(report[0]).toMatchObject({ horasTrabajadas: 455, horasJustificadas: 480, diferencia: -25 });
+    const rows = csvDeHoras(report).slice(1).split('\r\n').map(row => row.split(';'));
+    expect(rows[0]?.slice(7, 10)).toEqual(['Horas Trabajadas', 'Horas Justificadas', 'Total computable']);
+    expect(rows[1]?.slice(7, 12)).toEqual(['7:35', '8:00', '15:35', '0:00', '-0:25']);
+  });
+  it('retains CSV quoting and a positive difference with no justified hours', () => {
+    const csv = csvDeHoras([{ ...semana('TEST'), usuario: 'Persona; "Prueba"', horasTrabajadas: 485, horasTurno: 480, diferencia: 5 }]);
+    expect(csv).toContain('"Persona; ""Prueba"""');
+    expect(csv).toContain(';8:00;8:05;0:00;8:05;0:00;+0:05;0');
   });
 });
 

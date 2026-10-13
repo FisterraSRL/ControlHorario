@@ -5,6 +5,29 @@ Actualizado: 13 de octubre de 2026.
 Este documento permite continuar el trabajo sin depender del historial de una conversación.
 Antes de actuar, comprobar siempre `git status`, `git log -5` y el estado real de producción.
 
+## Separate weekly hour components (implemented locally, 2026-10-13)
+
+Horas and its Excel-compatible CSV now show Trabajadas, Justificadas, and Total computable
+separately, in hours:minutes. Total computable remains worked plus justified minutes;
+Diferencia still subtracts the configured full weekly turno. The domain engine, absence
+classifications, period boundaries, person filters, detail expansion, and download contract
+are unchanged. No API change, migration, or production write is required.
+
+Typecheck, 790 tests in 57 files, and build passed for this unit. Four regressions cover
+distinct CSV and rendered values, positive/negative differences, quoting, and column spans.
+Browser checks used the actual HorasScreen and responsive shell with fictional records and
+a Content Security Policy blocking external connections. Desktop and 390px layouts showed
+7:35 worked + 8:00 justified = 15:35 computable against 16:00 turno, difference -0:25;
+the visible output from the actual CSV generator matched. Expanded daily evidence worked,
+and horizontal scrolling stayed inside the table without document overflow.
+
+Authenticated production reads independently reconciled one existing full week:
+9:00 + 8:48 + 9:02 + 9:24 + 9:15 = 45:29 worked, against 51:00 turno, difference -5:31.
+A second existing week had no punches and a configured reason marked as computing hours:
+5 x 9:00 + 6:00 = 51:00 justified, total 51:00, difference 0:00. No classification,
+configuration, import, document generation, or SQL operation occurred. The production
+CSV download was not confirmed, and the new presentation has not been published.
+Screenshots were saved outside the repository. Rollback is a frontend revert and republish.
 ## Explicit parameter saving (published and safely verified, 2026-10-13)
 
 The four numerical settings in Configuración now share a draft with explicit «Guardar»

@@ -33,19 +33,19 @@ export function HorasScreen({ filtros, sinCoincidencias, semanas, motivos, carga
     {aviso && <div className="horas__aviso"><Alert tono="ok">{aviso}</Alert></div>}
     {semanasParciales && <div className="horas__aviso"><Alert tono="info" titulo="Semanas incompletas">{semanasParciales}</Alert></div>}
     {pendientes > 0 && <div className="horas__aviso"><Alert tono="aviso" titulo={`${pluralizar(pendientes, 'día pendiente', 'días pendientes')} de clasificación`}>Clasificalos desplegando la semana o desde la pestaña Ausencias para incorporar las horas justificadas al cálculo.</Alert></div>}
-    <Card titulo="Horas trabajadas (semanal, lunes a domingo)" bajada="Trabajadas + justificadas suma las horas de presencia y las ausencias justificadas. La diferencia compara ese total con el turno semanal." acciones={<>
+    <Card titulo="Horas trabajadas (semanal, lunes a domingo)" bajada="Trabajadas muestra las horas de presencia; Justificadas, las horas de ausencias que computan como trabajadas. Total computable suma ambas. La diferencia compara ese total con el turno semanal. Los valores se muestran en horas:minutos." acciones={<>
       <Button variante="ghost" onClick={() => onAlternarTodas(!todasAbiertas)} disabled={semanas.length === 0}>{todasAbiertas ? 'Contraer todas' : 'Desplegar todas'}</Button>
       <Button onClick={onExportar} disabled={semanas.length === 0}>Exportar a Excel</Button>
     </>}>
       {filtros}
-      <Table etiqueta="Reporte semanal de horas trabajadas"><thead><tr><th><span className="horas__sr">Detalle</span></th><th>Persona</th><th>DNI</th><th>Semana</th><th>Turno</th><th>Trabajadas + justificadas</th><th>Descanso</th><th>Diferencia</th></tr></thead><tbody>
-        {semanas.length === 0 && <FilaVacia columnas={8}>{cargando ? 'Calculando…' : sinCoincidencias ? 'No hay personas que coincidan con los filtros.' : 'Sin datos para este período.'}</FilaVacia>}
+      <Table etiqueta="Reporte semanal de horas trabajadas"><thead><tr><th><span className="horas__sr">Detalle</span></th><th>Persona</th><th>DNI</th><th>Semana</th><th>Turno</th><th>Trabajadas</th><th>Justificadas</th><th>Total computable</th><th>Descanso</th><th>Diferencia</th></tr></thead><tbody>
+        {semanas.length === 0 && <FilaVacia columnas={10}>{cargando ? 'Calculando…' : sinCoincidencias ? 'No hay personas que coincidan con los filtros.' : 'Sin datos para este período.'}</FilaVacia>}
         {semanas.map((semana) => { const clave = claveSemana(semana); const abierta = abiertas.has(clave); const mostrarSector = sectorAnterior !== semana.sector; sectorAnterior = semana.sector; return <Fragment key={clave}>
-          {mostrarSector && <tr className="tabla__grupo"><td colSpan={8}>{semana.sector || 'Sin sector'}</td></tr>}
+          {mostrarSector && <tr className="tabla__grupo"><td colSpan={10}>{semana.sector || 'Sin sector'}</td></tr>}
           <tr><td><Button tamano="sm" variante="ghost" aria-expanded={abierta} aria-label={`${abierta ? 'Ocultar' : 'Mostrar'} detalle de ${semana.usuario}`} onClick={() => onAlternar(clave)}>{abierta ? '−' : '+'}</Button></td>
             <td>{semana.usuario}{semana.diasAusenciaSinClasificar > 0 && <> <Chip tono="incompleta">{semana.diasAusenciaSinClasificar} sin clasif.</Chip></>}</td><td className="tabla__mono">{semana.dni}</td><td className="tabla__mono">{rangoSemana(semana.inicioSemana)}</td>
-            <td className="tabla__mono">{fmtMinutos(semana.horasTurno)}</td><td className="tabla__mono">{fmtMinutos(semana.horasTrabajadas + semana.horasJustificadas)}</td><td className="tabla__mono">{fmtMinutos(semana.horasDescanso)}</td><td className={`tabla__mono ${semana.diferencia >= 0 ? 'horas__positiva' : 'horas__negativa'}`}>{semana.diferencia >= 0 ? '+' : ''}{fmtMinutos(semana.diferencia)}</td></tr>
-          {abierta && <tr><td /><td colSpan={7}><DetalleSemana dias={semana.dias} opciones={opciones} onMotivo={onMotivo} /></td></tr>}
+            <td className="tabla__mono">{fmtMinutos(semana.horasTurno)}</td><td className="tabla__mono">{fmtMinutos(semana.horasTrabajadas)}</td><td className="tabla__mono">{fmtMinutos(semana.horasJustificadas)}</td><td className="tabla__mono">{fmtMinutos(semana.horasTrabajadas + semana.horasJustificadas)}</td><td className="tabla__mono">{fmtMinutos(semana.horasDescanso)}</td><td className={`tabla__mono ${semana.diferencia >= 0 ? 'horas__positiva' : 'horas__negativa'}`}>{semana.diferencia >= 0 ? '+' : ''}{fmtMinutos(semana.diferencia)}</td></tr>
+          {abierta && <tr><td /><td colSpan={9}><DetalleSemana dias={semana.dias} opciones={opciones} onMotivo={onMotivo} /></td></tr>}
         </Fragment>; })}
       </tbody></Table>
     </Card>
