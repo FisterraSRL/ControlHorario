@@ -6,7 +6,7 @@
  * blocked rather than letting the server refuse — see `usuarios.ts` for the rules.
  */
 
-import { useState } from 'react';
+import { useRef, useState, useSyncExternalStore } from 'react';
 
 import { Button } from '../../components/atoms/Button/Button.js';
 import { Checkbox } from '../../components/atoms/Checkbox/Checkbox.js';
@@ -20,14 +20,17 @@ import { ETIQUETAS_ROL, ROLES_ASIGNABLES, esRolAsignable, type RolUsuario } from
 import type { UsuarioAdministrado } from '../../usuarios/RepositorioUsuarios.js';
 import { problemaDelAlta, sectoresParaCrear } from './usuarios.js';
 import './usuarios.css';
+import { crearConfirmacionUsuario } from './confirmacionUsuario.js';
+import { ConfirmarUsuario } from './ConfirmarUsuario.js';
 
 interface Props {
   usuarios: readonly UsuarioAdministrado[]; cargando: boolean; error: string | null;
+  ocupado?: boolean;
   usuarioActual: string; contrasenaTemporal: string | null;
   /** The closed list an encargado may be scoped to. Empty until a planilla is loaded. */
   sectoresDisponibles: readonly string[];
   onCrear(datos: { email: string; nombre: string; rol: RolUsuario; sectores: readonly string[] }): void;
-  onEstado(id: string, activo: boolean): void; onReiniciar(id: string): void; onCerrarContrasena(): void;
+  onEstado(id: string, activo: boolean): Promise<boolean>; onReiniciar(id: string): Promise<boolean>; onCerrarContrasena(): void;
 }
 
 /**
@@ -43,6 +46,10 @@ const OPCIONES_ROL = ROLES_ASIGNABLES.map((rol) => ({ valor: rol, label: ETIQUET
 const ROL_INICIAL: RolUsuario = 'encargado';
 
 export function UsuariosScreen(p: Props) {
+  const actuales = useRef(p); actuales.current = p;
+  const [confirmacion] = useState(() => crearConfirmacionUsuario(a => a.tipo === 'desactivar' ? actuales.current.onEstado(a.usuario.id, false) : actuales.current.onReiniciar(a.usuario.id)));
+  const estado = useSyncExternalStore(confirmacion.suscribir, confirmacion.estado, confirmacion.estado);
+  const bloqueado = !!p.ocupado || estado.ocupado || p.cargando;
   const [nombre, setNombre] = useState(''); const [email, setEmail] = useState('');
   const [rol, setRol] = useState<RolUsuario>(ROL_INICIAL); const [sectores, setSectores] = useState<readonly string[]>([]);
 
@@ -61,6 +68,7 @@ export function UsuariosScreen(p: Props) {
   };
 
   return <>
+    {estado.accion && <ConfirmarUsuario accion={estado.accion} ocupado={estado.ocupado} esCuentaPropia={estado.accion.usuario.email === p.usuarioActual} error={estado.fallo ? p.error ?? 'No se pudo completar la operación. Podés reintentar o cancelar.' : null} onCancelar={() => confirmacion.cancelar()} onConfirmar={() => void confirmacion.confirmar()} />}
     {p.error && <div className="usuarios__aviso"><Alert tono="error">{p.error}</Alert></div>}
     {p.contrasenaTemporal && <div className="usuarios__aviso"><Alert tono="ok" titulo="Contraseña temporal">
       <div className="usuarios__temporal"><code>{p.contrasenaTemporal}</code>
@@ -73,7 +81,7 @@ export function UsuariosScreen(p: Props) {
         <Input etiqueta="Nombre" mostrarEtiqueta valor={nombre} onCambio={setNombre} maxLength={200} />
         <Input etiqueta="Correo" mostrarEtiqueta valor={email} onCambio={setEmail} type="email" maxLength={320} />
         <label className="usuarios__rol"><span>Rol</span><Select etiqueta="Rol" valor={rol} onCambio={(v) => { if (esRolAsignable(v)) setRol(v); }} opciones={OPCIONES_ROL} /></label>
-        <Button variante="primary" disabled={problema !== null} onClick={crear}>Crear usuario</Button>
+        <Button variante="primary" disabled={bloqueado || problema !== null} onClick={crear}>Crear usuario</Button>
       </div>
 
       {rol === 'encargado' && <SectoresDelEncargado sectores={p.sectoresDisponibles} elegidos={sectores} onAlternar={alternarSector} />}
@@ -92,8 +100,8 @@ export function UsuariosScreen(p: Props) {
             <td>{u.sectores.length === 0 ? <span className="usuarios__sin-sectores">{u.rol === 'encargado' ? 'Sin sectores' : '—'}</span>
               : <span className="usuarios__sectores">{u.sectores.map((s) => <Chip key={s} tono="neutral">{s}</Chip>)}</span>}</td>
             <td><Chip tono={u.activo ? 'ok' : 'neutral'}>{u.activo ? 'Activo' : 'Inactivo'}</Chip></td><td><div className="usuarios__acciones">
-            <Button tamano="sm" onClick={() => p.onReiniciar(u.id)}>Restablecer contraseña</Button>
-            <Button tamano="sm" variante="ghost" disabled={u.email === p.usuarioActual && u.activo} onClick={() => p.onEstado(u.id, !u.activo)}>{u.activo ? 'Desactivar' : 'Activar'}</Button>
+            <Button tamano="sm" disabled={bloqueado} onClick={() => confirmacion.pedir({ tipo:'reiniciar', usuario:u })}>Restablecer contraseña</Button>
+            <Button tamano="sm" variante="ghost" disabled={bloqueado || (u.email === p.usuarioActual && u.activo)} onClick={() => { if (u.activo) confirmacion.pedir({ tipo:'desactivar', usuario:u }); else void p.onEstado(u.id, true); }}>{u.activo ? 'Desactivar' : 'Activar'}</Button>
           </div></td></tr>)}</tbody></Table>
     </Card>
   </>;

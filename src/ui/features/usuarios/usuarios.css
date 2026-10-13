@@ -12,5 +12,8 @@
 
 .usuarios__problema { margin: var(--app-space-3) 0 0; color: var(--app-danger); font-size: var(--app-text-sm); }
 .usuarios__nota { margin: var(--app-space-3) 0 0; color: var(--app-muted); font-size: var(--app-text-sm); max-width: 78ch; }
+.usuarios__confirmacion { width: min(32rem, calc(100vw - 2rem)); box-sizing: border-box; max-height: calc(100dvh - 2rem); overflow: auto; overflow-wrap: anywhere; border: 1px solid var(--app-border); border-radius: var(--app-radius); padding: 1.5rem; background: var(--app-surface); color: var(--app-ink); }
+.usuarios__confirmacion::backdrop { background: rgb(0 0 0 / 45%); }
+.usuarios__confirmacion button { min-height: 44px; }
 
 @media (max-width: 900px) { .usuarios__alta { grid-template-columns: 1fr; } }

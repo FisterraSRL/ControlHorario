@@ -5,6 +5,51 @@ Actualizado: 13 de octubre de 2026.
 Este documento permite continuar el trabajo sin depender del historial de una conversación.
 Antes de actuar, comprobar siempre `git status`, `git log -5` y el estado real de producción.
 
+## Confirming sensitive user actions (implemented locally, 2026-10-13)
+
+Desactivar and Restablecer contraseña now open a native modal dialog identifying the
+chosen account and the exact effect. Cancel is initially focused; Cancel or Escape causes
+no action and restores focus to the triggering button. Only explicit confirmation invokes
+the existing repository contract. While pending, confirmation/cancellation and other user
+actions are disabled; controller and container guards prevent duplicate requests. Failure
+retains the identified action and shows its error inside the dialog for retry or cancellation.
+Opening another confirmation does not reuse an unrelated previous error.
+
+Deactivation revokes that account's sessions. Password reset revokes another account's
+sessions; the existing API preserves the administrator's sessions when resetting their own
+account, and the dialog explains that distinction. Own-account deactivation restrictions,
+last-admin enforcement, roles, string bigint IDs, and one-time temporary-password handling
+are unchanged. No backend mutation contract, migration, or dependency changed.
+
+Ten new regressions cover no action before confirmation/cancellation, correct identified
+actions, pending duplicate prevention, failure/retry and thrown failures, accessible dialog
+markup, busy controls, and the own-account session contract. Final mandatory checks passed:
+typecheck, 811 tests in 62 files, frontend build, API build, and diff whitespace checks.
+
+Browser verification used the actual UsuariosScreen, confirmation controller, and native
+dialog with fictional callbacks and visible operation counters. No credential was generated
+or requested, and a CSP blocked external connections. At 1440px and 390px, the dialog stayed
+within the viewport and initially focused Cancel. Cancel and Escape kept counters at zero
+and restored focus. A held confirmed deactivation invoked once, disabled both controls, and
+completed as inactive. A simulated reset failure remained visible in the same dialog; after
+cancellation a fresh successful reset invoked once. All operations affected fictional state
+only. Screenshots were saved outside the repository. Rollback is a frontend revert and
+republish of this unit; existing account data and credentials need no conversion.
+
+## Next release and optional work
+
+The branch codex/mejoras-horas-historial-usuarios contains the three recommended usable
+units: separate hour components, complete-history filtering, and user-action confirmation.
+They are implemented and locally verified; none is published. Existing production hour
+samples were reconciled through authenticated reads, with no production data changes.
+The immediate remaining step is publication and safe production verification. Release the
+history API first, then the frontend; check new history predicates through real authenticated
+reads, and exercise user confirmations by cancellation only. Do not classify absences,
+remove marks, reset passwords, or change real account states during that smoke.
+
+After those publication checks, the legacy estimated-hours mode remains optional product
+work, requiring an explicit definition of how missing punches should be estimated.
+
 ## Whole document-history filters (implemented locally, 2026-10-13)
 
 The notification history now searches original snapshot person/DNI and sector, with
@@ -41,6 +86,7 @@ This unit is not published. Publish the API before the frontend because the prev
 rejects unknown filter fields. Rollback removes this unit's filter form/contract and read
 predicates; publish a compatible frontend before reverting the API. Existing immutable
 snapshots, document downloads, and historical marks require no conversion.
+
 ## Separate weekly hour components (implemented locally, 2026-10-13)
 
 Horas and its Excel-compatible CSV now show Trabajadas, Justificadas, and Total computable
@@ -64,6 +110,7 @@ A second existing week had no punches and a configured reason marked as computin
 configuration, import, document generation, or SQL operation occurred. The production
 CSV download was not confirmed, and the new presentation has not been published.
 Screenshots were saved outside the repository. Rollback is a frontend revert and republish.
+
 ## Explicit parameter saving (published and safely verified, 2026-10-13)
 
 The four numerical settings in Configuración now share a draft with explicit «Guardar»
@@ -511,11 +558,11 @@ La unidad base está implementada y publicada en el commit `1d69de3`:
 - exportación CSV con BOM y `;`, compatible con Excel en configuración regional es-AR;
 - pruebas del filtro, rango semanal y exportación.
 
-La verificación confirmó typecheck, build, 269 pruebas y que Vercel sirve el bundle nuevo.
-Al abrir `/horas` la sesión del navegador había vencido y el portal mostró el login; por eso
-queda pendiente una comprobación visual autenticada con datos reales. No usar credenciales
-en comandos ni pedirlas en chat para saltear ese paso. El modo legacy “completar fichadas
-faltantes según turno” no forma parte de esta unidad.
+The original publication passed typecheck, build, and 269 tests; its browser check stopped
+at an expired session. Authenticated production checks on 2026-10-13 subsequently verified
+Horas navigation, real weekly details, and independent worked/justified reconciliations
+recorded above. The new separate-column presentation and CSV remain pending publication.
+The legacy mode estimating missing punches from shifts remains outside this unit.
 
 Después se sumó al detalle:
 
@@ -533,7 +580,7 @@ Después se sumó al detalle:
   Las opciones y el aviso de confirmación viven en `src/ui/ausencias/opcionesMotivo.ts`, que
   ambas pantallas comparten.
 
-La exportación CSV no cambió.
+Those detail additions preserved the original CSV; the current separate-hour-column unit above updates both the table and CSV.
 
 ### Notification queue and history
 

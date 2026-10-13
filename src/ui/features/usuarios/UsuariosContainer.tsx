@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { useConfiguracion } from '../../configuracion/ConfiguracionProvider.js';
 import { useHistorial } from '../../historial/HistorialProvider.js';
@@ -20,15 +20,24 @@ export function UsuariosContainer() {
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [temporal, setTemporal] = useState<string | null>(null);
+  const [ocupado, setOcupado] = useState(false); const enVuelo = useRef(false);
 
   const ejecutar = useCallback(async (accion: () => Promise<void>) => {
     setError(null);
     try { await accion(); }
     catch (e: unknown) {
-      if (e instanceof ErrorNoAutenticado) { expirar(); return; }
+      if (e instanceof ErrorNoAutenticado) { expirar(); return false; }
       setError(e instanceof Error ? e.message : 'No se pudo completar la operación.');
+      return false;
     }
+    return true;
   }, [expirar]);
+  const mutar = async (accion: () => Promise<void>) => {
+    if (enVuelo.current) return false;
+    enVuelo.current = true; setOcupado(true);
+    try { return await ejecutar(accion); }
+    finally { enVuelo.current = false; setOcupado(false); }
+  };
 
   const recargar = useCallback(async () => {
     if (!repo) return;
@@ -44,12 +53,12 @@ export function UsuariosContainer() {
     [configuracion, sectoresDelHistorial],
   );
 
-  return <UsuariosScreen usuarios={usuarios} cargando={cargando} error={error}
+  return <UsuariosScreen usuarios={usuarios} cargando={cargando} ocupado={ocupado} error={error}
     usuarioActual={sesion?.operador.email ?? ''} contrasenaTemporal={temporal}
     sectoresDisponibles={sectoresDisponibles}
     onCerrarContrasena={() => setTemporal(null)}
-    onCrear={(datos) => void ejecutar(async () => { const r = await repo!.crear(datos); setTemporal(r.contrasenaTemporal); await recargar(); })}
-    onEstado={(id, activo) => void ejecutar(async () => { await repo!.cambiarEstado(id, activo); await recargar(); })}
-    onReiniciar={(id) => void ejecutar(async () => { const r = await repo!.reiniciarContrasena(id); setTemporal(r.contrasenaTemporal); })}
+    onCrear={(datos) => void mutar(async () => { const r = await repo!.crear(datos); setTemporal(r.contrasenaTemporal); await recargar(); })}
+    onEstado={(id, activo) => mutar(async () => { await repo!.cambiarEstado(id, activo); await recargar(); })}
+    onReiniciar={(id) => mutar(async () => { const r = await repo!.reiniciarContrasena(id); setTemporal(r.contrasenaTemporal); })}
   />;
 }
