@@ -5,7 +5,7 @@ Actualizado: 14 de octubre de 2026.
 Este documento permite continuar el trabajo sin depender del historial de una conversación.
 Antes de actuar, comprobar siempre `git status`, `git log -5` y el estado real de producción.
 
-## Grouped navigation (implemented, not published, 2026-10-14)
+## Grouped navigation (published and verified, 2026-10-14)
 
 The primary menu now has five modules for admin and operador: Cargar datos, Ausencias,
 Notificaciones, Horas trabajadas, and Administración. Notification views are Preparar
@@ -48,12 +48,39 @@ At 312px, internal links and the long-name profile fit, and the preparation butt
 without document-level horizontal overflow. Ordinary current-child, current-parent and
 current-profile clicks close the mobile menu. The compact/desktop boundary was checked at
 900px and 902px; both layouts fit. The mutation counter remained zero. Screenshots of
-the prepared-document view were saved outside the repository. No real-data operation,
-password reset, or publication was performed.
+the prepared-document view were saved outside the repository. No real data or credentials
+were touched in this isolated verification.
 
-Publication remains pending. This is a frontend-only unit: publish the reviewed frontend
-after explicit authorization, then verify authenticated navigation without business-data
-writes. Rollback is a frontend revert and republish; no data conversion is needed.
+Release commit `e22e9295c1f3c308be338a52f636f974f0abc2f9` was fast-forwarded to `main`
+and published by successful Vercel Production deployment `7063871461`. This frontend-only
+release did not deploy the API or change database schema, app settings, dependencies,
+permissions or business data. The build used the already-published public API base.
+Public HTML references the fresh build assets, whose downloaded bytes exactly match:
+
+- `/assets/index-CVlVILPY.js`: 794,367 bytes, SHA256
+  `82BF59AD582A2AD47D7F5E1174D3B7B89D880980B013B73E8AE3DC3F01D56BAA`.
+- `/assets/index-Kt04QhNO.css`: 34,654 bytes, SHA256
+  `CDF9D5D4D726DAD4AE34933F688F2BB79CD9181248A5CCFE4054F99877766B07`.
+
+Authenticated production verification used the existing administrator session and visited
+all ten route destinations. It confirmed the five primary modules, all four notification
+views, both administration views, correct parent/current-view selection, direct entry to
+Preparados, profile access, browser Back to Historial, and month preservation through
+notification navigation. Period controls appeared on Ausencias, Horas, Preparar and
+Resumen, and were absent from Carga, Preparados, Historial, administration and Mi cuenta.
+Import history still contained 1,194 days, Preparados remained empty, the original history
+document remained unchanged, and all five accounts retained their prior states. Other-role
+visibility and guards were tested through the isolated fixture above, without switching
+production accounts.
+
+Measured production CSS widths of 1440px, 390px and 312px showed no document-level
+horizontal overflow in the checked layouts. Mobile internal links fit; ordinary
+current-child, current-parent and current-profile navigation closed the mobile menu.
+Desktop and mobile screenshots were saved outside the repository. No import, classification,
+document preparation/emission/deletion, notification-mark change, configuration save,
+account-state change, password reset or own-password change occurred. The temporary browser
+tab was closed, the viewport reset, and the original user tab preserved. API health remained
+healthy. Rollback is a frontend revert and republish; no data conversion is needed.
 
 ## Confirming sensitive user actions (published and safely verified, 2026-10-13)
 
