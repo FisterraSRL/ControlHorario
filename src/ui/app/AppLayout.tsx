@@ -9,7 +9,7 @@
 import { useMemo } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 
-import { Sidebar } from '../components/organisms/Sidebar/Sidebar.js';
+import { NavegacionModulo, Sidebar } from '../components/organisms/Sidebar/Sidebar.js';
 import type { ItemSidebar } from '../components/organisms/Sidebar/Sidebar.js';
 import { Topbar } from '../components/organisms/Topbar/Topbar.js';
 import { useConfiguracion } from '../configuracion/ConfiguracionProvider.js';
@@ -26,7 +26,7 @@ import {
 import { pluralizar } from '../texto.js';
 import { AppShell } from './AppShell.js';
 import { CONTADORES_VACIOS, contarPendientes, registrosDelPeriodo } from './contadores.js';
-import { rutaInicialDeRol, seccionDeRuta, seccionesDeRol } from './navegacion.js';
+import { moduloDeRuta, modulosDeRol, rutaInicialDeRol, seccionDeRuta } from './navegacion.js';
 import type { ContadoresNav } from './contadores.js';
 import type { TipoContador } from './navegacion.js';
 
@@ -63,19 +63,19 @@ export function AppLayout() {
 
   const seccion =
     seccionDeRuta(pathname) ?? (rol ? seccionDeRuta(rutaInicialDeRol(rol)) : undefined);
+  const modulo = rol ? moduloDeRuta(pathname, rol) : undefined;
 
-  // The menu IS the role's section list. No exception per section, so a new section is
-  // gated by the `roles` field it declares in navegacion.ts and nowhere else. The badges
-  // keep counting whatever the historial holds: the server already narrowed those rows to
-  // the sectors this account supervises, so an encargado's badge is their own count.
+  // Modules group the role-authorized routes from SECCIONES without changing their guards.
+  // Badges keep counting the same historial; server reads already enforce sector scope.
   const items = useMemo<readonly ItemSidebar[]>(
     () =>
-      (rol === null ? [] : seccionesDeRol(rol)).map((s) => {
+      (rol === null ? [] : modulosDeRol(rol)).map((s) => {
         const n = s.contador && !cargando && !error ? valorContador(contadores, s.contador) : null;
         return {
           path: s.path,
           label: s.label,
           icono: s.icono,
+          rutas: s.vistas.map(vista => vista.path),
           contador: n,
           ...(s.contador && n !== null
             ? { descripcionContador: DESCRIPCIONES[s.contador](n) }
@@ -94,11 +94,11 @@ export function AppLayout() {
     <AppShell
       navigationKey={pathname}
       sidebar={(onNavigate) => (
-        <Sidebar items={items} rutaActiva={seccion?.path ?? pathname} onNavigate={onNavigate} />
+        <Sidebar items={items} rutaActiva={pathname} onNavigate={onNavigate} />
       )}
-      topbar={
+      topbar={(onNavigate) => (
         <Topbar<ModoPreset>
-          titulo={seccion?.titulo ?? 'Control de Fichadas'}
+          titulo={seccion?.id === 'indicador' ? 'Resumen de notificaciones' : seccion?.titulo ?? 'Control de Fichadas'}
           mostrarPeriodo={seccion?.muestraPeriodo ?? false}
           modos={modos}
           // A hand-picked range is not a preset, so no segment is on while it is in force.
@@ -114,13 +114,19 @@ export function AppLayout() {
           onRango={fijarRango}
           operador={sesion?.operador.nombre ?? null}
           sinServidor={!repositorios.conServidor}
+          onNavigate={onNavigate}
           onSalir={() => {
             void cerrar();
           }}
         />
-      }
+      )}
     >
-      <Outlet />
+      {(onNavigate) => <>
+        {modulo && (modulo.id === 'notificaciones' || modulo.id === 'configuracion') && (
+          <NavegacionModulo modulo={modulo} rutaActiva={pathname} onNavigate={onNavigate} />
+        )}
+        <Outlet />
+      </>}
     </AppShell>
   );
 }

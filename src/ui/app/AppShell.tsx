@@ -9,12 +9,14 @@ const COMPACT_QUERY = '(max-width: 900px)';
 export interface AppShellProps {
   readonly sidebar: (onNavigate: () => void) => ReactNode;
   readonly navigationKey: string;
-  readonly topbar: ReactNode;
-  readonly children: ReactNode;
+  readonly topbar: ReactNode | ((onNavigate: () => void) => ReactNode);
+  readonly children: ReactNode | ((onNavigate: () => void) => ReactNode);
 }
 
-interface AppShellScreenProps extends Omit<AppShellProps, 'sidebar' | 'navigationKey'> {
+interface AppShellScreenProps extends Omit<AppShellProps, 'sidebar' | 'navigationKey' | 'topbar' | 'children'> {
   readonly sidebar: ReactNode;
+  readonly topbar: ReactNode;
+  readonly children: ReactNode;
   readonly compact: boolean;
   readonly menuOpen: boolean;
   readonly menuId: string;
@@ -73,6 +75,7 @@ export function AppShell({ sidebar, navigationKey, topbar, children }: AppShellP
     setMenuOpen(false);
     if (navigation.current?.contains(document.activeElement)) menuButton.current?.focus();
   }, []);
+  const onNavigate = useCallback(() => { if (compact) closeMenu(); }, [compact, closeMenu]);
 
   useEffect(() => {
     const query = window.matchMedia(COMPACT_QUERY);
@@ -129,8 +132,8 @@ export function AppShell({ sidebar, navigationKey, topbar, children }: AppShellP
 
   return (
     <AppShellScreen
-      sidebar={sidebar(() => { if (compact) closeMenu(); })}
-      topbar={topbar}
+      sidebar={sidebar(onNavigate)}
+      topbar={typeof topbar === 'function' ? topbar(onNavigate) : topbar}
       compact={compact}
       menuOpen={menuOpen}
       menuId={menuId}
@@ -138,7 +141,7 @@ export function AppShell({ sidebar, navigationKey, topbar, children }: AppShellP
       navigationRef={navigation}
       onToggle={() => setMenuOpen((open) => !open)}
     >
-      {children}
+      {typeof children === 'function' ? children(onNavigate) : children}
     </AppShellScreen>
   );
 }

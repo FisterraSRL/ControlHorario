@@ -5,11 +5,11 @@ import { describe, expect, it } from 'vitest';
 
 import { Sidebar } from '../components/organisms/Sidebar/Sidebar.js';
 import { AppShellScreen } from './AppShell.js';
-import { seccionesDeRol } from './navegacion.js';
+import { modulosDeRol } from './navegacion.js';
 import type { RolUsuario } from '../roles.js';
 
 function render(compact: boolean, menuOpen: boolean, rol: RolUsuario = 'admin') {
-  const items = seccionesDeRol(rol).map((section) => ({
+  const items = modulosDeRol(rol).map((section) => ({
     path: section.path, label: section.label, icono: section.icono,
     contador: section.id === 'ausencias' ? 3 : null,
   }));
@@ -54,8 +54,8 @@ describe('responsive navigation accessibility', () => {
   it('preserves role restrictions in the expanded menu', () => {
     const html = render(true, true, 'encargado');
     expect(html).toContain('href="/ausencias"');
-    expect(html).toContain('href="/mi-cuenta"');
-    expect(html.match(/<a /g)).toHaveLength(2);
+    expect(html).not.toContain('href="/mi-cuenta"');
+    expect(html.match(/<a /g)).toHaveLength(1);
     expect(html).not.toContain('href="/usuarios"');
     expect(html).not.toContain('href="/carga"');
   });

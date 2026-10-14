@@ -8,3 +8,11 @@
 .notificaciones__aviso { margin-bottom:var(--app-space-3); }
 .notificaciones__ayuda { margin:0 0 var(--app-space-3); color:var(--app-muted); font-size:var(--app-text-sm); }
 .notificaciones__seleccion { margin-top:var(--app-space-1); color:var(--app-muted); font-size:var(--app-text-sm); }
+
+@media (max-width: 900px) {
+  .notificaciones__preparar {
+    max-width: 100%;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+}

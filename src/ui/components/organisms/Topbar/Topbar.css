@@ -193,3 +193,28 @@
     white-space: normal;
   }
 }
+
+.topbar__perfil {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  flex-shrink: 0;
+  color: var(--app-accent);
+  font-size: var(--app-text-sm);
+  text-underline-offset: 3px;
+}
+
+.topbar__perfil[aria-current='page'] {
+  font-weight: var(--fs-weight-semibold);
+}
+
+@media (max-width: 900px) {
+  .topbar__cuenta {
+    flex-wrap: wrap;
+    max-width: 100%;
+  }
+  .topbar__operador {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+}

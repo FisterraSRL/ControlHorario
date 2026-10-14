@@ -1,23 +1,4 @@
-/**
- * The sections of the app, in the order the sidebar shows them — the same order and the
- * same labels the legacy file used, because the people who use this every day navigate it
- * by position.
- *
- * `contador` names which pending count the sidebar badge shows, or `null` for the sections
- * that never had one (Cargar datos, Indicador, Configuración, Mi cuenta).
- *
- * WHO SEES WHAT IS A FIELD ON THE SECTION, not a condition at each call site. It used to be
- * two hardcoded `id === 'usuarios'` exceptions — one in the sidebar, one in the route table —
- * which is two places to update and one place to forget. With `roles` here, the sidebar and
- * the route guards read the same list, and a section nobody wrote a rule for is simply not
- * reachable rather than accidentally public.
- *
- * THE LANDING ROUTE IS DERIVED FROM IT for the same reason. It used to be the constant
- * `/carga`, which an `encargado` gets a 403 from: sending somebody to a screen their role
- * cannot open is how a redirect loop or a blank page starts. `rutaInicialDeRol` answers with
- * the first section that role may actually open, so the answer cannot go stale when the
- * table below changes.
- */
+/** Existing routes, role authorization and landing order. Modules group these routes for navigation only. */
 
 import type { NombreIcono } from '../components/atoms/Icon/Icon.js';
 import { ROLES, type RolUsuario } from '../roles.js';
@@ -42,9 +23,9 @@ const TODOS = ROLES;
 export interface Seccion {
   readonly id: IdSeccion;
   readonly path: string;
-  /** Sidebar label. */
+  /** Full route label, independent of the module navigation. */
   readonly label: string;
-  /** Topbar page title. Only Indicador differs from its sidebar label. */
+  /** Topbar page title. */
   readonly titulo: string;
   readonly icono: NombreIcono;
   readonly contador: TipoContador | null;
@@ -179,7 +160,7 @@ export function seccionDeRuta(pathname: string): Seccion | undefined {
   return SECCIONES.find((s) => s.path === pathname);
 }
 
-/** The sections this role may open, in sidebar order. */
+/** The routes this role may open, in their existing landing order. */
 export function seccionesDeRol(rol: RolUsuario): readonly Seccion[] {
   return SECCIONES.filter((s) => s.roles.includes(rol));
 }
@@ -195,4 +176,62 @@ export function permiteRol(seccion: Seccion, rol: RolUsuario): boolean {
  */
 export function rutaInicialDeRol(rol: RolUsuario): string {
   return seccionesDeRol(rol)[0]?.path ?? RUTA_CUENTA;
+}
+
+export interface VistaModulo {
+  readonly path: string;
+  readonly label: string;
+}
+
+export interface ModuloNavegacion {
+  readonly id: string;
+  readonly path: string;
+  readonly label: string;
+  readonly icono: NombreIcono;
+  readonly contador: TipoContador | null;
+  readonly vistas: readonly VistaModulo[];
+}
+
+/** Grouping is presentation only; route authorization remains in SECCIONES. */
+const MODULOS: readonly { readonly id: IdSeccion; readonly label?: string; readonly vistas: readonly { readonly id: IdSeccion; readonly label?: string }[] }[] = [
+  { id: 'carga', vistas: [{ id: 'carga' }] },
+  { id: 'ausencias', vistas: [{ id: 'ausencias' }] },
+  { id: 'notificaciones', vistas: [
+    { id: 'notificaciones', label: 'Preparar' },
+    { id: 'envios', label: 'Preparados' },
+    { id: 'historialNotificaciones', label: 'Historial' },
+    { id: 'indicador', label: 'Resumen' },
+  ] },
+  { id: 'horas', vistas: [{ id: 'horas' }] },
+  { id: 'configuracion', label: 'Administración', vistas: [{ id: 'configuracion' }, { id: 'usuarios' }] },
+];
+
+export function modulosDeRol(rol: RolUsuario): readonly ModuloNavegacion[] {
+  return MODULOS.flatMap((modulo) => {
+    const vistas = modulo.vistas.flatMap((vista) => {
+      const seccion = SECCIONES.find(s => s.id === vista.id);
+      return seccion && permiteRol(seccion, rol) ? [{ path: seccion.path, label: vista.label ?? seccion.label }] : [];
+    });
+    const principal = SECCIONES.find(s => s.id === modulo.id);
+    if (!principal || !vistas[0]) return [];
+    return [{
+      id: modulo.id,
+      path: vistas[0].path,
+      label: modulo.label ?? principal.label,
+      icono: principal.icono,
+      contador: principal.contador,
+      vistas,
+    }];
+  });
+}
+
+export function moduloDeRuta(pathname: string, rol: RolUsuario): ModuloNavegacion | undefined {
+  return modulosDeRol(rol).find(modulo => modulo.vistas.some(vista => vista.path === pathname));
+}
+
+/** Modified clicks preserve the current disclosure while opening another browsing context. */
+export function alNavegar(onNavigate?: () => void) {
+  return (event: { readonly button: number; readonly ctrlKey: boolean; readonly metaKey: boolean; readonly shiftKey: boolean; readonly altKey: boolean }) => {
+    if (event.button === 0 && !event.ctrlKey && !event.metaKey && !event.shiftKey && !event.altKey) onNavigate?.();
+  };
 }

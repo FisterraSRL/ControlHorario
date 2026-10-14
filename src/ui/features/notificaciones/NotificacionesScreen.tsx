@@ -97,6 +97,7 @@ export function NotificacionesScreen({
       acciones={
         <Button
           variante="primary"
+          className="notificaciones__preparar"
           onClick={onGenerarSeleccionadas}
           disabled={seleccionadas.size === 0 || registrando}
         >

@@ -1,9 +1,59 @@
 # Estado del proyecto y continuidad
 
-Actualizado: 13 de octubre de 2026.
+Actualizado: 14 de octubre de 2026.
 
 Este documento permite continuar el trabajo sin depender del historial de una conversación.
 Antes de actuar, comprobar siempre `git status`, `git log -5` y el estado real de producción.
+
+## Grouped navigation (implemented, not published, 2026-10-14)
+
+The primary menu now has five modules for admin and operador: Cargar datos, Ausencias,
+Notificaciones, Horas trabajadas, and Administración. Notification views are Preparar
+(`/notificaciones`), Preparados (`/envios`), Historial (`/historial-notificaciones`), and
+Resumen (`/indicador`). Administration contains Configuración (`/configuracion`) and,
+for admin only, Usuarios (`/usuarios`). An encargado still accesses only Ausencias and
+their own account. Mi cuenta (`/mi-cuenta`) is an explicit profile link for every role,
+including the offline path.
+
+All ten existing route URLs and route guards remain intact. Role visibility is derived
+from the same SECCIONES rules; grouping introduces no API, SQL, permission, repository,
+or migration changes. Existing notification, absence, and weekly-hour counters retain
+their definitions. Grouped parents stay selected on child URLs (`aria-current=location`),
+while the current internal view uses `aria-current=page`. Internal navigation uses native
+links, wraps at narrow widths, and supports modified clicks, direct links and browser Back.
+The mobile menu closes on ordinary parent, child and profile navigation, including a click
+on the current URL. A narrow-screen notification preparation button also wraps instead
+of extending beyond the card.
+
+The shared provider tree has not changed. Period selection and prepared documents remain
+shared across routes; period controls appear only on their existing consumers (Preparar,
+Resumen, Ausencias and Horas). Existing screen-local filters and selections retain their
+previous lifetime; this unit does not add draft persistence. Preparing, emitting documents,
+and classifying absences keep their distinct existing effects.
+
+Eleven new regressions cover module order, every notification deep link, administration
+and supervisor permissions, profile availability online/offline, existing URLs, landing
+routes, period consumers, counters, selected navigation semantics, and ordinary/modified
+click handling. Final source checks passed: typecheck, 822 tests in 64 files, production
+build, and diff whitespace checks. Browser verification uses the complete actual App,
+all containers, guards and providers with fictional in-memory repositories. A CSP blocks
+network connections; fixture mutations are blocked and visibly counted.
+
+Browser checks covered grouped routes and role-specific navigation at measured CSS widths of 1440px and 390px,
+including admin's five modules/four notification views/two administration views, operador's
+configuration-only administration, encargado's absence-only primary menu, offline profile
+access, and forbidden direct-route redirects. Keyboard Enter navigation, browser Back,
+month preservation across notification views and a prepared fictional document also passed.
+At 312px, internal links and the long-name profile fit, and the preparation button wraps
+without document-level horizontal overflow. Ordinary current-child, current-parent and
+current-profile clicks close the mobile menu. The compact/desktop boundary was checked at
+900px and 902px; both layouts fit. The mutation counter remained zero. Screenshots of
+the prepared-document view were saved outside the repository. No real-data operation,
+password reset, or publication was performed.
+
+Publication remains pending. This is a frontend-only unit: publish the reviewed frontend
+after explicit authorization, then verify authenticated navigation without business-data
+writes. Rollback is a frontend revert and republish; no data conversion is needed.
 
 ## Confirming sensitive user actions (published and safely verified, 2026-10-13)
 

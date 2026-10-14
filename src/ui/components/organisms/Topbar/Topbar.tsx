@@ -1,10 +1,12 @@
 import { useCallback, useId, useLayoutEffect, useRef, useState } from 'react';
 import type { KeyboardEvent } from 'react';
+import { Link, useLocation } from 'react-router-dom';
 
 import { Button } from '../../atoms/Button/Button.js';
 import { Chip } from '../../atoms/Chip/Chip.js';
 import { Icon } from '../../atoms/Icon/Icon.js';
 import { Calendario } from '../../molecules/Calendario/Calendario.js';
+import { alNavegar } from '../../../app/navegacion.js';
 import { SegmentedControl } from '../../molecules/SegmentedControl/SegmentedControl.js';
 import type { OpcionSegmento } from '../../molecules/SegmentedControl/SegmentedControl.js';
 import './Topbar.css';
@@ -41,6 +43,7 @@ export interface TopbarProps<T extends string> {
    * "the upload said it saved but nobody else can see it" is the confusion this prevents.
    */
   readonly sinServidor: boolean;
+  readonly onNavigate?: () => void;
 }
 
 /** The popover's width and the gutter it keeps from the viewport edges. */
@@ -72,7 +75,9 @@ export function Topbar<T extends string>({
   operador,
   onSalir,
   sinServidor,
+  onNavigate,
 }: TopbarProps<T>) {
+  const { pathname } = useLocation();
   const [abierto, setAbierto] = useState(false);
   const [posicion, setPosicion] = useState<Posicion | null>(null);
   const disparador = useRef<HTMLButtonElement>(null);
@@ -201,6 +206,7 @@ export function Topbar<T extends string>({
       )}
 
       <div className="topbar__cuenta">
+        <Link className="topbar__perfil" to="/mi-cuenta" aria-current={pathname === '/mi-cuenta' ? 'page' : undefined} onClick={alNavegar(onNavigate)}>Mi cuenta</Link>
         {sinServidor ? (
           <Chip
             tono="incompleta"
