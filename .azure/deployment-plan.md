@@ -1,8 +1,62 @@
 # Azure Deployment Plan
 
-> **Status:** Deployed — application-only complete-history filters API release
+> **Status:** Deployed — QUICKPASS export API complete; frontend publication pending
 
 Generated: 2026-09-16
+
+## QUICKPASS absence-reason export application release — 2026-10-15
+
+The user authorized publishing the complete implemented export, API first and frontend
+second. The existing App Service, subscription, B1 plan and Vercel production project stay
+unchanged. Power BI refresh confirmation belongs to the user. The available production
+browser session is expired, so authenticated export verification must remain pending unless
+a valid session becomes available; public health and exact deployed artifact verification
+are independent checks. No business-data writes or password resets are authorized.
+
+### Validation proof
+
+- Final candidate `511364e` passed typecheck, 840 tests in 66 files, frontend/API builds
+  and diff whitespace checks. Source bytes are unchanged since those checks.
+- The production frontend was rebuilt with the existing public API base explicitly set
+  in process memory. Its bundle contains that public base and the new export action.
+- A fresh API compilation targets an initially unused temporary release directory. The
+  package contains the reason-label read-only join and optional response field.
+- Azure CLI readback confirms the approved subscription, existing Running Linux App Service,
+  B1 plan in West US 3, Node 24 LTS and startup `npm run api`. Both remote-build flags
+  remain false. Preflight health confirms TLS, a reachable database and six migrations.
+- No infrastructure, identity, Azure RBAC, policy, app-setting, dependency, firewall or
+  migration change is needed. IaC provisioning and mutating SQL verification do not apply
+  to this application-only release.
+- The production dependency lock is byte-identical to the current lock. Linux argon2
+  archive SHA512 matches package-lock integrity and the runtime binary matches the archive.
+- Precompiled ZIP `controlhorario-20261015-excel-511364e.zip`: 24,143,347 bytes,
+  10,276 entries, exactly six migrations; every entry reopened and compared byte for byte,
+  safe forward-slash paths, and no environment files. SHA256:
+  `ae27e94aa8e9b1a76251fcc2a1adc2cc11733b2790c7690bb680c202f189fdf6`.
+
+### Deployment sequence
+
+1. Deploy the validated ZIP to the existing API and wait for `RuntimeSuccessful`.
+2. Confirm fresh healthy uptime, six migrations, and the changed API module hash/label join.
+3. Only then fast-forward and push `main` to trigger the existing Vercel deployment.
+4. Verify successful Vercel publication and matching main/CSS/lazy-XLSX assets. Record
+   authenticated browser scope honestly, without treating a login page as an export test.
+
+### API deployment proof
+
+- Deployment `f65fb131-3365-44ae-875f-f07f8228cd95` reached `RuntimeSuccessful`, one
+  successful instance, zero failed instances and no reported errors. Site startup completed
+  after 70 seconds; the package was deployed once.
+- Fresh API health reports `ok: true`, uptime 48 seconds, reachable database with TLS and
+  the same six applied migrations. No business-data or SQL migration write was performed.
+- Kudu readback matches the packaged compiled modules exactly:
+  `repositorioAusencias.js` SHA256
+  `a8c2ffbd0fae9b241193d0ea3c9d933406ca45793f8b025cb0d1084eb28227e6`;
+  `rutasAusencias.js` SHA256
+  `a6d4fda33e35b8cc3de64fed83768cd5c45bdb28a2855306b07753f7242c42e1`;
+  `servidor.js` SHA256
+  `f235bfd6f4df129efdf88ef47eef2b5939800994a8e945fe8edb60c7336e59af`.
+  The deployed absence module contains the optional label and qualified LEFT JOIN.
 
 ## Complete-history filters application release — 2026-10-13
 
