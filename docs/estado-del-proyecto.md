@@ -5,7 +5,7 @@ Actualizado: 15 de octubre de 2026.
 Este documento permite continuar el trabajo sin depender del historial de una conversación.
 Antes de actuar, comprobar siempre `git status`, `git log -5` y el estado real de producción.
 
-## QUICKPASS export with saved absence reasons (implemented, not published, 2026-10-15)
+## QUICKPASS export with saved absence reasons (published; authenticated download pending, 2026-10-15)
 
 Ausencias offers `Descargar Excel con motivos`. The workbook contains every stored row
 inside the inclusive selected period, including attendance, days off, already classified
@@ -62,12 +62,41 @@ export disabled until the saved response arrived. Missing-label, configuration, 
 history and empty-period scenarios refused unsafe downloads. Measured CSS widths of 1440,
 390 and 312 pixels fit the button and help text; a scoped summary-chip wrap also removed
 a five-pixel narrow-screen overflow found during this verification. Screenshots and a
-fictional sample workbook were saved outside the repository. No real data was read or
-modified, and no production publication or Power BI refresh was performed for this unit.
+fictional sample workbook were saved outside the repository. This isolated verification
+read or modified no real data and performed no Power BI refresh.
 
-Release remains pending. Deploy the API before the frontend so retired reason labels are
-available immediately. Rollback is a revert of this export unit and republishing; the
-optional read-only API property is backward compatible and no data conversion is needed.
+The user subsequently authorized publication of the complete unit, API first and frontend
+second, leaving actual Power BI confirmation to them. Azure deployment
+`f65fb131-3365-44ae-875f-f07f8228cd95` reached `RuntimeSuccessful`, with one successful
+instance and zero failures. Fresh health confirms a restarted API, reachable database with
+TLS and the same six applied migrations. Kudu readback matches the fresh compiled absence
+repository SHA256 `a8c2ffbd0fae9b241193d0ea3c9d933406ca45793f8b025cb0d1084eb28227e6`
+and confirms the new optional label and qualified reason join. No migration, app setting,
+infrastructure, permission or business-data change occurred.
+
+Only after API success and readback, release commit `f539de731d2df435f48172faff52145a5cd3498b`
+was fast-forwarded and pushed to main. Successful Vercel Production deployment `7095208932`
+publishes the feature from source commit `511364e`. The frontend was rebuilt with the
+existing public API base explicitly provided. Public HTML points to the fresh main/CSS
+assets, and all three downloaded assets match the local production build byte for byte:
+
+- `/assets/index-CuKoKf8K.js`: 430,300 bytes, SHA256
+  `74b6b6e9b3ad4eb2491af14200a6598b689cc94dbd7c14c156c4319140283cfa`.
+- `/assets/index-XYAWD7VA.css`: 34,991 bytes, SHA256
+  `2f8b2a58a652c616cbc71f787429e51e32eb35f0b1d1b133f9864466ce5218e0`.
+- `/assets/xlsx-DBDltAJH.js`: 491,567 bytes, SHA256
+  `26115f70009082f6d6e7bb4a9c9a99090ca6445394789073ef0cf120425a1a05`.
+
+The authenticated production browser session had expired. Reloading the published app
+shows the real Control de Fichadas sign-in screen at `/carga`, with Correo, Contraseña and
+Entrar. The tab was handed back for the user to sign in. The private absence registry still
+returns 401 without a session. Production publication, API runtime and artifact delivery
+are verified; the authenticated export action and production workbook download remain
+pending a valid session. No real records were accessed or changed in this browser check.
+The isolated complete-App download/classification tests above passed, but are not a
+substitute for the pending authenticated production check. Actual Power BI refresh remains
+for the user's confirmation. Rollback is a revert and API/frontend republish; the optional
+API property is backward compatible and no data conversion is needed.
 
 ## Grouped navigation (published and verified, 2026-10-14)
 

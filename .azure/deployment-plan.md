@@ -1,6 +1,6 @@
 # Azure Deployment Plan
 
-> **Status:** Deployed — QUICKPASS export API complete; frontend publication pending
+> **Status:** Deployed — QUICKPASS export API and frontend published; authenticated download pending login
 
 Generated: 2026-09-16
 
@@ -57,6 +57,30 @@ are independent checks. No business-data writes or password resets are authorize
   `servidor.js` SHA256
   `f235bfd6f4df129efdf88ef47eef2b5939800994a8e945fe8edb60c7336e59af`.
   The deployed absence module contains the optional label and qualified LEFT JOIN.
+
+### Frontend publication and verification proof
+
+- After API runtime success, health and compiled-module readback, `main` was fast-forwarded
+  and pushed as `f539de731d2df435f48172faff52145a5cd3498b`, including source unit `511364e`.
+  Vercel Production deployment `7095208932` completed successfully.
+- Fresh public HTML and downloaded main, CSS and on-demand XLSX assets match the local
+  production build byte for byte. Main `index-CuKoKf8K.js`: 430,300 bytes, SHA256
+  `74b6b6e9b3ad4eb2491af14200a6598b689cc94dbd7c14c156c4319140283cfa`;
+  CSS `index-XYAWD7VA.css`: 34,991 bytes, SHA256
+  `2f8b2a58a652c616cbc71f787429e51e32eb35f0b1d1b133f9864466ce5218e0`;
+  XLSX `xlsx-DBDltAJH.js`: 491,567 bytes, SHA256
+  `26115f70009082f6d6e7bb4a9c9a99090ca6445394789073ef0cf120425a1a05`.
+- Browser reload confirms the published Control de Fichadas login screen at `/carga`,
+  because the prior session expired. The tab was handed back for sign-in. No authenticated
+  production export/download was tested, and no real records were accessed or changed.
+  Unauthenticated registry reads still return 401.
+- The complete-App fixture already proved real XLSX downloads before/after fictional
+  classification and safe loading/error/scope states; 840 tests passed. These do not replace
+  the authenticated production download check, which remains pending login. Actual Power BI
+  refresh confirmation remains explicitly with the user.
+- No settings, infrastructure, permissions, schema, notification marks, accounts, passwords
+  or business records were modified by this release. Rollback requires only reverting and
+  republishing the API/frontend unit; no conversion is needed.
 
 ## Complete-history filters application release — 2026-10-13
 
