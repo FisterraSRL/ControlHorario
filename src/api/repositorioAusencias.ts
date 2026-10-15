@@ -46,6 +46,7 @@ export interface AusenciaRegistrada {
   /** `YYYY-MM-DD`. The screen joins on this; the raw `DD/MM/YYYY` cell stays in `fichadas`. */
   readonly fecha: string;
   readonly motivoId: number | null;
+  readonly motivoLabel?: string | null;
   readonly motivoSource: 'partes' | 'manual' | 'encargado' | null;
   readonly resueltoPor: string | null;
   readonly resueltoAt: string | null;
@@ -68,6 +69,7 @@ const SQL_REGISTRO_CAMPOS = `
   SELECT a.[dni],
          CONVERT(char(10), a.[fecha], 23) AS [fecha],
          a.[motivo_id],
+         m.[label] AS [motivo_label],
          a.[motivo_source],
          a.[resuelto_por],
          a.[resuelto_at],
@@ -75,6 +77,7 @@ const SQL_REGISTRO_CAMPOS = `
             FROM [controlhorario].[adjuntos] ad
            WHERE ad.[dni] = a.[dni] AND ad.[fecha] = a.[fecha]) AS [adjuntos]
     FROM [controlhorario].[ausencias] a
+    LEFT JOIN [controlhorario].[motivos] m ON m.[id] = a.[motivo_id]
 `;
 
 /**
@@ -104,6 +107,7 @@ interface FilaRegistro {
   dni: string;
   fecha: string;
   motivo_id: number | null;
+  motivo_label?: string | null;
   motivo_source: string | null;
   resuelto_por: string | null;
   resuelto_at: Date | string | null;
@@ -115,6 +119,7 @@ function aRegistro(f: FilaRegistro): AusenciaRegistrada {
     dni: f.dni,
     fecha: f.fecha,
     motivoId: f.motivo_id,
+    ...(f.motivo_label === undefined ? {} : { motivoLabel: f.motivo_label }),
     motivoSource: (f.motivo_source ?? null) as AusenciaRegistrada['motivoSource'],
     resueltoPor: f.resuelto_por,
     resueltoAt:

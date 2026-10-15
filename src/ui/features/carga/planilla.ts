@@ -1,7 +1,7 @@
 /**
  * Reading the QUICKPASS export.
  *
- * This is the only module in the app that knows a spreadsheet library exists. Everything
+ * This adapter reads spreadsheets; the absence export adapter writes them. Everything
  * downstream sees `FilaQuickpass` — a plain record of column name to string — which is
  * exactly what the domain parsers expect.
  *
@@ -13,8 +13,6 @@
  * legacy file relied on, where a missing cell reads as the empty string rather than
  * disappearing from the row.
  */
-
-import { read, utils } from 'xlsx';
 
 import type { FilaQuickpass } from '../../../domain/fichadas/index.js';
 
@@ -105,6 +103,7 @@ export async function leerPlanilla(archivo: File): Promise<PlanillaLeida> {
     );
   }
 
+  const { read, utils } = await import('xlsx');
   let libro;
   try {
     libro = read(bytes, { type: 'array', cellDates: false });

@@ -59,6 +59,10 @@ export interface AusenciasScreenProps {
   readonly cargando: boolean;
   readonly error: string | null;
   readonly aviso: string | null;
+  readonly onExportarExcel: () => void;
+  readonly exportandoExcel: boolean;
+  readonly excelDisponible: boolean;
+  readonly errorExcel: string | null;
 }
 
 /**
@@ -99,6 +103,7 @@ export function AusenciasScreen({
   cargando,
   error,
   aviso,
+  onExportarExcel, exportandoExcel, excelDisponible, errorExcel,
 }: AusenciasScreenProps) {
   const opciones = opcionesMotivo(motivos);
 
@@ -109,6 +114,13 @@ export function AusenciasScreen({
       titulo="Registro de ausencias"
       bajada="Cada día sin fichadas que el sistema detectó, con su motivo y su documentación de respaldo. El motivo que elijas acá queda como decisión de RRHH y una carga posterior no lo pisa."
     >
+      <div className="ausencias__exportacion">
+        <Button onClick={onExportarExcel} disabled={!excelDisponible || exportandoExcel}>
+          {exportandoExcel ? 'Preparando Excel…' : 'Descargar Excel con motivos'}
+        </Button>
+        <p>Incluye todas las filas importadas del período, también las ya justificadas, con los motivos guardados en PARTES. No aplica los filtros de la lista.</p>
+      </div>
+      {errorExcel && <div className="ausencias__aviso"><Alert tono="error" titulo="No se pudo descargar el Excel">{errorExcel}</Alert></div>}
       <div className="ausencias__barra">
         <Select
           etiqueta="Filtrar por sector"
@@ -171,7 +183,7 @@ export function AusenciasScreen({
                   tamano="sm"
                   valor={String(fila.motivoId)}
                   opciones={opciones}
-                  disabled={claveOcupada === fila.clave}
+                  disabled={exportandoExcel || claveOcupada === fila.clave}
                   onCambio={(valor) =>
                     onMotivo(fila.dni, fila.fechaStr, valor === '' ? null : Number(valor))
                   }
@@ -179,7 +191,7 @@ export function AusenciasScreen({
                 <Button
                   tamano="sm"
                   variante="ghost"
-                  disabled={claveOcupada === fila.clave}
+                  disabled={exportandoExcel || claveOcupada === fila.clave}
                   onClick={() => onCerrarReciente(fila.clave)}
                 >
                   Listo<span className="ausencias__sr"> para {fila.usuario || fila.dni} el {etiquetaFecha(fila)}</span>
@@ -210,7 +222,7 @@ export function AusenciasScreen({
             opciones={opciones}
             onCambio={onMotivoLote}
           />
-          <Button tamano="sm" variante="primary" onClick={onAplicarLote} disabled={!loteAplicable}>
+          <Button tamano="sm" variante="primary" onClick={onAplicarLote} disabled={!loteAplicable || exportandoExcel}>
             Aplicar
           </Button>
           <Button tamano="sm" variante="ghost" onClick={onLimpiarSeleccion}>
@@ -316,6 +328,7 @@ export function AusenciasScreen({
                         tamano="sm"
                         valor={fila.motivoId === null ? '' : String(fila.motivoId)}
                         opciones={opciones}
+                        disabled={exportandoExcel}
                         onCambio={(valor) =>
                           onMotivo(fila.dni, fila.fechaStr, valor === '' ? null : Number(valor))
                         }

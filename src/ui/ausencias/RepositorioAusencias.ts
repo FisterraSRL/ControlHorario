@@ -20,6 +20,8 @@ export interface AusenciaRegistrada {
   /** `YYYY-MM-DD`. */
   readonly fecha: string;
   readonly motivoId: number | null;
+  /** Read-only label, including retired reasons; older servers may omit it. */
+  readonly motivoLabel?: string | null;
   readonly motivoSource: OrigenMotivo | null;
   readonly resueltoPor: string | null;
   readonly resueltoAt: string | null;

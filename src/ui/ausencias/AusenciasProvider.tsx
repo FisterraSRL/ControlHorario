@@ -35,6 +35,7 @@ interface ContextoAusencias {
   /** Keyed `${dni}|${DD/MM/YYYY}`, for `ConfiguracionFichadas.ausencias`. */
   readonly indiceParaElMotor: Readonly<Record<string, DecisionDelMotor>>;
   readonly cargando: boolean;
+  readonly guardando: boolean;
   readonly error: string | null;
   /** Re-reads the registry. Called after an upload, which re-derives it on the server. */
   recargar(): Promise<void>;
@@ -63,6 +64,7 @@ export function AusenciasProvider({ children }: { readonly children: ReactNode }
 
   const [ausencias, setAusencias] = useState<readonly AusenciaRegistrada[]>([]);
   const [cargando, setCargando] = useState(true);
+  const [operaciones, setOperaciones] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
   const cargar = useCallback(async () => {
@@ -91,6 +93,7 @@ export function AusenciasProvider({ children }: { readonly children: ReactNode }
   const asignarMotivo = useCallback(
     async (dni: string, fechaStr: string, motivoId: number | null): Promise<boolean> => {
       setError(null);
+      setOperaciones((n) => n + 1);
       try {
         const actualizada = await repo.asignarMotivo(dni, fechaStr, motivoId);
         setAusencias((previas) => {
@@ -110,6 +113,8 @@ export function AusenciasProvider({ children }: { readonly children: ReactNode }
         }
         setError(e instanceof Error ? e.message : 'No se pudo guardar el motivo.');
         return false;
+      } finally {
+        setOperaciones((n) => n - 1);
       }
     },
     [repo, expirar],
@@ -118,6 +123,7 @@ export function AusenciasProvider({ children }: { readonly children: ReactNode }
   const asignarMotivos = useCallback(
     async (dias: readonly DiaAClasificar[], motivoId: number | null): Promise<boolean> => {
       setError(null);
+      setOperaciones((n) => n + 1);
       try {
         const actualizadas = await repo.asignarMotivos(dias, motivoId);
         // One update for the whole batch: every day record downstream is re-derived once.
@@ -130,6 +136,8 @@ export function AusenciasProvider({ children }: { readonly children: ReactNode }
         }
         setError(e instanceof Error ? e.message : 'No se pudieron guardar los motivos.');
         return false;
+      } finally {
+        setOperaciones((n) => n - 1);
       }
     },
     [repo, expirar],
@@ -164,6 +172,7 @@ export function AusenciasProvider({ children }: { readonly children: ReactNode }
       porClave,
       indiceParaElMotor,
       cargando,
+      guardando: operaciones > 0,
       error,
       recargar: cargar,
       asignarMotivo,
@@ -174,6 +183,7 @@ export function AusenciasProvider({ children }: { readonly children: ReactNode }
       porClave,
       indiceParaElMotor,
       cargando,
+      operaciones,
       error,
       cargar,
       asignarMotivo,

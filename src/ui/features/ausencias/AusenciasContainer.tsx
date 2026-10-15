@@ -14,7 +14,7 @@
  * from the work queue can never leave a hidden row ticked for the next write.
  */
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import type { Adjunto } from '../../adjuntos/RepositorioAdjuntos.js';
 import { useAusencias } from '../../ausencias/AusenciasProvider.js';
@@ -28,6 +28,9 @@ import { usePeriodo } from '../../periodo/PeriodoProvider.js';
 import { useSesion } from '../../sesion/SesionProvider.js';
 import { MOTIVOS_POR_DEFECTO } from '../../../domain/fichadas/index.js';
 import { pluralizar } from '../../texto.js';
+import { generarExcelAusencias, prepararExcelAusencias } from './excelAusencias.js';
+import { dentroDelPeriodo } from '../../periodo/periodo.js';
+import { parsearFechaDMY } from '../../../domain/fichadas/index.js';
 import { AusenciasScreen } from './AusenciasScreen.js';
 import {
   alternarVisibles,
@@ -70,11 +73,12 @@ function guardarComo(blob: Blob, nombre: string): void {
 export function AusenciasContainer() {
   const { repositorios, expirar } = useSesion();
   const { rango } = usePeriodo();
-  const { registros, cargando: cargandoHistorial, error: errorHistorial, recargar } = useHistorial();
-  const { configuracion } = useConfiguracion();
+  const { filas, registros, cargando: cargandoHistorial, error: errorHistorial, recargar } = useHistorial();
+  const { configuracion, cargando: cargandoConfiguracion, error: errorConfiguracion } = useConfiguracion();
   const {
     ausencias,
     cargando: cargandoAusencias,
+    guardando: guardandoAusencias,
     error: errorAusencias,
     asignarMotivo,
     asignarMotivos,
@@ -94,6 +98,37 @@ export function AusenciasContainer() {
   /** The batch bar's motivo, as the `<Select>` value: `''` is "Sin clasificar". */
   const [motivoLote, setMotivoLote] = useState('');
   const [aplicando, setAplicando] = useState(false);
+  const [exportandoExcel, setExportandoExcel] = useState(false);
+  const [errorExcel, setErrorExcel] = useState<string | null>(null);
+  const exportacionOcupada = useRef(false);
+  const contextoExcel = useMemo(() => ({ filas, ausencias, configuracion, rango }), [filas, ausencias, configuracion, rango]);
+  const contextoExcelActual = useRef(contextoExcel);
+  contextoExcelActual.current = contextoExcel;
+  const excelDisponible = !cargandoHistorial && !cargandoAusencias && !cargandoConfiguracion &&
+    !errorHistorial && !errorAusencias && !errorConfiguracion && !!configuracion && !guardandoAusencias && !aplicando &&
+    filas.some((fila) => dentroDelPeriodo(parsearFechaDMY(fila.Fecha), rango));
+  const exportarExcel = useCallback(() => {
+    if (!excelDisponible || exportacionOcupada.current || !configuracion) return;
+    exportacionOcupada.current = true;
+    setExportandoExcel(true);
+    setErrorExcel(null);
+    void (async () => {
+      try {
+        const datos = prepararExcelAusencias(filas, ausencias, configuracion.motivos, rango);
+        const archivo = await generarExcelAusencias(datos, rango);
+        if (contextoExcelActual.current !== contextoExcel) {
+          setErrorExcel('Los datos o el período cambiaron. Volvé a descargar el Excel para usar la versión actual.');
+          return;
+        }
+        guardarComo(new Blob([archivo.bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), archivo.nombre);
+      } catch (e: unknown) {
+        setErrorExcel(e instanceof Error ? e.message : 'No se pudo generar el Excel. Volvé a intentar.');
+      } finally {
+        exportacionOcupada.current = false;
+        setExportandoExcel(false);
+      }
+    })();
+  }, [excelDisponible, configuracion, filas, ausencias, rango, contextoExcel]);
 
   const contextoRecientes = useMemo(() => ({}), [
     rango.desde.getTime(), rango.hasta.getTime(), filtro.sector, filtro.dni, filtro.soloPendientes,
@@ -173,6 +208,7 @@ export function AusenciasContainer() {
   const limpiarSeleccion = useCallback(() => setSeleccionadas(new Set()), []);
 
   const aplicarLote = useCallback(() => {
+    if (exportacionOcupada.current) return;
     // Read from the derived selection, never from the raw set: see the header.
     const dias = diasSeleccionados(efectiva, vista.filas);
     if (dias.length === 0 || dias.length > MAX_DIAS_POR_LOTE) return;
@@ -210,6 +246,7 @@ export function AusenciasContainer() {
 
   const cambiarMotivo = useCallback(
     (dni: string, fechaStr: string, motivoId: number | null) => {
+      if (exportacionOcupada.current) return;
       setError(null);
       setAviso(null);
       void (async () => {
@@ -327,6 +364,10 @@ export function AusenciasContainer() {
       cargando={cargandoAusencias || cargandoHistorial}
       error={error ?? errorAusencias}
       aviso={aviso}
+      onExportarExcel={exportarExcel}
+      exportandoExcel={exportandoExcel}
+      excelDisponible={excelDisponible}
+      errorExcel={errorExcel ?? errorConfiguracion}
     />
   );
 }

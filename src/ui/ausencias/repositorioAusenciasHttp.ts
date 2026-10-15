@@ -6,6 +6,9 @@ function esAusencia(valor: unknown): valor is AusenciaRegistrada {
     esObjeto(valor) &&
     typeof valor['dni'] === 'string' &&
     typeof valor['fecha'] === 'string' &&
+    (valor['motivoSource'] === null || (typeof valor['motivoSource'] === 'string' && ['partes', 'manual', 'encargado'].includes(valor['motivoSource']))) &&
+    (valor['motivoId'] === null || (typeof valor['motivoId'] === 'number' && Number.isInteger(valor['motivoId']))) &&
+    (valor['motivoLabel'] === undefined || valor['motivoLabel'] === null || typeof valor['motivoLabel'] === 'string') &&
     typeof valor['adjuntos'] === 'number'
   );
 }
@@ -16,13 +19,13 @@ export function crearRepositorioAusenciasHttp(base: string): RepositorioAusencia
   return {
     async listar() {
       const cuerpo = await pedirJson(raiz, { method: 'GET' });
-      if (!esObjeto(cuerpo) || !Array.isArray(cuerpo['ausencias'])) {
+      if (!esObjeto(cuerpo) || !Array.isArray(cuerpo['ausencias']) || !cuerpo['ausencias'].every(esAusencia)) {
         throw new Error(
           'El servidor devolvió el registro de ausencias en un formato inesperado. Puede que ' +
             'la aplicación y el servidor no estén en la misma versión: recargá la página.',
         );
       }
-      return cuerpo['ausencias'].filter(esAusencia);
+      return cuerpo['ausencias'];
     },
 
     async asignarMotivo(dni, fechaStr, motivoId) {

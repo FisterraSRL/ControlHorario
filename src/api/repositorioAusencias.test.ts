@@ -46,6 +46,17 @@ describe('consulta del registro de ausencias', () => {
     expect(sqlRegistroAusencias([]).valores).toEqual(['[]']);
   });
 
+  it('includes retired reason labels through a read-only qualified join without broadening sector scope', async () => {
+    const pool = crearPoolFalso(() => ({ rows: [{ ...FILA_REGISTRO, motivo_label: 'Motivo retirado' }] }));
+    const rows = await crearRepositorioAusencias(pool).listar(['Cocina']);
+    expect(rows[0]?.motivoLabel).toBe('Motivo retirado');
+    expect(rows[0]?.dni).toBe(FILA_REGISTRO.dni);
+    expect(pool.llamadas).toHaveLength(1);
+    expect(pool.llamadas[0]?.texto).toContain('LEFT JOIN [controlhorario].[motivos] m ON m.[id] = a.[motivo_id]');
+    expect(pool.llamadas[0]?.texto).not.toContain('[activo]');
+    expect(pool.llamadas[0]?.valores).toEqual(['["Cocina"]']);
+  });
+
   it('el conteo de adjuntos sigue siendo por día', () => {
     expect(sqlRegistroAusencias(['Cocina']).texto).toContain('[controlhorario].[adjuntos] ad');
   });

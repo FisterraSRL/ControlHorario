@@ -25,6 +25,7 @@ function render(overrides = {}) {
     motivoLote: '', onMotivoLote: noop, onAplicarLote: noop, loteAplicable: false,
     maxLote: 500, cargando: false, error: null, aviso: null,
     recientes: [clasificada], onCerrarReciente: noop,
+    onExportarExcel: noop, exportandoExcel: false, excelDisponible: true, errorExcel: null,
     ...overrides,
   } satisfies AusenciasScreenProps & { recientes: readonly FilaAusencia[]; onCerrarReciente: (clave: string) => void };
   return renderToStaticMarkup(createElement(AusenciasScreen, props));
@@ -75,5 +76,21 @@ describe('attachments after classification', () => {
     });
     expect(html).not.toContain('aria-label="Recién clasificadas"');
     expect([...html.matchAll(/>Adjuntar archivo</g)].length).toBe(1);
+  });
+});
+
+
+describe('download classified QUICKPASS workbook', () => {
+  it('offers the full period download even when no pending absence remains', () => {
+    const html = render();
+    expect(html).toContain('Descargar Excel con motivos');
+    expect(html).toContain('No aplica los filtros de la lista');
+    expect(html).toContain('No hay ausencias sin clasificar');
+  });
+  it('disables export while dependencies or a classification are pending and exposes errors', () => {
+    expect(render({ excelDisponible: false })).toMatch(/<button[^>]*disabled=""[^>]*>Descargar Excel con motivos/);
+    const html = render({ exportandoExcel: true, errorExcel: 'No se pudo generar el Excel.' });
+    expect(html).toContain('Preparando Excel…');
+    expect(html).toContain('No se pudo generar el Excel.');
   });
 });

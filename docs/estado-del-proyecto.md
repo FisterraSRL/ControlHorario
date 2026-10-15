@@ -1,9 +1,73 @@
 # Estado del proyecto y continuidad
 
-Actualizado: 14 de octubre de 2026.
+Actualizado: 15 de octubre de 2026.
 
 Este documento permite continuar el trabajo sin depender del historial de una conversación.
 Antes de actuar, comprobar siempre `git status`, `git log -5` y el estado real de producción.
+
+## QUICKPASS export with saved absence reasons (implemented, not published, 2026-10-15)
+
+Ausencias offers `Descargar Excel con motivos`. The workbook contains every stored row
+inside the inclusive selected period, including attendance, days off, already classified
+absences and people excluded from analysis. The absence queue's person, sector and pending
+filters do not restrict this export; the helper states that explicitly. Server-authorized
+sector scope still comes from the existing authenticated history and registry repositories.
+
+The workbook preserves the union of original column names in first-seen order, all stored
+cell values and unknown extra columns. A saved manual or encargado decision replaces the
+existing `Partes` value with its current reason label. The original header case is retained;
+`Partes` is added only when the stored rows have no such column. No separate reason column
+is introduced. Unclassified rows, cleared decisions and automatic classifications inferred
+from the original Partes note retain that note verbatim. Dates, time strings and textual
+identities with leading zeros remain text; formula-looking strings remain literal cells.
+
+Export uses the accumulated history's latest evidence per person/day. The original uploaded
+workbook, styles, Excel cell types, sheet name and file ordering were never retained by the
+existing importer, so this is a reconstructed QUICKPASS-format `.xlsx`, not a binary copy of
+an uploaded file. Its first sheet is `QUICKPASS`; its filename is
+`quickpass_con_motivos_YYYY-MM-DD_YYYY-MM-DD.xlsx`. Compatibility with the other department's
+actual Power BI transformation still needs a sample refresh there.
+
+The existing registry GET now includes optional read-only `motivoLabel`, through a qualified
+LEFT JOIN to `[controlhorario].[motivos]` without an active-only condition. This retains the
+meaning of retired reasons without reactivating them or changing classification writes.
+The frontend accepts old API responses without this optional property; a manual reason
+missing from both active configuration and the registry aborts the whole export visibly.
+Malformed registry responses are rejected whole rather than silently dropping decisions.
+No route, permission, schema migration, repository write or notification mark was added.
+
+Downloads are disabled during history, configuration or registry loading/errors and while
+a classification is being saved. Export is guarded against duplicate clicks. A period or
+data change while the workbook is being prepared rejects that stale result. The downloaded
+workbook is a copy: original stored rows and classifications are not rewritten. Both Excel
+reading and writing load the shared spreadsheet module on demand.
+
+Eighteen regressions cover real XLSX byte parsing, original headers and extra columns,
+inclusive date limits, unclassified/cleared/automatic notes, retired and missing labels,
+leading-zero identities, literal formula-looking values, complete HTTP validation, safe
+button states and an import/classify/export/reimport round trip. Final mandatory checks
+passed: typecheck, 840 tests in 66 files, frontend build, API build and diff whitespace checks.
+The shared on-demand XLSX chunk is 491.57 kB and the main entry is 430.28 kB; the production
+build reports no size or mixed static/dynamic import warnings.
+
+Browser verification used the complete actual App with fictional repositories and a CSP
+blocking connections. A real downloaded workbook contained all seven authorized period
+rows, including attendance, a day off and an excluded person with a retired reason. With
+a person filter and pending-only queue active, saving one fictional classification and
+exporting again changed exactly that row's Partes cell; all other cells and headers matched.
+Original evidence stayed intact, other write counters stayed zero, and leading-zero
+identities and literal formula-like values survived serialization. A supervisor fixture
+produced six authorized rows, excluding the out-of-scope row. A six-second held save kept
+export disabled until the saved response arrived. Missing-label, configuration, registry,
+history and empty-period scenarios refused unsafe downloads. Measured CSS widths of 1440,
+390 and 312 pixels fit the button and help text; a scoped summary-chip wrap also removed
+a five-pixel narrow-screen overflow found during this verification. Screenshots and a
+fictional sample workbook were saved outside the repository. No real data was read or
+modified, and no production publication or Power BI refresh was performed for this unit.
+
+Release remains pending. Deploy the API before the frontend so retired reason labels are
+available immediately. Rollback is a revert of this export unit and republishing; the
+optional read-only API property is backward compatible and no data conversion is needed.
 
 ## Grouped navigation (published and verified, 2026-10-14)
 
