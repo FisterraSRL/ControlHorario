@@ -8,6 +8,7 @@ import {
   seleccionEfectiva,
   registrarClasificacionReciente,
   filasRecientes,
+  filasConRecientes,
   type FilaAusencia,
 } from './ausencias.js';
 
@@ -150,5 +151,35 @@ describe('lote sin cambios', () => {
   it('sólo mira las filas seleccionadas', () => {
     const clasificada = fila('4', '2026-01-08', 4);
     expect(loteSinCambios(new Set([clasificada.clave]), [A, clasificada], 4)).toBe(true);
+  });
+});
+
+
+describe('retained rows in the work queue', () => {
+  it('preserves the original order, deduplicates rows and reads fresh attachments', () => {
+    const actualizada = { ...A, motivoId: 4 };
+    expect(filasConRecientes([B, A], [actualizada])).toEqual([actualizada, B]);
+    expect(A.motivoId).toBeNull();
+  });
+
+  it('reserves a row before the provider publishes its decision, without false success', () => {
+    const contexto = {};
+    const reserva = registrarClasificacionReciente({ contexto, claves: new Set() }, contexto,
+      [{ dni: A.dni, fechaStr: A.fechaStr }], 4, true);
+    expect(filasRecientes(reserva.claves, [A])).toEqual([]);
+    const guardada = { ...A, motivoId: 4 };
+    expect(filasConRecientes([], filasRecientes(reserva.claves, [guardada]))).toEqual([guardada]);
+    const cancelada = registrarClasificacionReciente(reserva, contexto,
+      [{ dni: A.dni, fechaStr: A.fechaStr }], null, true);
+    expect(filasRecientes(cancelada.claves, [A])).toEqual([]);
+  });
+
+  it('keeps batch selection restricted to actual pending days', () => {
+    const guardada = { ...A, motivoId: 4 };
+    const seleccion = new Set([A.clave, B.clave]);
+    expect(filasConRecientes([B], [guardada])).toEqual([guardada, B]);
+    expect(diasSeleccionados(seleccionEfectiva(seleccion, [B]), [B]))
+      .toEqual([{ dni: B.dni, fechaStr: B.fechaStr }]);
+    expect(filasRecientes(seleccion, [B])).toEqual([]);
   });
 });

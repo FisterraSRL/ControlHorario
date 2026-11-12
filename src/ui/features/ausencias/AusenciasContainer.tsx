@@ -136,6 +136,13 @@ export function AusenciasContainer() {
   const [recientes, setRecientes] = useState<EstadoRecientes>(
     () => ({ contexto: contextoRecientes, claves: new Set() }),
   );
+  // Reserve before awaiting the provider: its registry update may render before resolution.
+  const [enCurso, setEnCurso] = useState<EstadoRecientes>(
+    () => ({ contexto: contextoRecientes, claves: new Set() }),
+  );
+  if (enCurso.contexto !== contextoRecientes) {
+    setEnCurso({ contexto: contextoRecientes, claves: new Set() });
+  }
   // Clear in the same render, before children see stale panels. Identity also rejects a
   // late response after leaving this context and subsequently returning to the same filter.
   if (recientes.contexto !== contextoRecientes) {
@@ -178,17 +185,17 @@ export function AusenciasContainer() {
   );
   const motivoIdLote = motivoLote === '' ? null : Number(motivoLote);
   const recientesVisibles = recientes.contexto === contextoRecientes
-    ? filasRecientes(recientes.claves, vista.enPeriodo)
+    ? filasRecientes(new Set([...recientes.claves, ...(enCurso.contexto === contextoRecientes ? enCurso.claves : [])]), vista.enPeriodo)
     : [];
 
   const cerrarReciente = useCallback((clave: string) => {
-    if (claveOcupada === clave) return;
+    if (claveOcupada === clave || guardandoAusencias) return;
     setRecientes((previas) => {
       const claves = new Set(previas.claves);
       claves.delete(clave);
       return { ...previas, claves };
     });
-  }, [claveOcupada]);
+  }, [claveOcupada, guardandoAusencias]);
 
   const alternarSeleccion = useCallback((clave: ClaveRegistro) => {
     setSeleccionadas((previas) => {
@@ -215,6 +222,7 @@ export function AusenciasContainer() {
     setError(null);
     setAviso(null);
     setAplicando(true);
+    setEnCurso((previas) => registrarClasificacionReciente(previas, contextoRecientes, dias, motivoIdLote, true));
     void (async () => {
       try {
         const guardado = await asignarMotivos(dias, motivoIdLote);
@@ -230,6 +238,7 @@ export function AusenciasContainer() {
             : `Motivo asignado a ${cuantas}.`,
         );
       } finally {
+        setEnCurso((previas) => registrarClasificacionReciente(previas, contextoRecientes, dias, null, true));
         setAplicando(false);
       }
     })();
@@ -249,6 +258,8 @@ export function AusenciasContainer() {
       if (exportacionOcupada.current) return;
       setError(null);
       setAviso(null);
+      const dias = [{ dni, fechaStr }];
+      setEnCurso((previas) => registrarClasificacionReciente(previas, contextoRecientes, dias, motivoId, true));
       void (async () => {
         // The provider reports rather than throws, and it puts its own failure on screen.
         // Confirming a change that did not happen is worse than not confirming one.
@@ -256,6 +267,7 @@ export function AusenciasContainer() {
         setRecientes((previas) => registrarClasificacionReciente(
           previas, contextoRecientes, [{ dni, fechaStr }], motivoId, guardado,
         ));
+        setEnCurso((previas) => registrarClasificacionReciente(previas, contextoRecientes, dias, null, true));
         if (guardado) setAviso(avisoMotivo(motivoId));
       })();
     },
@@ -332,6 +344,7 @@ export function AusenciasContainer() {
   return (
     <AusenciasScreen
       vista={vista}
+      guardando={guardandoAusencias || aplicando}
       recientes={recientesVisibles}
       onCerrarReciente={cerrarReciente}
       filtro={filtro}

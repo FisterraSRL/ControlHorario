@@ -1,9 +1,31 @@
 # Estado del proyecto y continuidad
 
-Actualizado: 15 de octubre de 2026.
+Actualizado: 12 de noviembre de 2026.
 
 Este documento permite continuar el trabajo sin depender del historial de una conversación.
 Antes de actuar, comprobar siempre `git status`, `git log -5` y el estado real de producción.
+
+## Ausencias: conservar la fila para adjuntar el certificado (entrega del 2026-11-12)
+
+Al clasificar una ausencia con «Mostrar solo las sin clasificar» activo, la fila conserva
+su ubicación en la tabla y abre sus adjuntos. El indicador «Clasificada» y el botón «Listo»
+permiten terminar de adjuntar antes de quitarla de la lista. Se eliminó el bloque separado
+«Recién clasificadas»: el panel y su campo de archivo mantienen su identidad al guardar.
+El contador y la selección por lote siguen considerando sólo las pendientes reales.
+«Listo» no borra la clasificación ni los archivos y queda deshabilitado durante guardados.
+
+La retención pertenece únicamente al período y filtros actuales; cambiar cualquiera de
+ellos la descarta. Se reserva la clave antes de esperar el guardado para cubrir el render
+intermedio del proveedor, pero el indicador sólo aparece con un motivo realmente guardado.
+Un fallo conserva la pendiente y retira la reserva. Los adjuntos se leen de la lista actual
+sin copias persistidas; subirlos o cambiar el motivo no cierra la fila. No cambia el Excel
+QUICKPASS, los permisos, los repositorios ni la API. El despliegue se realiza desde main en Vercel.
+
+Typecheck, 844 pruebas y build correctos. En el navegador, una prueba aislada con la
+pantalla real y persistencia simulada confirmó que clasificar conserva la fila y el
+campo de archivo. El certificado ficticio apareció en esa misma fila. Al pulsar «Listo»,
+la ausencia salió de pendientes y siguió disponible con su adjunto al mostrar todas.
+La simulación de un fallo de guardado conservó la fila pendiente.
 
 ## QUICKPASS export with saved absence reasons (published; authenticated download pending, 2026-10-15)
 

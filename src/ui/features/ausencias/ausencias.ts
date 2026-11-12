@@ -69,7 +69,7 @@ export interface OpcionFiltro {
 export interface VistaAusencias {
   /** After the period and the sector/person filters, before "solo sin clasificar". */
   readonly enPeriodo: readonly FilaAusencia[];
-  /** What the table renders. */
+  /** Rows eligible for batch selection under the current filter. */
   readonly filas: readonly FilaAusencia[];
   readonly pendientes: number;
   readonly total: number;
@@ -218,6 +218,14 @@ export function filasRecientes(
   enPeriodo: readonly FilaAusencia[],
 ): readonly FilaAusencia[] {
   return enPeriodo.filter((fila) => claves.has(fila.clave) && fila.motivoId !== null).sort(comparar);
+}
+
+/** Merge retained rows without changing the work queue or its pending count. */
+export function filasConRecientes(
+  filas: readonly FilaAusencia[],
+  recientes: readonly FilaAusencia[],
+): readonly FilaAusencia[] {
+  return [...new Map([...filas, ...recientes].map((fila) => [fila.clave, fila])).values()].sort(comparar);
 }
 
 /* --- Batch classification: which rows are ticked ----------------------------------- */

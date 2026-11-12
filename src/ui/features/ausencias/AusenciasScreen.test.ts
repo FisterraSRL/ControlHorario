@@ -32,13 +32,17 @@ function render(overrides = {}) {
 }
 
 describe('attachments after classification', () => {
-  it('keeps the classified day and upload action visible after it leaves the pending table', () => {
+  it('keeps the classified day and upload action visible in the same table after classification', () => {
     const html = render();
-    expect(html).toContain('aria-label="Recién clasificadas"');
+    expect(html).not.toContain('aria-label="Recién clasificadas"');
+    expect(html.split('<tbody>')[1]).toContain('Persona de prueba');
+    expect(html).toContain('Clasificada');
+    expect(html).toContain('<b>0</b>');
+    expect([...html.matchAll(/>Adjuntar archivo</g)]).toHaveLength(1);
     expect(html).toContain('Persona de prueba');
     expect(html).toContain('12/10/2026');
     expect(html).toContain('Adjuntar archivo');
-    expect(html).toContain('No hay ausencias sin clasificar');
+    expect(html).not.toContain('No hay ausencias sin clasificar');
     expect(html).not.toContain('Seleccionar la ausencia de Persona de prueba');
   });
 
@@ -47,6 +51,12 @@ describe('attachments after classification', () => {
     expect(html).toMatch(/<button[^>]*disabled=""[^>]*>Listo/);
     expect(html).toMatch(/<select[^>]*aria-label="Motivo de Persona de prueba el 12\/10\/2026"[^>]*disabled=""/);
     expect(html).toContain('Subiendo…');
+  });
+
+  it('prevents dismissal while the provider is still finishing the classification', () => {
+    const html = render({ guardando: true });
+    expect(html).toMatch(/<button[^>]*disabled=""[^>]*>Listo/);
+    expect(html).toContain('Adjuntar archivo');
   });
 
   it('keeps the panel available when attachment upload fails', () => {
@@ -64,8 +74,10 @@ describe('attachments after classification', () => {
     expect(html).toContain('Quitar');
   });
 
-  it('omits the transient section when every recent day has been dismissed', () => {
-    expect(render({ recientes: [] })).not.toContain('aria-label="Recién clasificadas"');
+  it('removes the row only when dismissed and then shows the empty queue', () => {
+    const html = render({ recientes: [] });
+    expect(html).not.toContain('Persona de prueba');
+    expect(html).toContain('No hay ausencias sin clasificar');
   });
 
   it('uses the normal attachment row when the filter already shows classified absences', () => {
@@ -85,7 +97,7 @@ describe('download classified QUICKPASS workbook', () => {
     const html = render();
     expect(html).toContain('Descargar Excel con motivos');
     expect(html).toContain('No aplica los filtros de la lista');
-    expect(html).toContain('No hay ausencias sin clasificar');
+    expect(html).not.toContain('No hay ausencias sin clasificar');
   });
   it('disables export while dependencies or a classification are pending and exposes errors', () => {
     expect(render({ excelDisponible: false })).toMatch(/<button[^>]*disabled=""[^>]*>Descargar Excel con motivos/);
