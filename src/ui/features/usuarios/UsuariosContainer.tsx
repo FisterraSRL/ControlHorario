@@ -57,7 +57,12 @@ export function UsuariosContainer() {
     usuarioActual={sesion?.operador.email ?? ''} contrasenaTemporal={temporal}
     sectoresDisponibles={sectoresDisponibles}
     onCerrarContrasena={() => setTemporal(null)}
-    onCrear={(datos) => void mutar(async () => { const r = await repo!.crear(datos); setTemporal(r.contrasenaTemporal); await recargar(); })}
+    onCrear={(datos) => mutar(async () => {
+      const resultado = await repo!.crear(datos);
+      setTemporal(resultado.contrasenaTemporal);
+      // Refresh failure must not turn a confirmed creation into a failed submission.
+      await ejecutar(recargar);
+    })}
     onEstado={(id, activo) => mutar(async () => { await repo!.cambiarEstado(id, activo); await recargar(); })}
     onReiniciar={(id) => mutar(async () => { const r = await repo!.reiniciarContrasena(id); setTemporal(r.contrasenaTemporal); })}
   />;

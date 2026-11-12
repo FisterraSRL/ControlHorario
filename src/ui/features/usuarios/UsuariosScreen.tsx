@@ -29,7 +29,7 @@ interface Props {
   usuarioActual: string; contrasenaTemporal: string | null;
   /** The closed list an encargado may be scoped to. Empty until a planilla is loaded. */
   sectoresDisponibles: readonly string[];
-  onCrear(datos: { email: string; nombre: string; rol: RolUsuario; sectores: readonly string[] }): void;
+  onCrear(datos: { email: string; nombre: string; rol: RolUsuario; sectores: readonly string[] }): Promise<boolean>;
   onEstado(id: string, activo: boolean): Promise<boolean>; onReiniciar(id: string): Promise<boolean>; onCerrarContrasena(): void;
 }
 
@@ -49,7 +49,9 @@ export function UsuariosScreen(p: Props) {
   const actuales = useRef(p); actuales.current = p;
   const [confirmacion] = useState(() => crearConfirmacionUsuario(a => a.tipo === 'desactivar' ? actuales.current.onEstado(a.usuario.id, false) : actuales.current.onReiniciar(a.usuario.id)));
   const estado = useSyncExternalStore(confirmacion.suscribir, confirmacion.estado, confirmacion.estado);
-  const bloqueado = !!p.ocupado || estado.ocupado || p.cargando;
+  const [creando, setCreando] = useState(false);
+  const altaEnVuelo = useRef(false);
+  const bloqueado = creando || !!p.ocupado || estado.ocupado || p.cargando;
   const [nombre, setNombre] = useState(''); const [email, setEmail] = useState('');
   const [rol, setRol] = useState<RolUsuario>(ROL_INICIAL); const [sectores, setSectores] = useState<readonly string[]>([]);
 
@@ -61,10 +63,21 @@ export function UsuariosScreen(p: Props) {
   const alternarSector = (sector: string, marcado: boolean) =>
     setSectores((previos) => (marcado ? [...previos, sector] : previos.filter((s) => s !== sector)));
 
-  const crear = () => {
-    if (problema !== null) return;
-    p.onCrear({ nombre: nombre.trim(), email: email.trim(), rol, sectores: sectoresParaCrear(rol, sectores) });
-    setNombre(''); setEmail(''); setRol(ROL_INICIAL); setSectores([]);
+  const crear = async () => {
+    if (bloqueado || altaEnVuelo.current || problema !== null) return;
+    altaEnVuelo.current = true;
+    setCreando(true);
+    try {
+      if (await p.onCrear({ nombre: nombre.trim(), email: email.trim(), rol, sectores: sectoresParaCrear(rol, sectores) })) {
+        setNombre('');
+        setEmail('');
+        setRol(ROL_INICIAL);
+        setSectores([]);
+      }
+    } finally {
+      altaEnVuelo.current = false;
+      setCreando(false);
+    }
   };
 
   return <>
@@ -78,13 +91,13 @@ export function UsuariosScreen(p: Props) {
     </Alert></div>}
     <Card titulo="Crear usuario" bajada="La contraseña se genera automáticamente y se muestra una sola vez. El rol y los sectores no se pueden cambiar después.">
       <div className="usuarios__alta">
-        <Input etiqueta="Nombre" mostrarEtiqueta valor={nombre} onCambio={setNombre} maxLength={200} />
-        <Input etiqueta="Correo" mostrarEtiqueta valor={email} onCambio={setEmail} type="email" maxLength={320} />
-        <label className="usuarios__rol"><span>Rol</span><Select etiqueta="Rol" valor={rol} onCambio={(v) => { if (esRolAsignable(v)) setRol(v); }} opciones={OPCIONES_ROL} /></label>
-        <Button variante="primary" disabled={bloqueado || problema !== null} onClick={crear}>Crear usuario</Button>
+        <Input etiqueta="Nombre" mostrarEtiqueta valor={nombre} onCambio={setNombre} maxLength={200} disabled={creando} />
+        <Input etiqueta="Correo" mostrarEtiqueta valor={email} onCambio={setEmail} type="email" maxLength={320} disabled={creando} />
+        <label className="usuarios__rol"><span>Rol</span><Select etiqueta="Rol" valor={rol} onCambio={(v) => { if (esRolAsignable(v)) setRol(v); }} opciones={OPCIONES_ROL} disabled={creando} /></label>
+        <Button variante="primary" disabled={bloqueado || problema !== null} onClick={() => void crear()}>{creando ? 'Creando…' : 'Crear usuario'}</Button>
       </div>
 
-      {rol === 'encargado' && <SectoresDelEncargado sectores={p.sectoresDisponibles} elegidos={sectores} onAlternar={alternarSector} />}
+      {rol === 'encargado' && <SectoresDelEncargado sectores={p.sectoresDisponibles} elegidos={sectores} onAlternar={alternarSector} deshabilitado={creando} />}
 
       {problema !== null && empezado && <p className="usuarios__problema" role="status">{problema}</p>}
 
@@ -115,14 +128,15 @@ export function UsuariosScreen(p: Props) {
  * tick, the form says why and stays blocked rather than accepting a name nobody can verify.
  */
 function SectoresDelEncargado({
-  sectores, elegidos, onAlternar,
+  sectores, elegidos, onAlternar, deshabilitado,
 }: {
   readonly sectores: readonly string[];
   readonly elegidos: readonly string[];
   readonly onAlternar: (sector: string, marcado: boolean) => void;
+  readonly deshabilitado: boolean;
 }) {
   return (
-    <fieldset className="usuarios__sectores-campo">
+    <fieldset className="usuarios__sectores-campo" disabled={deshabilitado}>
       <legend>Sectores que supervisa</legend>
       {sectores.length === 0 ? (
         <p className="usuarios__nota">
