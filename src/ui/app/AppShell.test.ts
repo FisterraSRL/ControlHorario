@@ -54,8 +54,9 @@ describe('responsive navigation accessibility', () => {
   it('preserves role restrictions in the expanded menu', () => {
     const html = render(true, true, 'encargado');
     expect(html).toContain('href="/ausencias"');
+    expect(html).toContain('href="/cierre"');
     expect(html).not.toContain('href="/mi-cuenta"');
-    expect(html.match(/<a /g)).toHaveLength(1);
+    expect(html.match(/<a /g)).toHaveLength(2);
     expect(html).not.toContain('href="/usuarios"');
     expect(html).not.toContain('href="/carga"');
   });

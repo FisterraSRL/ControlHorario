@@ -29,7 +29,7 @@ import { useSesion } from '../../sesion/SesionProvider.js';
 import { MOTIVOS_POR_DEFECTO } from '../../../domain/fichadas/index.js';
 import { pluralizar } from '../../texto.js';
 import { generarExcelAusencias, prepararExcelAusencias } from './excelAusencias.js';
-import { dentroDelPeriodo } from '../../periodo/periodo.js';
+import { dentroDelPeriodo, type RangoPeriodo } from '../../periodo/periodo.js';
 import { parsearFechaDMY } from '../../../domain/fichadas/index.js';
 import { AusenciasScreen } from './AusenciasScreen.js';
 import {
@@ -70,9 +70,15 @@ function guardarComo(blob: Blob, nombre: string): void {
   }
 }
 
-export function AusenciasContainer() {
+interface RevisionAusencias {
+  readonly rango: RangoPeriodo;
+  readonly filtro: FiltroAusencias;
+}
+
+export function AusenciasContainer({ revision }: { readonly revision?: RevisionAusencias } = {}) {
   const { repositorios, expirar } = useSesion();
-  const { rango } = usePeriodo();
+  const { rango: rangoGeneral } = usePeriodo();
+  const rango = revision?.rango ?? rangoGeneral;
   const { filas, registros, cargando: cargandoHistorial, error: errorHistorial, recargar } = useHistorial();
   const { configuracion, cargando: cargandoConfiguracion, error: errorConfiguracion } = useConfiguracion();
   const {
@@ -86,7 +92,8 @@ export function AusenciasContainer() {
 
   const repoAdjuntos = repositorios.adjuntos;
 
-  const [filtro, setFiltro] = useState<FiltroAusencias>(FILTRO_INICIAL);
+  const [filtroLocal, setFiltro] = useState<FiltroAusencias>(FILTRO_INICIAL);
+  const filtro = revision?.filtro ?? filtroLocal;
   const [abiertas, setAbiertas] = useState<ReadonlySet<string>>(() => new Set());
   const [adjuntos, setAdjuntos] = useState<readonly Adjunto[]>([]);
   const [claveOcupada, setClaveOcupada] = useState<string | null>(null);
@@ -349,6 +356,7 @@ export function AusenciasContainer() {
       onCerrarReciente={cerrarReciente}
       filtro={filtro}
       onFiltro={setFiltro}
+      mostrarFiltros={!revision}
       // Before the configuration arrives, the dropdown still has to be usable: the engine's
       // own list is the same nine motivos migration 001 seeds.
       motivos={configuracion?.motivos ?? MOTIVOS_POR_DEFECTO}

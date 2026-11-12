@@ -9,6 +9,7 @@ export type IdSeccion =
   | 'envios'
   | 'historialNotificaciones'
   | 'ausencias'
+  | 'cierre'
   | 'indicador'
   | 'horas'
   | 'configuracion'
@@ -97,6 +98,16 @@ export const SECCIONES: readonly Seccion[] = [
     // The encargado's whole job in this app: justify the absences of their own sectors. The
     // screen is the same one RRHH uses — the server sends them fewer rows, not a different
     // shape — so there is one Ausencias screen and no forked copy to keep in step.
+    roles: TODOS,
+  },
+  {
+    id: 'cierre',
+    path: '/cierre',
+    label: 'Cierre de novedades',
+    titulo: 'Cierre de novedades',
+    icono: 'ausencias',
+    contador: null,
+    muestraPeriodo: false,
     roles: TODOS,
   },
   {
@@ -196,6 +207,7 @@ export interface ModuloNavegacion {
 const MODULOS: readonly { readonly id: IdSeccion; readonly label?: string; readonly vistas: readonly { readonly id: IdSeccion; readonly label?: string }[] }[] = [
   { id: 'carga', vistas: [{ id: 'carga' }] },
   { id: 'ausencias', vistas: [{ id: 'ausencias' }] },
+  { id: 'cierre', vistas: [{ id: 'cierre' }] },
   { id: 'notificaciones', vistas: [
     { id: 'notificaciones', label: 'Preparar' },
     { id: 'envios', label: 'Preparados' },

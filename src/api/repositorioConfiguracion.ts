@@ -173,6 +173,33 @@ export interface RepositorioConfiguracionAzureSql {
   sembrarExclusiones(dnis: readonly string[], actor: string): Promise<number>;
 }
 
+export async function guardarParametro(
+  cliente: PoolClient,
+  clave: string,
+  valor: number,
+  actor: string,
+): Promise<void> {
+  await cliente.query(
+    `MERGE [controlhorario].[configuracion] WITH (HOLDLOCK) AS destino
+     USING (SELECT $1 AS [clave], $2 AS [valor], $3 AS [actor]) AS origen
+        ON destino.[clave] = origen.[clave]
+     WHEN MATCHED THEN UPDATE SET
+       [valor] = origen.[valor],
+       [actualizado_por] = origen.[actor],
+       [actualizado_at] = SYSUTCDATETIME()
+     WHEN NOT MATCHED THEN INSERT ([clave], [valor], [actualizado_por], [actualizado_at])
+       VALUES (origen.[clave], origen.[valor], origen.[actor], SYSUTCDATETIME());`,
+    [clave, JSON.stringify(valor), actor],
+  );
+  await auditar(cliente, {
+    actor,
+    accion: 'config_actualizada',
+    entidad: 'configuracion',
+    entidadId: clave,
+    datos: { valor },
+  });
+}
+
 export function crearRepositorioConfiguracion(pool: Pool): RepositorioConfiguracionAzureSql {
   return {
     async leer() {
@@ -203,25 +230,7 @@ export function crearRepositorioConfiguracion(pool: Pool): RepositorioConfigurac
         for (const [clave, campo] of CLAVES) {
           const valor = cambios[campo];
           if (valor === undefined) continue;
-          await cliente.query(
-            `MERGE [controlhorario].[configuracion] WITH (HOLDLOCK) AS destino
-             USING (SELECT $1 AS [clave], $2 AS [valor], $3 AS [actor]) AS origen
-                ON destino.[clave] = origen.[clave]
-             WHEN MATCHED THEN UPDATE SET
-               [valor] = origen.[valor],
-               [actualizado_por] = origen.[actor],
-               [actualizado_at] = SYSUTCDATETIME()
-             WHEN NOT MATCHED THEN INSERT ([clave], [valor], [actualizado_por], [actualizado_at])
-               VALUES (origen.[clave], origen.[valor], origen.[actor], SYSUTCDATETIME());`,
-            [clave, JSON.stringify(valor), actor],
-          );
-          await auditar(cliente, {
-            actor,
-            accion: 'config_actualizada',
-            entidad: 'configuracion',
-            entidadId: clave,
-            datos: { valor },
-          });
+          await guardarParametro(cliente, clave, valor, actor);
         }
         return leerParametros(cliente);
       });

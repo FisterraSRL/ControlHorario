@@ -33,6 +33,7 @@ export interface AusenciasScreenProps {
   readonly onCerrarReciente: (clave: string) => void;
   readonly filtro: FiltroAusencias;
   readonly onFiltro: (filtro: FiltroAusencias) => void;
+  readonly mostrarFiltros?: boolean;
   readonly motivos: readonly Motivo[];
   /** Which rows have their attachment panel open. Survives a re-render, as in the legacy. */
   readonly abiertas: ReadonlySet<string>;
@@ -84,6 +85,7 @@ export function AusenciasScreen({
   onCerrarReciente,
   filtro,
   onFiltro,
+  mostrarFiltros = true,
   motivos,
   abiertas,
   onAlternar,
@@ -127,26 +129,28 @@ export function AusenciasScreen({
       </div>
       {errorExcel && <div className="ausencias__aviso"><Alert tono="error" titulo="No se pudo descargar el Excel">{errorExcel}</Alert></div>}
       <div className="ausencias__barra">
-        <Select
-          etiqueta="Filtrar por sector"
-          tamano="sm"
-          valor={filtro.sector}
-          onCambio={(sector) => onFiltro({ ...filtro, sector })}
-          opciones={[{ valor: '', label: 'Todos los sectores' }, ...vista.sectores]}
-        />
-        <Select
-          etiqueta="Filtrar por persona"
-          tamano="sm"
-          valor={filtro.dni}
-          onCambio={(dni) => onFiltro({ ...filtro, dni })}
-          opciones={[{ valor: '', label: 'Todas las personas' }, ...vista.personas]}
-        />
-        <Checkbox
-          marcado={filtro.soloPendientes}
-          onCambio={(soloPendientes) => onFiltro({ ...filtro, soloPendientes })}
-        >
-          Mostrar solo las sin clasificar
-        </Checkbox>
+        {mostrarFiltros && <>
+          <Select
+            etiqueta="Filtrar por sector"
+            tamano="sm"
+            valor={filtro.sector}
+            onCambio={(sector) => onFiltro({ ...filtro, sector })}
+            opciones={[{ valor: '', label: 'Todos los sectores' }, ...vista.sectores]}
+          />
+          <Select
+            etiqueta="Filtrar por persona"
+            tamano="sm"
+            valor={filtro.dni}
+            onCambio={(dni) => onFiltro({ ...filtro, dni })}
+            opciones={[{ valor: '', label: 'Todas las personas' }, ...vista.personas]}
+          />
+          <Checkbox
+            marcado={filtro.soloPendientes}
+            onCambio={(soloPendientes) => onFiltro({ ...filtro, soloPendientes })}
+          >
+            Mostrar solo las sin clasificar
+          </Checkbox>
+        </>}
 
         <div className="ausencias__resumen">
           <Chip tono={vista.pendientes > 0 ? 'incompleta' : 'ok'}>

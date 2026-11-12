@@ -17,7 +17,7 @@ describe('module and profile navigation semantics', () => {
       const html = markup(createElement(sidebar.Sidebar, { items, rutaActiva: path }), path);
       expect(html).toContain('sidebar__item--activo" aria-current="location"');
       expect(html).toContain('>7</span>');
-      expect(html.match(/<a /g)).toHaveLength(5);
+      expect(html.match(/<a /g)).toHaveLength(6);
       expect(html).not.toContain('href="/mi-cuenta"');
     }
   });

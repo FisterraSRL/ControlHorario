@@ -44,12 +44,14 @@ import { existeSpa, registrarEstatico, registrarSinSpa } from './estatico.js';
 import type { LimitadorLogin } from './limitador.js';
 import { crearRepositorioAdjuntos } from './repositorioAdjuntos.js';
 import { crearRepositorioAusencias } from './repositorioAusencias.js';
+import { crearRepositorioCierre } from './repositorioCierre.js';
 import { crearRepositorioConfiguracion } from './repositorioConfiguracion.js';
 import { crearRepositorioNotificaciones } from './repositorioNotificaciones.js';
 import { crearRepositorioAzureSql } from './repositorioAzureSql.js';
 import { registrarRutas } from './rutas.js';
 import { registrarRutasAdjuntos } from './rutasAdjuntos.js';
 import { registrarRutasAusencias } from './rutasAusencias.js';
+import { registrarRutasCierre } from './rutasCierre.js';
 import { registrarRutasConfiguracion } from './rutasConfiguracion.js';
 import { registrarRutasNotificaciones } from './rutasNotificaciones.js';
 import { registrarRutasUsuarios } from './rutasUsuarios.js';
@@ -198,6 +200,7 @@ export async function construirServidor(
     iniciadoEn: Date.now(),
   });
   registrarRutasAusencias(app, { repositorio: ausencias, pool });
+  registrarRutasCierre(app, crearRepositorioCierre(pool));
   registrarRutasConfiguracion(app, { repositorio: configuracion, fichadas: repositorio, ausencias });
   registrarRutasAdjuntos(app, { config, pool, repositorio: adjuntos });
   registrarRutasUsuarios(app, pool);

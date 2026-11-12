@@ -19,6 +19,9 @@ import type { RepositorioAdjuntos } from './adjuntos/RepositorioAdjuntos.js';
 import { crearRepositorioAusenciasHttp } from './ausencias/repositorioAusenciasHttp.js';
 import { crearRepositorioAusenciasLocal } from './ausencias/repositorioAusenciasLocal.js';
 import type { RepositorioAusencias } from './ausencias/RepositorioAusencias.js';
+import type { RepositorioCierre } from './cierre/RepositorioCierre.js';
+import { crearRepositorioCierreHttp } from './cierre/repositorioCierreHttp.js';
+import { crearRepositorioCierreLocal } from './cierre/repositorioCierreLocal.js';
 import { crearRepositorioConfiguracionHttp } from './configuracion/repositorioConfiguracionHttp.js';
 import { crearRepositorioConfiguracionLocal } from './configuracion/repositorioConfiguracionLocal.js';
 import type { RepositorioConfiguracion } from './configuracion/RepositorioConfiguracion.js';
@@ -42,6 +45,7 @@ export interface Repositorios {
   readonly sesion: RepositorioSesion;
   readonly fichadas: RepositorioFichadas;
   readonly ausencias: RepositorioAusencias;
+  readonly cierre: RepositorioCierre;
   readonly configuracion: RepositorioConfiguracion;
   readonly adjuntos: RepositorioAdjuntos;
   readonly notificaciones: RepositorioNotificaciones;
@@ -62,6 +66,7 @@ export function crearRepositorios(): Repositorios {
       sesion: crearRepositorioSesionHttp(servidor.base),
       fichadas: crearRepositorioHttp(servidor.base),
       ausencias: crearRepositorioAusenciasHttp(servidor.base),
+      cierre: crearRepositorioCierreHttp(servidor.base),
       configuracion: crearRepositorioConfiguracionHttp(servidor.base),
       adjuntos: crearRepositorioAdjuntosHttp(servidor.base),
       notificaciones: crearRepositorioNotificacionesHttp(servidor.base),
@@ -74,13 +79,22 @@ export function crearRepositorios(): Repositorios {
     '[controlhorario] almacenamiento local de este navegador (sin servidor). Los datos no se ' +
       'comparten con nadie y se pierden si se borran los datos del sitio.',
   );
-  const fichadas = crearRepositorioLocal();
+  const cierre = crearRepositorioCierreLocal();
+  const historialLocal = crearRepositorioLocal();
+  const fichadas: RepositorioFichadas = {
+    ...historialLocal,
+    async vaciar() {
+      await historialLocal.vaciar();
+      cierre.vaciarRevisiones();
+    },
+  };
   const notificacionesLocales = crearRepositoriosEnviosLocal();
   const configuracion = crearRepositorioConfiguracionLocal();
   return {
     conServidor: false,
     sesion: crearRepositorioSesionLocal(),
     fichadas,
+    cierre,
     // The offline registry is derived from the historial on every read, so it needs the
     // historial adapter rather than a store of its own. See its header. It also needs the
     // active motivos, whose labels the QUICKPASS note is matched against, exactly as the

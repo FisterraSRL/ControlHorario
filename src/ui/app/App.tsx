@@ -37,6 +37,7 @@ import { ConfiguracionProvider } from '../configuracion/ConfiguracionProvider.js
 import { AccesoContainer } from '../features/acceso/AccesoContainer.js';
 import { AusenciasContainer } from '../features/ausencias/AusenciasContainer.js';
 import { CargaContainer } from '../features/carga/CargaContainer.js';
+import { CierreContainer } from '../features/cierre/CierreContainer.js';
 import { ConfiguracionContainer } from '../features/configuracion/ConfiguracionContainer.js';
 import { HorasContainer } from '../features/horas/HorasContainer.js';
 import { IndicadorContainer } from '../features/indicador/IndicadorContainer.js';
@@ -57,6 +58,7 @@ const PANTALLAS: Readonly<Record<IdSeccion, ReactElement>> = {
   envios: <EnviosContainer />,
   historialNotificaciones: <EnviosContainer historial />,
   ausencias: <AusenciasContainer />,
+  cierre: <CierreContainer />,
   indicador: <IndicadorContainer />,
   horas: <HorasContainer />,
   configuracion: <ConfiguracionContainer />,

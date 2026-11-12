@@ -52,6 +52,7 @@ export type AccionAuditada =
   | 'exclusion_quitada'
   | 'exclusiones_sembradas'
   | 'faltas_notificadas'
+  | 'irregularidad_revisada'
   | 'documento_preparado'
   | 'documento_descartado'
   | 'documentos_emitidos'

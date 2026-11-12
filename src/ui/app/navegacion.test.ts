@@ -22,8 +22,8 @@ describe('secciones por rol', () => {
       expect(SECCIONES.find(s => s.id === id)?.muestraPeriodo).toBe(false);
     }
   });
-  it('el encargado ve solamente Ausencias y Mi cuenta', () => {
-    expect(ids('encargado')).toEqual(['ausencias', 'cuenta']);
+  it('el encargado ve Ausencias, Cierre de novedades y Mi cuenta', () => {
+    expect(ids('encargado')).toEqual(['ausencias', 'cierre', 'cuenta']);
   });
 
   it('el administrador ve todas las secciones', () => {

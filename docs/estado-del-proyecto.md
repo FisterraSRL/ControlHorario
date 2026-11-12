@@ -5,6 +5,31 @@ Actualizado: 12 de noviembre de 2026.
 Este documento permite continuar el trabajo sin depender del historial de una conversación.
 Antes de actuar, comprobar siempre `git status`, `git log -5` y el estado real de producción.
 
+## Cierre de novedades
+
+`/cierre` reúne las ausencias y las irregularidades en una misma vista con filtros de
+sector, persona y pendientes. El corte mensual por instalación es el 25 por defecto.
+Cada liquidación abarca desde el día posterior al corte anterior hasta el corte actual,
+ambos inclusive. Si el mes es más corto que el día configurado, el corte cae en su último
+día. Los administradores pueden guardar un día del 1 al 31. Todos los roles pueden elegir
+un rango libre con el calendario. El indicador de carga muestra la última fecha disponible
+dentro del período.
+
+Las ausencias conservan el flujo de motivos, clasificación por lote y adjuntos. Cada
+irregularidad detectada se revisa por persona, fecha y tipo. Se puede justificar con un
+motivo, revisar sin justificación o volver a dejarla pendiente. Estas decisiones quedan en
+el cierre. Las fichadas originales, el cálculo de horas y las notificaciones conservan
+su comportamiento. Los encargados operan únicamente dentro de los sectores de su sesión.
+Las escrituras y la auditoría se confirman en la misma transacción. El texto libre de la
+justificación se guarda sólo en la revisión.
+
+La migración 007 crea `[controlhorario].[irregularidades_revisadas]` y debe preceder
+al despliegue de la API. Luego se publica el frontend. La API incorpora
+`GET/PUT /api/cierre/corte` y `GET/PUT /api/cierre/irregularidades`, ambos privados.
+La verificación local en Chromium con API autenticada simulada cubrió el rango
+26/10–25/11, la carga de un certificado ficticio, las decisiones de irregularidades,
+su reapertura, el cambio persistente de corte, el rango libre y los permisos del encargado.
+
 ## Ausencias: conservar la fila para adjuntar el certificado (entrega del 2026-11-12)
 
 Al clasificar una ausencia con «Mostrar solo las sin clasificar» activo, la fila conserva
@@ -1260,8 +1285,9 @@ Aplicadas en producción (las seis; el ledger de `fstrack` cuenta 6 desde el 202
 6. `006_panel_envios.sql` — notification queue, durable document/emission history and mark
    ownership/version. Applied on 2026-10-06 after a successful rollback verification.
 
-`db:inspect` expects six migrations and 19 tables; the current compiled inspection passed
-against production after migration 006, including schema isolation and runtime role checks.
+La inspección de producción posterior a la migración 006 verificó seis migraciones y 19
+tablas, el aislamiento del esquema y los permisos del rol de ejecución. La versión actual
+de `db:inspect` espera siete migraciones y 20 tablas, incluida la migración 007.
 
 **Cómo se aplicó la 005**, para la próxima: con `.azure/migrar-entra.mjs` (modos `probe`,
 `verify`, `migrate`) sobre `dist-api` recompilado, y un token de Entra en `CH_AZ_SQL_TOKEN`

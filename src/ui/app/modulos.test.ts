@@ -2,10 +2,10 @@ import * as navigation from './navegacion.js';
 import { describe, expect, it } from 'vitest';
 
 describe('grouped navigation without changing route permissions', () => {
-  it('shows exactly five ordered modules for administration and RRHH', () => {
+  it('shows the ordered modules for administration and RRHH', () => {
     for (const role of ['admin', 'operador'] as const) {
       expect(navigation.modulosDeRol(role).map(m => m.label)).toEqual([
-        'Cargar datos', 'Ausencias', 'Notificaciones', 'Horas trabajadas', 'Administración',
+        'Cargar datos', 'Ausencias', 'Cierre de novedades', 'Notificaciones', 'Horas trabajadas', 'Administración',
       ]);
     }
   });
@@ -24,9 +24,9 @@ describe('grouped navigation without changing route permissions', () => {
     expect(navigation.moduloDeRuta('/configuracion', 'operador')?.vistas.map(v => v.path)).toEqual(['/configuracion']);
     expect(navigation.moduloDeRuta('/usuarios', 'operador')).toBeUndefined();
   });
-  it('only offers absences to supervisors while preserving their profile route', () => {
-    expect(navigation.modulosDeRol('encargado').map(m => m.path)).toEqual(['/ausencias']);
-    expect(navigation.seccionesDeRol('encargado').map(s => s.path)).toEqual(['/ausencias', '/mi-cuenta']);
+  it('offers absence and closing review to supervisors alongside their profile route', () => {
+    expect(navigation.modulosDeRol('encargado').map(m => m.path)).toEqual(['/ausencias', '/cierre']);
+    expect(navigation.seccionesDeRol('encargado').map(s => s.path)).toEqual(['/ausencias', '/cierre', '/mi-cuenta']);
     for (const role of ['admin', 'operador', 'encargado'] as const) {
       expect(navigation.moduloDeRuta('/mi-cuenta', role)).toBeUndefined();
       expect(navigation.seccionesDeRol(role).some(s => s.path === '/mi-cuenta')).toBe(true);
@@ -39,7 +39,7 @@ describe('grouped navigation without changing route permissions', () => {
   });
   it('preserves every old URL, guard, initial route and actual period consumer', () => {
     expect(navigation.SECCIONES.map(s => s.path)).toEqual([
-      '/carga', '/notificaciones', '/envios', '/historial-notificaciones', '/ausencias', '/indicador',
+      '/carga', '/notificaciones', '/envios', '/historial-notificaciones', '/ausencias', '/cierre', '/indicador',
       '/horas', '/configuracion', '/usuarios', '/mi-cuenta',
     ]);
     expect(navigation.SECCIONES.filter(s => s.muestraPeriodo).map(s => s.path)).toEqual([
